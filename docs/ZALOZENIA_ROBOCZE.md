@@ -75,6 +75,35 @@
 5. **Zapobiega to powtórzeniu błędu legacy.** Tak jak wcześniej logika sterowania została zbyt mocno związana z GUI, tak samo nie chcemy teraz związać logiki produktu z aktualnym środowiskiem Linux/Raspberry Pi.
 6. **Koszt tej separacji jest najmniejszy na początku projektu.** Wprowadzenie abstrakcji platformowej przed powstaniem dużej ilości kodu jest znacznie prostsze niż późniejsze wydzielanie zależności systemowych z działającego produktu.
 
+### 3.2. Ochrona produktu, integralność i licencjonowanie
+
+- **[USTALONE]** Ochrona ECU Platform V2 przed nieautoryzowanym kopiowaniem, modyfikacją i uruchamianiem na nieautoryzowanym sprzęcie jest wymaganiem architektonicznym produktu komercyjnego, a nie funkcją dodawaną po zakończeniu developmentu.
+- **[USTALONE]** Architektura musi umożliwiać powiązanie instalacji/licencji z kryptograficzną tożsamością konkretnego urządzenia (`hardware-bound device identity`).
+- **[USTALONE]** Docelowy hardware powinien zapewniać sprzętowy Root of Trust lub równoważny mechanizm bezpiecznego przechowywania i używania kluczy urządzenia. Prywatny klucz tożsamości urządzenia nie powinien być możliwy do zwykłego skopiowania razem z filesystemem/nośnikiem danych.
+- **[USTALONE]** System musi umożliwiać kryptograficzne podpisywanie i weryfikację software, modułów oraz aktualizacji producenta.
+- **[USTALONE]** Projekt powinien umożliwiać zapewnienie integralności łańcucha uruchamiania (`boot chain`), tak aby nieautoryzowana modyfikacja systemu lub Core nie była traktowana jak prawidłowy software producenta.
+- **[USTALONE]** Egzekwowanie licencji, uprawnień i dostępności funkcji należy do Core / warstwy bezpieczeństwa, nigdy do lokalnego GUI ani WebGUI. Klient może jedynie prezentować wynik decyzji podjętej przez Core.
+- **[USTALONE]** Skopiowanie kompletnego nośnika danych z jednego urządzenia do drugiego nie powinno wystarczać do uzyskania działającej, licencjonowanej kopii produktu.
+- **[USTALONE]** Architektura ma umożliwiać podpisane licencje/capabilities przypisane do konkretnego urządzenia oraz — w przyszłości — niezależne licencjonowanie pakietów funkcjonalnych, np. rodzin ECU, sterowania aktuatorami, zaawansowanych narzędzi CAN lub innych rozszerzeń.
+- **[USTALONE]** Podstawowa praca urządzenia nie powinna wymagać stałego połączenia z Internetem. Mechanizm licencyjny musi umożliwiać lokalną kryptograficzną weryfikację uprawnień. Internet może być wykorzystywany pomocniczo do aktywacji, aktualizacji, zarządzania licencjami lub dystrybucji nowych funkcji.
+- **[USTALONE]** Klucze producenta służące do podpisywania wydań, aktualizacji i licencji są zasobem krytycznym i nie mogą być przechowywane w kodzie źródłowym, repozytorium ani zwykłym pliku dołączonym do procesu build/release.
+- **[USTALONE]** Mechanizmy bezpieczeństwa muszą być niezależne od konkretnego GUI oraz — na poziomie kontraktów Core — od konkretnego systemu operacyjnego. Dostęp do Root of Trust, tożsamości urządzenia i bezpiecznych kluczy ma być realizowany przez abstrakcję platformową.
+- **[USTALONE]** Wybierając w przyszłości hardware produkcyjny, oceniamy nie tylko CPU/RAM/CAN/I/O i koszty, ale także dostępność mechanizmów Secure Boot, sprzętowej tożsamości, bezpiecznego przechowywania kluczy i możliwości budowy zaufanego łańcucha uruchamiania.
+- **[DO USTALENIA]** Konkretny mechanizm Root of Trust: TPM 2.0, Secure Element, DICE/eFuse/TEE lub inne rozwiązanie zależne od docelowego hardware.
+- **[DO USTALENIA]** Szczegółowy model licencjonowania: licencja urządzenia, edycje produktu, pakiety funkcjonalne, licencje czasowe/bezterminowe i sposób aktywacji offline/online.
+- **[DO USTALENIA]** Szczegółowy model Secure/Verified Boot oraz ochrony systemu plików dla pierwszej implementacji Linux.
+- **[DO USTALENIA]** Docelowa infrastruktura przechowywania kluczy producenta i podpisywania wydań, np. HSM/KMS lub inne rozwiązanie sprzętowo chronione.
+- **[DO USTALENIA]** Polityka reakcji na naruszenie integralności, nieprawidłową licencję, utratę lub wymianę hardware oraz procedury serwisowe/recovery.
+
+**Dlaczego przyjmujemy to założenie:**
+
+1. **V2 ma być produktem komercyjnym.** Ochrona własności intelektualnej, know-how komunikacyjnego i płatnych funkcji jest częścią wartości produktu.
+2. **Sama licencja programowa nie wystarcza.** Jeżeli cały system można skopiować lub dowolnie zmodyfikować, możliwe byłoby również usunięcie kontroli licencji. Dlatego licencjonowanie musi współpracować z tożsamością hardware i mechanizmami integralności software.
+3. **Zabezpieczenia najłatwiej zaprojektować na początku.** Hardware identity, boot chain, podpisywanie wydań i abstrakcje bezpieczeństwa wpływają na podział odpowiedzialności Core i wybór docelowego hardware; późniejsze dokładanie tych mechanizmów mogłoby wymagać głębokiej przebudowy produktu.
+4. **Nie znamy jeszcze docelowej platformy sprzętowej.** Definiujemy więc wymagany kontrakt bezpieczeństwa, ale nie przywiązujemy architektury do TPM, Secure Element czy innego konkretnego rozwiązania, dopóki nie zostanie wybrany hardware produkcyjny.
+5. **Egzekwowanie licencji w GUI byłoby błędem architektonicznym.** GUI jest klientem i może zostać zamknięte, wymienione lub zastąpione WebGUI. Autoryzacja funkcji musi należeć do Core, podobnie jak pozostała logika krytyczna produktu.
+6. **Celem nie jest obietnica niemożliwej do złamania ochrony.** Przy fizycznym dostępie i odpowiednio dużych zasobach każde urządzenie może być przedmiotem analizy. Celem jest wielowarstwowa ochrona, która znacząco podnosi koszt, trudność i nieopłacalność klonowania lub modyfikacji produktu.
+
 ## 4. Podejście do starego ECU Platform
 
 - **[USTALONE]** Nie przenosimy całych katalogów ani starej architektury aplikacji w ciemno.
@@ -119,7 +148,6 @@ Poniższa lista jest roboczym indeksem pierwszej fazy projektowania. Nie oznacza
 - **[DO USTALENIA]** Lifecycle aplikacji i usług.
 - **[DO USTALENIA]** CAN ownership i arbitraż zasobów.
 - **[DO USTALENIA]** Abstrakcja transportów.
-- **[DO USTALENIA]** Warstwa abstrakcji platformowej i jej formalne kontrakty.
 - **[DO USTALENIA]** ISO-TP / UDS / J1939 i inne protokoły.
 - **[DO USTALENIA]** Model ECU i modułów diagnostycznych.
 - **[DO USTALENIA]** Model aktuatorów i sterowania czasowo-krytycznego.
@@ -132,6 +160,7 @@ Poniższa lista jest roboczym indeksem pierwszej fazy projektowania. Nie oznacza
 - **[DO USTALENIA]** Raporty i eksport danych.
 - **[DO USTALENIA]** Logging, telemetry i audit trail.
 - **[DO USTALENIA]** Bezpieczeństwo funkcjonalne i fail-safe.
+- **[DO USTALENIA]** Ochrona produktu przed kopiowaniem i modyfikacją: Root of Trust, integralność boot chain, podpisywanie wydań i aktualizacji oraz licencjonowanie funkcji.
 - **[DO USTALENIA]** Uprawnienia użytkowników i bezpieczeństwo sieciowe.
 - **[DO USTALENIA]** Symulator i replay CAN.
 - **[DO USTALENIA]** Strategia testów.
