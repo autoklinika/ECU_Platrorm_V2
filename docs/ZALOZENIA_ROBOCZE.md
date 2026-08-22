@@ -15,6 +15,13 @@
 ## 1. Charakter projektu
 
 - **[USTALONE]** ECU Platform V2 powstaje jako nowy projekt w nowym repozytorium.
+- **[USTALONE]** ECU Platform V2 ma być ogólną, rozwijalną platformą inżyniersko-diagnostyczną, a nie aplikacją zbudowaną pod jeden konkretny ECU, pojazd lub aktuator.
+- **[USTALONE]** Platforma ma obsługiwać pracę zarówno ze sterownikami/modułami na stole, jak i — tam gdzie jest to technicznie i bezpiecznie uzasadnione — w pojeździe.
+- **[USTALONE]** Zakładany zakres platformy obejmuje co najmniej: komunikację z ECU/modułami, identyfikację sterowników, diagnostykę, odczyt i kasowanie DTC, dane live/runtime, sterowanie aktuatorami, automatyczne procedury i testy, skanowanie i analizę CAN, rejestrację komunikacji oraz generowanie raportów.
+- **[USTALONE]** Platforma ma posiadać lokalny interfejs użytkownika oraz WebGUI.
+- **[USTALONE]** Rozwijalność jest wymaganiem fundamentalnym: dodanie w przyszłości nowego ECU, modułu, urządzenia wykonawczego, protokołu, transportu, klienta lub innej klasy obsługiwanych elementów nie może wymagać przebudowy całej platformy.
+- **[USTALONE]** Architektura ma zapewniać stabilne granice odpowiedzialności i kontrakty między Core a modułami funkcjonalnymi, tak aby rozszerzenia można było dodawać lokalnie zamiast zmieniać wiele niezwiązanych części systemu.
+- **[USTALONE]** Nie zakładamy z góry zamkniętej listy obsługiwanych ECU, protokołów ani urządzeń. V2 ma być bazą do dalszego wieloletniego rozwoju.
 - **[USTALONE]** Nie wykonujemy mechanicznej migracji starego repozytorium `ecu_platform`.
 - **[USTALONE]** Stare repozytorium traktujemy jako źródło wiedzy, zweryfikowanych protokołów, parametrów komunikacji, wyników testów oraz wybranych implementacji referencyjnych.
 - **[USTALONE]** Architektura V2 jest projektowana od podstaw, bez obowiązku zachowania historycznej struktury starego projektu.
@@ -40,8 +47,10 @@
 - **[USTALONE]** Klient wysyła polecenia wysokiego poziomu; sposób bezpiecznego wykonania polecenia należy do Core.
 - **[USTALONE]** Fizyczny interfejs CAN / hardware musi mieć jednoznacznego właściciela i kontrolowany mechanizm arbitrażu dostępu.
 - **[USTALONE]** Awaria lub restart GUI nie może powodować destabilizacji warstwy komunikacji i sterowania.
+- **[USTALONE]** Funkcje specyficzne dla konkretnego ECU, aktuatora lub protokołu nie mogą wymuszać zmian w niezwiązanych modułach systemu.
 - **[DO USTALENIA]** Dokładny podział procesów: osobny `ecu-platform-core.service` i oddzielne klienty vs inny model wdrożeniowy.
 - **[DO USTALENIA]** Czy lokalne Qt GUI korzysta z dokładnie tego samego zdalnego API co WebGUI, czy z lokalnego adaptera do tej samej warstwy application.
+- **[DO USTALENIA]** Dokładny mechanizm rozszerzeń: statyczne moduły kompilowane z Core, rejestrowane moduły runtime, pluginy lub model hybrydowy.
 
 ## 4. Podejście do starego ECU Platform
 
@@ -78,7 +87,8 @@
 
 Poniższa lista jest roboczym indeksem pierwszej fazy projektowania. Nie oznacza kolejności prac.
 
-- **[DO USTALENIA]** Cel produktu i docelowy sposób użycia ECU Platform V2.
+- **[USTALONE]** Ogólny cel produktu i jego rola jako rozwijalnej platformy inżyniersko-diagnostycznej.
+- **[DO USTALENIA]** Docelowe tryby pracy i granice odpowiedzialności platformy.
 - **[DO USTALENIA]** Docelowy hardware platformy.
 - **[DO USTALENIA]** System operacyjny i środowisko uruchomieniowe.
 - **[DO USTALENIA]** Architektura Core.
@@ -88,6 +98,7 @@ Poniższa lista jest roboczym indeksem pierwszej fazy projektowania. Nie oznacza
 - **[DO USTALENIA]** ISO-TP / UDS / J1939 i inne protokoły.
 - **[DO USTALENIA]** Model ECU i modułów diagnostycznych.
 - **[DO USTALENIA]** Model aktuatorów i sterowania czasowo-krytycznego.
+- **[DO USTALENIA]** Model rozszerzania platformy o nowe klasy urządzeń i funkcji.
 - **[DO USTALENIA]** Scanner CAN.
 - **[DO USTALENIA]** Model Command / State / Event.
 - **[DO USTALENIA]** API Core.
