@@ -22,6 +22,7 @@
 - **[USTALONE]** Rozwijalność jest wymaganiem fundamentalnym: dodanie w przyszłości nowego ECU, modułu, urządzenia wykonawczego, protokołu, transportu, klienta lub innej klasy obsługiwanych elementów nie może wymagać przebudowy całej platformy.
 - **[USTALONE]** Architektura ma zapewniać stabilne granice odpowiedzialności i kontrakty między Core a modułami funkcjonalnymi, tak aby rozszerzenia można było dodawać lokalnie zamiast zmieniać wiele niezwiązanych części systemu.
 - **[USTALONE]** Nie zakładamy z góry zamkniętej listy obsługiwanych ECU, protokołów ani urządzeń. V2 ma być bazą do dalszego wieloletniego rozwoju.
+- **[USTALONE]** Docelowo ECU Platform V2 ma być urządzeniem komercyjnym. Docelowa platforma sprzętowa i system operacyjny nie są jeszcze wybrane.
 - **[USTALONE]** Nie wykonujemy mechanicznej migracji starego repozytorium `ecu_platform`.
 - **[USTALONE]** Stare repozytorium traktujemy jako źródło wiedzy, zweryfikowanych protokołów, parametrów komunikacji, wyników testów oraz wybranych implementacji referencyjnych.
 - **[USTALONE]** Architektura V2 jest projektowana od podstaw, bez obowiązku zachowania historycznej struktury starego projektu.
@@ -51,6 +52,28 @@
 - **[DO USTALENIA]** Dokładny podział procesów: osobny `ecu-platform-core.service` i oddzielne klienty vs inny model wdrożeniowy.
 - **[DO USTALENIA]** Czy lokalne Qt GUI korzysta z dokładnie tego samego zdalnego API co WebGUI, czy z lokalnego adaptera do tej samej warstwy application.
 - **[DO USTALENIA]** Dokładny mechanizm rozszerzeń: statyczne moduły kompilowane z Core, rejestrowane moduły runtime, pluginy lub model hybrydowy.
+
+### 3.1. Niezależność od docelowej platformy sprzętowej i systemu operacyjnego
+
+- **[USTALONE]** ECU Platform V2 będzie obecnie rozwijana i uruchamiana na Linuxie, ponieważ jest to dostępne, dobrze znane i praktyczne środowisko rozwojowe dla aktualnego sprzętu testowego.
+- **[USTALONE]** Linux jest pierwszą wspieraną implementacją platformy uruchomieniowej, ale nie może stać się częścią logiki domenowej ECU Platform V2.
+- **[USTALONE]** Core ma być projektowany jako `platform-agnostic`: logika diagnostyczna, protokoły, modele ECU, sterowanie aktuatorami, state machine, safety, model Command/State/Event oraz pozostała logika domenowa nie mogą zależeć bezpośrednio od Linuxa ani od konkretnej płyty sprzętowej.
+- **[USTALONE]** Zależności specyficzne dla systemu operacyjnego i hardware — m.in. SocketCAN, sockety systemowe, GPIO, zegary/timery systemowe, filesystem, procesy/usługi systemowe, konfiguracja interfejsów i inne I/O — muszą być odseparowane za stabilnymi interfejsami/adapterami platformowymi.
+- **[USTALONE]** Kod domenowy nie może bezpośrednio używać nagłówków/API specyficznych dla Linuxa, takich jak `linux/can.h`, systemowych socketów CAN ani poleceń typu `ip link`; takie zależności należą wyłącznie do implementacji platformowej dla Linuxa.
+- **[USTALONE]** Qt/QML nie jest częścią Core i nie może być wymaganiem dla działania logiki domenowej. Qt może być technologią klienta lokalnego, ale jego ewentualna wymiana nie może wymagać przebudowy Core.
+- **[USTALONE]** Docelowy produkt komercyjny może w przyszłości używać innej platformy sprzętowej lub systemu operacyjnego. Zmiana platformy powinna wymagać przede wszystkim dostarczenia nowych adapterów warstwy platformowej, a nie przepisywania logiki ECU Platform.
+- **[USTALONE]** Nie zakładamy pełnej przenośności na dowolny typ urządzenia. Celem jest niezależność w rozsądnym zakresie dla klasy urządzeń zdolnych uruchomić Core; przejście na bardzo ograniczony mikrokontroler bez systemu operacyjnego może wymagać osobnej adaptacji architektury.
+- **[DO USTALENIA]** Minimalny formalny kontrakt warstwy platformowej: CAN, clock/scheduler, storage, networking, system lifecycle, hardware I/O oraz pozostałe zależności od OS.
+- **[DO USTALENIA]** Czy CI będzie od początku kompilować i testować Core w więcej niż jednym środowisku/adapterze (np. Linux + platforma symulowana), aby wykrywać przypadkowe zależności od Linuxa.
+
+**Dlaczego przyjmujemy to założenie:**
+
+1. **Nie znamy jeszcze docelowego hardware produktu komercyjnego.** Związanie logiki z Raspberry Pi, SocketCAN lub konkretną dystrybucją Linuxa mogłoby wymusić kosztowny rewrite po wyborze platformy produkcyjnej.
+2. **Największa wartość projektu leży w logice domenowej i zdobytej wiedzy.** Implementacje ISO-TP, UDS/J1939, obsługa ECU, procedury diagnostyczne, sterowanie aktuatorami, safety i testy powinny pozostać użyteczne niezależnie od późniejszego wyboru komputera przemysłowego czy systemu operacyjnego.
+3. **Produkt komercyjny musi mieć możliwość ewolucji sprzętowej.** Dostępność podzespołów, koszty BOM, wymagania EMC, temperatura pracy, certyfikacja, wymagania klienta lub cykl życia komponentów mogą w przyszłości wymusić zmianę platformy sprzętowej.
+4. **Oddzielenie OS od Core poprawia testowalność.** Te same interfejsy, które pozwolą później zmienić Linux na inną platformę, umożliwią teraz uruchamianie symulatorów, mocków i testów bez fizycznego CAN/ECU.
+5. **Zapobiega to powtórzeniu błędu legacy.** Tak jak wcześniej logika sterowania została zbyt mocno związana z GUI, tak samo nie chcemy teraz związać logiki produktu z aktualnym środowiskiem Linux/Raspberry Pi.
+6. **Koszt tej separacji jest najmniejszy na początku projektu.** Wprowadzenie abstrakcji platformowej przed powstaniem dużej ilości kodu jest znacznie prostsze niż późniejsze wydzielanie zależności systemowych z działającego produktu.
 
 ## 4. Podejście do starego ECU Platform
 
@@ -89,12 +112,14 @@ Poniższa lista jest roboczym indeksem pierwszej fazy projektowania. Nie oznacza
 
 - **[USTALONE]** Ogólny cel produktu i jego rola jako rozwijalnej platformy inżyniersko-diagnostycznej.
 - **[DO USTALENIA]** Docelowe tryby pracy i granice odpowiedzialności platformy.
-- **[DO USTALENIA]** Docelowy hardware platformy.
-- **[DO USTALENIA]** System operacyjny i środowisko uruchomieniowe.
+- **[DO USTALENIA]** Docelowy hardware platformy komercyjnej.
+- **[USTALONE]** Aktualne środowisko rozwojowe: Linux; architektura Core nie może uzależniać produktu od Linuxa ani obecnego hardware.
+- **[DO USTALENIA]** Docelowy system operacyjny / środowisko uruchomieniowe produktu.
 - **[DO USTALENIA]** Architektura Core.
 - **[DO USTALENIA]** Lifecycle aplikacji i usług.
 - **[DO USTALENIA]** CAN ownership i arbitraż zasobów.
 - **[DO USTALENIA]** Abstrakcja transportów.
+- **[DO USTALENIA]** Warstwa abstrakcji platformowej i jej formalne kontrakty.
 - **[DO USTALENIA]** ISO-TP / UDS / J1939 i inne protokoły.
 - **[DO USTALENIA]** Model ECU i modułów diagnostycznych.
 - **[DO USTALENIA]** Model aktuatorów i sterowania czasowo-krytycznego.
