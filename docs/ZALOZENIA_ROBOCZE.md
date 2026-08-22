@@ -18,6 +18,7 @@
 - **[USTALONE]** ECU Platform V2 ma być ogólną, rozwijalną platformą inżyniersko-diagnostyczną, a nie aplikacją zbudowaną pod jeden konkretny ECU, pojazd lub aktuator.
 - **[USTALONE]** Platforma ma obsługiwać pracę zarówno ze sterownikami/modułami na stole, jak i — tam gdzie jest to technicznie i bezpiecznie uzasadnione — w pojeździe.
 - **[USTALONE]** Zakładany zakres platformy obejmuje co najmniej: komunikację z ECU/modułami, identyfikację sterowników, diagnostykę, odczyt i kasowanie DTC, dane live/runtime, sterowanie aktuatorami, automatyczne procedury i testy, skanowanie i analizę CAN, rejestrację komunikacji oraz generowanie raportów.
+- **[USTALONE]** Obsługa nowych ECU nie może ograniczać się do CAN/CAN-FD. ECU Platform V2 musi od początku uwzględniać diagnostykę **DoIP (Diagnostics over Internet Protocol, ISO 13400)** jako równorzędny, pierwszoplanowy transport diagnostyczny.
 - **[USTALONE]** Platforma ma posiadać lokalny interfejs użytkownika oraz WebGUI.
 - **[USTALONE]** Rozwijalność jest wymaganiem fundamentalnym: dodanie w przyszłości nowego ECU, modułu, urządzenia wykonawczego, protokołu, transportu, klienta lub innej klasy obsługiwanych elementów nie może wymagać przebudowy całej platformy.
 - **[USTALONE]** Architektura ma zapewniać stabilne granice odpowiedzialności i kontrakty między Core a modułami funkcjonalnymi, tak aby rozszerzenia można było dodawać lokalnie zamiast zmieniać wiele niezwiązanych części systemu.
@@ -104,6 +105,30 @@
 5. **Egzekwowanie licencji w GUI byłoby błędem architektonicznym.** GUI jest klientem i może zostać zamknięte, wymienione lub zastąpione WebGUI. Autoryzacja funkcji musi należeć do Core, podobnie jak pozostała logika krytyczna produktu.
 6. **Celem nie jest obietnica niemożliwej do złamania ochrony.** Przy fizycznym dostępie i odpowiednio dużych zasobach każde urządzenie może być przedmiotem analizy. Celem jest wielowarstwowa ochrona, która znacząco podnosi koszt, trudność i nieopłacalność klonowania lub modyfikacji produktu.
 
+### 3.3. DoIP i Ethernet diagnostyczny
+
+- **[USTALONE]** ECU Platform V2 musi obsługiwać **DoIP (Diagnostics over Internet Protocol)** zgodnie z rodziną ISO 13400. Jest to wymaganie podstawowe wynikające z kierunku rozwoju nowych ECU i architektur pojazdów.
+- **[USTALONE]** Punktem odniesienia dla nowej implementacji będzie aktualna edycja warstwy transportowej/networkowej **ISO 13400-2:2025**; implementacja musi jednak uwzględniać interoperacyjność z ECU zgodnymi ze starszymi wersjami standardu, jeśli będzie to wymagane w praktyce.
+- **[USTALONE]** DoIP traktujemy jako transport diagnostyczny oparty na IP, TCP i UDP, a nie jako odmianę CAN. Architektura diagnostyczna nie może zakładać, że UDS zawsze działa przez ISO-TP/CAN.
+- **[USTALONE]** Warstwa UDS ma być niezależna od transportu tak, aby ta sama logika diagnostyczna mogła działać m.in. przez DoCAN/ISO-TP oraz DoIP bez duplikowania modułów ECU.
+- **[USTALONE]** Hardware produkcyjny/interfejs diagnostyczny musi zapewniać Ethernet odpowiedni do komunikacji DoIP. Kandydat sprzętowy bez realnej możliwości obsługi Ethernetu diagnostycznego nie spełnia pełnych wymagań ECU Platform V2.
+- **[USTALONE]** Dla klasycznego połączenia testera DoIP należy uwzględnić co najmniej standardowy Ethernet 10/100 Mb/s, w szczególności 100BASE-TX zgodny z wymaganiami fizycznej warstwy diagnostycznej ISO 13400-3.
+- **[USTALONE]** Ponieważ platforma ma służyć również do pracy laboratoryjnej bezpośrednio z nowymi ECU, architektura hardware ma przewidywać możliwość obsługi **Automotive Ethernet** (co najmniej 100BASE-T1; możliwość 1000BASE-T1 pozostaje do oceny) poprzez odpowiedni PHY/moduł/rozszerzenie bez przebudowy całego urządzenia.
+- **[USTALONE]** W wariancie produktu `Windows + inteligentny interfejs USB` interfejs sprzętowy nie może być projektowany jako wyłącznie wielokanałowy adapter CAN. Musi również posiadać ścieżkę Ethernet/DoIP do pojazdu lub ECU.
+- **[USTALONE]** Tak jak dla CAN, odbiór, buforowanie i pomiary czasu dla ruchu Ethernet realizowane w interfejsie nie mogą zależeć od chwilowych opóźnień GUI Windows.
+- **[DO USTALENIA]** Dokładne miejsce implementacji stosu DoIP w wariancie Windows + USB: w Core na PC przy interfejsie pełniącym rolę mostu Ethernet, w firmware inteligentnego interfejsu albo model hybrydowy. Decyzję podejmiemy po analizie prostoty sterowników, bezpieczeństwa, testowalności i wymaganej funkcjonalności standalone.
+- **[DO USTALENIA]** Docelowe fizyczne interfejsy Ethernet urządzenia: 100BASE-TX/OBD DoIP, 100BASE-T1, 1000BASE-T1 oraz ewentualne wymienne adaptery kablowe/moduły PHY.
+- **[DO USTALENIA]** Wymagania dotyczące DoIP activation line, sposobu jej sterowania oraz mapowania na docelowe złącza pojazdu.
+- **[DO USTALENIA]** Zakres obsługi zabezpieczonego DoIP/TLS oraz wymagań OEM dotyczących uwierzytelniania i bezpiecznej diagnostyki.
+
+**Dlaczego przyjmujemy to założenie:**
+
+1. **DoIP jest istotnym transportem diagnostycznym nowych generacji ECU.** Projekt, który od początku zakłada wyłącznie CAN/CAN-FD, szybko ograniczyłby możliwość rozwoju Platformy na nowsze pojazdy.
+2. **DoIP zmienia wymagania sprzętowe.** Samo zwiększanie liczby kanałów CAN nie rozwiązuje diagnostyki IP; potrzebne są odpowiednie kontrolery Ethernet, PHY, złącza i warstwa sieciowa.
+3. **UDS i transport muszą być rozdzielone.** Dzięki temu wiedza o ECU, DID-ach, DTC i procedurach diagnostycznych nie będzie kopiowana osobno dla CAN i Ethernetu.
+4. **Praca na stole wymaga większej elastyczności niż typowy tester serwisowy.** ECU Platform ma diagnozować również pojedyncze ECU bez kompletnej infrastruktury pojazdu, dlatego możliwość pracy z Automotive Ethernet jest ważnym elementem przyszłej rozbudowy.
+5. **Uwzględnienie DoIP teraz wpływa na wybór MCU.** Przykładowo i.MX RT1180, wcześniej rozważany dla interfejsu USB, posiada rozbudowany wieloportowy Ethernet/TSN, przez co po dodaniu wymagania DoIP staje się jeszcze bardziej interesującym kandydatem niż MCU pozbawione natywnego Ethernetu.
+
 ## 4. Podejście do starego ECU Platform
 
 - **[USTALONE]** Nie przenosimy całych katalogów ani starej architektury aplikacji w ciemno.
@@ -124,6 +149,7 @@
 - **[USTALONE]** Większość logiki powinna być możliwa do testowania bez fizycznego ECU i Raspberry Pi.
 - **[DO USTALENIA]** Interfejs abstrakcji CAN i sposób implementacji transportu symulowanego.
 - **[DO USTALENIA]** Format zapisu i odtwarzania rzeczywistych sesji CAN do testów regresyjnych/replay.
+- **[DO USTALENIA]** Symulacja/replay ruchu Ethernet i sesji DoIP do testów regresyjnych bez fizycznego ECU.
 - **[USTALONE]** Fizyczny sprzęt ma służyć przede wszystkim do walidacji integracyjnej i końcowej, a nie do wykrywania podstawowych błędów programistycznych.
 
 ## 6. Klienci systemu
@@ -148,11 +174,14 @@ Poniższa lista jest roboczym indeksem pierwszej fazy projektowania. Nie oznacza
 - **[DO USTALENIA]** Lifecycle aplikacji i usług.
 - **[DO USTALENIA]** CAN ownership i arbitraż zasobów.
 - **[DO USTALENIA]** Abstrakcja transportów.
+- **[USTALONE]** DoIP / ISO 13400 musi być pełnoprawnym transportem diagnostycznym V2 obok DoCAN/ISO-TP.
+- **[DO USTALENIA]** Fizyczna obsługa Ethernet/Automotive Ethernet: 100BASE-TX, 100BASE-T1 i ewentualnie 1000BASE-T1.
 - **[DO USTALENIA]** ISO-TP / UDS / J1939 i inne protokoły.
 - **[DO USTALENIA]** Model ECU i modułów diagnostycznych.
 - **[DO USTALENIA]** Model aktuatorów i sterowania czasowo-krytycznego.
 - **[DO USTALENIA]** Model rozszerzania platformy o nowe klasy urządzeń i funkcji.
 - **[DO USTALENIA]** Scanner CAN.
+- **[DO USTALENIA]** Analiza i monitoring Ethernet/DoIP/Automotive Ethernet.
 - **[DO USTALENIA]** Model Command / State / Event.
 - **[DO USTALENIA]** API Core.
 - **[DO USTALENIA]** Lokalny klient GUI.
@@ -162,7 +191,7 @@ Poniższa lista jest roboczym indeksem pierwszej fazy projektowania. Nie oznacza
 - **[DO USTALENIA]** Bezpieczeństwo funkcjonalne i fail-safe.
 - **[DO USTALENIA]** Ochrona produktu przed kopiowaniem i modyfikacją: Root of Trust, integralność boot chain, podpisywanie wydań i aktualizacji oraz licencjonowanie funkcji.
 - **[DO USTALENIA]** Uprawnienia użytkowników i bezpieczeństwo sieciowe.
-- **[DO USTALENIA]** Symulator i replay CAN.
+- **[DO USTALENIA]** Symulator i replay CAN/DoIP.
 - **[DO USTALENIA]** Strategia testów.
 - **[DO USTALENIA]** CI/CD, release i aktualizacje.
 - **[DO USTALENIA]** Instalacja i wdrożenie na urządzeniu docelowym.
