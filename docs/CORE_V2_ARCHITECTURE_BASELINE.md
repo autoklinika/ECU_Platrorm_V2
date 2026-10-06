@@ -1,0 +1,303 @@
+# ECU Platform V2 — Core V2 Architecture Baseline
+
+Date: 2026-10-06
+
+Status: **FOUNDATION / ACTIVE DEVELOPMENT**
+
+Reference baseline preserved at:
+
+- branch: `core-hardening/v1-foundation`
+- commit: `e3a05efdf9cf452ff825e1c4be2c93fb6539eeef`
+
+Core V2 is a clean foundation rebuild. The previous Core remains a verified
+reference source; its contracts are not automatically carried forward.
+
+## 1. Product scope invariant
+
+Core V2 exists only for:
+
+- TRUCK / heavy-duty road vehicles,
+- AGRI / agricultural machinery,
+- OHV / off-highway machinery.
+
+Passenger-car-only concepts are out of scope.
+
+First-class protocol families:
+
+- SAE J1939,
+- ISO 11783 / ISOBUS,
+- ISO-TP / DoCAN where used by target ECUs,
+- UDS where used by target ECUs,
+- DoIP where used by target ECUs,
+- ISO 11992 and WWH-OBD where applicable to heavy-duty trucks.
+
+## 2. Architectural invariants
+
+1. Core is independent of OS, board, driver SDK and GUI.
+2. A physical CAN channel has one authoritative runtime owner.
+3. Protocols never call a physical CAN driver directly.
+4. One central CAN bus runtime receives frames and dispatches them to bounded
+   subscribers.
+5. J1939, ISOBUS, ISO-TP, scanner and future protocol consumers may observe the
+   same bus concurrently without stealing frames from each other.
+6. Runtime registration is configuration-time only. The graph is frozen before
+   RUNNING.
+7. Hot-plug is represented as state on a stable logical slot; it does not imply
+   unsafe removal of registered objects while callbacks can execute.
+8. Critical Core paths use bounded storage and no unbounded heap allocation.
+9. Core creates no worker threads and performs no sleeps. Scheduling belongs to
+   the host/runtime adapter.
+10. All time-dependent Core behavior uses an injected monotonic clock.
+11. Safety deadline expiry is fail-closed. A late kick cannot revive an expired
+    watchdog.
+12. GUI/API clients issue high-level commands only. They never own diagnostic or
+    actuator timing.
+13. Standards conformance is never inferred from ordinary unit-test success.
+14. `main` merge remains a separate user-authorized decision.
+
+## 3. Layer model
+
+### L0 — Core primitives
+
+Responsibilities:
+
+- fixed-width identifiers,
+- bounded views/records,
+- monotonic time,
+- result/status types,
+- product-domain applicability metadata.
+
+Forbidden:
+
+- OS APIs,
+- filesystem,
+- sockets,
+- hardware identifiers,
+- UI concepts.
+
+### L1 — Platform contracts
+
+Examples:
+
+- CAN driver,
+- network stream/datagram driver,
+- persistent storage,
+- secure identity / root-of-trust adapter,
+- monotonic clock,
+- hardware I/O adapters.
+
+These are contracts only. Linux/Windows/MCU implementations live outside Core.
+
+### L2 — Link ownership and routing
+
+The physical link is owned here.
+
+For CAN:
+
+```text
+ICanDriver
+    |
+    v
+CanBusRuntime
+    |
+    +--> bounded frame router --> J1939
+    |                       +--> ISOBUS
+    |                       +--> ISO-TP
+    |                       +--> scanner/trace
+    |
+    +--> centralized TX path
+```
+
+A protocol never invokes `try_receive()` on the driver.
+
+### L3 — Network / transport protocols
+
+Examples:
+
+- ISO-TP / DoCAN,
+- J1939 TP/ETP,
+- J1939 Address Claiming / network management,
+- ISO 11783 transport/network services,
+- DoIP.
+
+These consume link-runtime ports and frame/event streams, not platform drivers.
+
+### L4 — Diagnostic/application protocols
+
+Examples:
+
+- UDS,
+- J1939 diagnostics,
+- ISOBUS diagnostics,
+- WWH-OBD mappings,
+- manufacturer/OEM protocol services.
+
+UDS remains transport-independent.
+
+### L5 — ECU and machine modules
+
+Contains knowledge specific to:
+
+- ECU family,
+- machine/vehicle family,
+- DIDs/PIDs/SPNs/PGNs,
+- diagnostic procedures,
+- actuator procedures,
+- OEM extensions.
+
+Generic Core must not depend on any one module.
+
+### L6 — Runtime semantics
+
+Responsibilities:
+
+- command dispatch,
+- authoritative state,
+- event sequencing,
+- stable module registration,
+- resource ownership,
+- lifecycle,
+- cancellation.
+
+Runtime topology is configured before RUNNING and then frozen.
+
+### L7 — Safety and deterministic actuation
+
+Responsibilities:
+
+- interlocks,
+- deadlines,
+- safe-stop semantics,
+- deterministic scheduling contracts,
+- ownership of actuator execution.
+
+A generic watchdog is only a primitive. Safety claims require domain-specific
+analysis and evidence.
+
+### L8 — API facade
+
+The Core API exposes commands, state and events to adapters.
+
+HTTP/WebSocket/WebGUI are adapters and do not own product logic.
+
+## 4. Concurrency model
+
+Core V2 does not assume one particular OS thread model.
+
+The baseline contract is:
+
+- configuration calls happen before RUNNING,
+- frame dispatch for one bus is serialized by its owning executor,
+- protocol callbacks are non-blocking,
+- callback registration is immutable while RUNNING,
+- registered sinks and the driver MUST outlive the CanBusRuntime object itself,
+  including stopped intervals and restarts; no unregister/hot-removal exists,
+- physical-driver lease ownership is distinct from physical open state; a
+  faulted runtime retains its exclusive lease until explicit recover or terminal
+  destruction, so another runtime cannot acquire a channel merely because the
+  adapter has transitioned itself to closed,
+- RX callback frames are borrowed only until the callback returns; consumers
+  copy any deferred data into their own bounded storage,
+- TX frames are borrowed only during `try_send()`; the adapter consumes or copies
+  required data before returning. `ok` means acceptance into its bounded TX path,
+  without guaranteeing physical transmission,
+- cross-thread submission must be serialized by a platform/runtime adapter
+  before entering the single-owner Core path.
+
+This deliberately removes ambiguous lock/lifetime combinations from the
+portable foundation.
+
+## 5. Memory model
+
+For foundational and time-critical paths:
+
+- fixed-capacity arrays,
+- bounded payloads,
+- explicit capacity-exhausted status,
+- no hidden dynamic growth,
+- no exceptions as normal control flow.
+
+Dynamic allocation may exist in non-time-critical adapters/services later, but
+it must not leak into deterministic Core contracts.
+
+## 6. Lifecycle model
+
+Minimum phases:
+
+```text
+configuring -> ready -> running -> stopped
+stopped -> running (validated restart)
+ready/stopped/running -> faulted (fatal driver status)
+faulted -> stopped (explicit recover)
+```
+
+Rules:
+
+- subscriptions/registrations are accepted only in `configuring`,
+- `freeze()` moves configuration to `ready`,
+- runtime ownership starts from `ready` or `stopped` after successful open,
+- a fault cannot silently return to `running`,
+- `CanBusRuntime` cannot be copied or moved,
+- successful start retains validated channel configuration and capabilities;
+  Core validates TX/RX frames, rejects FD on classic channels and TX in listen-only,
+- bus_off, io_error and not_open from open/TX/RX latch `faulted`; send/poll/start
+  and stop perform no driver operations in that state,
+- a successfully opened runtime retains the exclusive driver lease across
+  faulted state even if the physical adapter is already closed; failed open
+  releases the provisional lease immediately,
+- destruction is a terminal cleanup exception: it invokes idempotent
+  driver `close()` only when this runtime successfully opened/acquired it,
+  including while faulted; failed open never transfers ownership,
+- explicit `recover()` idempotently closes the driver, releases its exclusive
+  lease and moves faulted to stopped; a separate validated start is required to
+  run again. Ordinary stop cannot clear a fault or release a faulted lease,
+- serialized callbacks reject nested send/poll/start/recover with busy;
+  stop is deferred until the current frame reaches all matching subscribers,
+  then closes the driver before any further receive. Callbacks cannot destroy
+  the runtime or registered objects,
+- invalid RX is consumed but never delivered and returns invalid_frame (or
+  unsupported for channel/capability mismatch); it does not imply a driver fault,
+- valid watchdog arm explicitly rearms from disarmed, armed or expired state;
+  zero/negative or overflowing arm changes neither state nor deadline,
+- watchdog arm rejects an unrepresentable deadline without changing state;
+  kick with an unrepresentable deadline expires fail-closed.
+
+## 7. Heavy-duty protocol priority
+
+Implementation priority after foundation:
+
+1. CAN/CAN-FD shared-bus runtime,
+2. J1939 identifier + address/PGN model revalidation,
+3. J1939 Address Claiming,
+4. J1939 TP/ETP,
+5. ISO 11783 / ISOBUS network/application foundations,
+6. J1939 diagnostics,
+7. ISO-TP revalidation on shared-bus ports,
+8. UDS revalidation over transport-neutral interface,
+9. DoIP,
+10. ISO 11992 / WWH-OBD profiles where applicable.
+
+This order reflects the actual TRUCK/AGRI/OHV product scope.
+
+## 8. Core V2 acceptance policy
+
+A Core V2 foundation gate requires at minimum:
+
+- strict warning-as-error build,
+- Debug and Release,
+- independent GCC and Clang Linux validation (multi-compiler evidence),
+- ASAN/UBSAN where supported,
+- core-only build graph,
+- portability gate,
+- no forbidden dynamic/thread/platform APIs in deterministic foundation,
+- negative/boundary tests,
+- independent review,
+- standards traceability status recorded honestly.
+
+No protocol receives a standards PASS until its declared normative scope has
+requirement-to-code and requirement-to-test evidence.
+
+Driver `open()` is transactional: every non-ok return leaves the driver closed
+and releases partial resources within the adapter. There is no externally visible
+`stopping` state. A stop requested during dispatch is deferred until all matching
+sinks receive the current frame; restart from `stopped` is supported.

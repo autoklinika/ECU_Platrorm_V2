@@ -7,6 +7,8 @@ project(
 )
 
 option(ECU_BUILD_TESTS "Build ECU Platform V2 tests" ON)
+option(ECU_BUILD_LEGACY_CORE "Build legacy Core" ON)
+option(ECU_BUILD_CORE_V2 "Build rebuilt TRUCK/AGRI/OHV Core V2" ON)
 option(ECU_BUILD_SAC_MODULE "Build SAC ECU module" ON)
 option(
   ECU_BUILD_LINUX_SOCKETCAN
@@ -14,7 +16,27 @@ option(
   ON
 )
 
-add_subdirectory(src/core)
+if(ECU_BUILD_LEGACY_CORE)
+  add_subdirectory(src/core)
+endif()
+
+if(
+  (
+    ECU_BUILD_SAC_MODULE
+    OR (
+      ECU_BUILD_LINUX_SOCKETCAN
+      AND CMAKE_SYSTEM_NAME STREQUAL "Linux"
+    )
+  )
+  AND NOT TARGET ECU::core
+)
+  message(FATAL_ERROR
+    "Enabled legacy-dependent adapters require ECU::core; enable ECU_BUILD_LEGACY_CORE or disable the applicable adapters")
+endif()
+
+if(ECU_BUILD_CORE_V2)
+  add_subdirectory(src/core_v2)
+endif()
 
 if(ECU_BUILD_SAC_MODULE)
   add_subdirectory(src/ecu/sac)
