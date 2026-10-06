@@ -453,6 +453,140 @@ int main() {
         "sequence mismatch rejected");
   }
 
+
+  {
+    FakeClock clock;
+    FakeCan can_a{clock};
+    FakeCan can_b{clock};
+    can_a.connect(can_b);
+    can_b.connect(can_a);
+
+    auto config = classic_config();
+    const IsoTpAddress ext_a{
+        0x18DAF110U,
+        0x18DA10F1U,
+        CanIdentifierFormat::extended_29_bit};
+    const IsoTpAddress ext_b{
+        0x18DA10F1U,
+        0x18DAF110U,
+        CanIdentifierFormat::extended_29_bit};
+
+    IsoTpEndpoint a{can_a, clock, ext_a, config};
+    IsoTpEndpoint b{can_b, clock, ext_b, config};
+
+    const std::vector<std::byte> payload{
+        std::byte{0x10}, std::byte{0x03}};
+
+    failures += require(
+        a.start_send(payload.data(), payload.size()) ==
+            IsoTpStatus::in_progress,
+        "29-bit SF start");
+    failures += require(
+        pump(a, b, clock, 20U),
+        "29-bit SF end-to-end");
+    failures += require(
+        payload_equals(b.take_received(), payload),
+        "29-bit ISO-TP addressing preserved");
+  }
+
+  {
+    FakeClock clock;
+    FakeCan can_a{clock};
+    auto config = classic_config();
+    IsoTpEndpoint a{can_a, clock, address_a(), config};
+
+    std::vector<std::byte> payload(20U, std::byte{0x11});
+    failures += require(
+        a.start_send(payload.data(), payload.size()) ==
+            IsoTpStatus::in_progress,
+        "FC overflow transfer start");
+    failures += require(
+        a.poll() == IsoTpStatus::in_progress,
+        "FC overflow waits after FF");
+
+    can_a.inject(classic_frame(
+        0x708U,
+        {0x32U, 0x00U, 0x00U}));
+
+    failures += require(
+        a.poll() == IsoTpStatus::flow_control_overflow,
+        "FC overflow terminates sender");
+    failures += require(
+        a.last_tx_status() == IsoTpStatus::flow_control_overflow,
+        "FC overflow stored as TX result");
+  }
+
+  {
+    FakeClock clock;
+    FakeCan can_a{clock};
+    auto config = classic_config();
+    config.max_wait_frames = 1U;
+    IsoTpEndpoint a{can_a, clock, address_a(), config};
+
+    std::vector<std::byte> payload(20U, std::byte{0x22});
+    failures += require(
+        a.start_send(payload.data(), payload.size()) ==
+            IsoTpStatus::in_progress,
+        "FC wait transfer start");
+    failures += require(
+        a.poll() == IsoTpStatus::in_progress,
+        "FC wait first frame sent");
+
+    can_a.inject(classic_frame(
+        0x708U,
+        {0x31U, 0x00U, 0x00U}));
+    failures += require(
+        a.poll() == IsoTpStatus::in_progress,
+        "first FC Wait accepted");
+
+    can_a.inject(classic_frame(
+        0x708U,
+        {0x31U, 0x00U, 0x00U}));
+    failures += require(
+        a.poll() == IsoTpStatus::timeout,
+        "excess FC Wait rejected");
+  }
+
+  {
+    FakeClock clock;
+    FakeCan can_a{clock};
+    FakeCan can_b{clock};
+    can_a.connect(can_b);
+    can_b.connect(can_a);
+
+    auto tx_config = classic_config();
+    auto rx_config = classic_config();
+    rx_config.rx_block_size = 8U;
+
+    IsoTpEndpoint a{can_a, clock, address_a(), tx_config};
+    IsoTpEndpoint b{can_b, clock, address_b(), rx_config};
+
+    std::vector<std::byte> payload(kMaxPayloadSize);
+    for (std::size_t i = 0U; i < payload.size(); ++i) {
+      payload[i] = static_cast<std::byte>(
+          static_cast<std::uint8_t>((i * 17U) & 0xFFU));
+    }
+
+    failures += require(
+        a.start_send(payload.data(), payload.size()) ==
+            IsoTpStatus::in_progress,
+        "4095-byte transfer start");
+    failures += require(
+        pump(
+            a,
+            b,
+            clock,
+            10000U,
+            std::chrono::microseconds{100}),
+        "4095-byte transfer completes");
+    failures += require(
+        payload_equals(b.take_received(), payload),
+        "4095-byte payload preserved across sequence wrap");
+    failures += require(
+        a.last_tx_status() == IsoTpStatus::ok,
+        "4095-byte sender completes cleanly");
+  }
+
   {
     FakeClock clock;
     FakeCan can_a{clock};
