@@ -38,29 +38,123 @@ static_assert(!std::is_copy_constructible_v<transport::CanBusRuntime>);
 static_assert(!std::is_copy_assignable_v<transport::CanBusRuntime>);
 static_assert(!std::is_move_constructible_v<transport::CanBusRuntime>);
 static_assert(!std::is_move_assignable_v<transport::CanBusRuntime>);
+static_assert(!std::is_copy_constructible_v<safety::DeadlineWatchdog>);
+static_assert(!std::is_move_constructible_v<safety::DeadlineWatchdog>);
+
+inline constexpr time::MonotonicClockDomainId kTestClockDomain{0xA11U};
+inline constexpr transport::CanSinkExecutionContract kSinkExecution{
+    time::MonotonicDuration{100}};
+inline constexpr transport::CanDriverExecutionContract kDriverExecution{
+    time::MonotonicDuration{500},
+    time::MonotonicDuration{500},
+    time::MonotonicDuration{5000},
+    time::MonotonicDuration{5000},
+    time::MonotonicDuration{1000},
+    time::MonotonicDuration{1000},
+    time::MonotonicDuration{100}};
 
 class FakeClock final : public time::IMonotonicClock {
  public:
-  [[nodiscard]] time::MonotonicTime now() const noexcept override {
-    return now_;
+  [[nodiscard]] time::MonotonicClockProperties properties()
+      const noexcept override {
+    return properties_value;
+  }
+
+  [[nodiscard]] time::MonotonicClockReading read()
+      const noexcept override {
+    return {
+        status,
+        reading_domain,
+        now_,
+        uncertainty};
   }
 
   void set(time::MonotonicTime value) noexcept { now_ = value; }
 
-  void advance(const std::chrono::nanoseconds delta) noexcept {
+  void advance(const time::MonotonicDuration delta) noexcept {
     now_ += delta;
   }
+
+  time::MonotonicClockProperties properties_value{
+      kTestClockDomain,
+      time::MonotonicDuration{1},
+      time::MonotonicDuration{100},
+      time::MonotonicDuration{1},
+      true};
+  time::MonotonicClockStatus status{time::MonotonicClockStatus::ok};
+  time::MonotonicClockDomainId reading_domain{kTestClockDomain};
+  time::MonotonicDuration uncertainty{1};
 
  private:
   time::MonotonicTime now_{0};
 };
 
-class FakeCanDriver final : public transport::ICanDriver {
+class FakeCanArbiter final : public transport::ICanChannelArbiter {
  public:
-  [[nodiscard]] bool try_acquire_lease(
+  [[nodiscard]] bool try_acquire(
+      const transport::CanPhysicalChannelId channel,
+      const void* owner_token) noexcept override {
+    ++attempts;
+    if (!channel.valid() || owner_token == nullptr) {
+      return false;
+    }
+    if (channel_.valid() && channel_ != channel) {
+      return false;
+    }
+    if (owner_ != nullptr && owner_ != owner_token) {
+      return false;
+    }
+    channel_ = channel;
+    if (owner_ == nullptr) {
+      owner_ = owner_token;
+      ++acquires;
+    }
+    return true;
+  }
+
+  void release(
+      const transport::CanPhysicalChannelId channel,
+      const void* owner_token) noexcept override {
+    if (channel == channel_ && owner_ == owner_token &&
+        owner_token != nullptr) {
+      owner_ = nullptr;
+      ++releases;
+    }
+  }
+
+  std::size_t attempts{0U};
+  std::size_t acquires{0U};
+  std::size_t releases{0U};
+
+ private:
+  transport::CanPhysicalChannelId channel_{};
+  const void* owner_{nullptr};
+};
+
+class FakeCanDriver final : public transport::ICanDriver,
+                            public transport::ICanChannelArbiter {
+ public:
+  [[nodiscard]] transport::CanPhysicalChannelId physical_channel_id()
+      const noexcept override {
+    return physical_channel_id_value;
+  }
+
+  [[nodiscard]] transport::ICanChannelArbiter& channel_arbiter()
+      noexcept override {
+    return arbiter_override != nullptr ? *arbiter_override : *this;
+  }
+
+  [[nodiscard]] transport::CanDriverExecutionContract execution_contract()
+      const noexcept override {
+    return execution_contract_value;
+  }
+
+  [[nodiscard]] bool try_acquire(
+      const transport::CanPhysicalChannelId channel,
       const void* owner_token) noexcept override {
     ++lease_attempts;
-    if (owner_token == nullptr ||
+    if (channel != physical_channel_id_value ||
+        owner_token == nullptr ||
         (lease_owner_ != nullptr && lease_owner_ != owner_token)) {
       return false;
     }
@@ -71,8 +165,14 @@ class FakeCanDriver final : public transport::ICanDriver {
     return true;
   }
 
-  void release_lease(const void* owner_token) noexcept override {
-    if (owner_token != nullptr && lease_owner_ == owner_token) {
+  void release(
+      const transport::CanPhysicalChannelId channel,
+      const void* owner_token) noexcept override {
+    if (reenter_stop_on_release && reentrant_bus != nullptr) {
+      reentrant_bus->stop();
+    }
+    if (channel == physical_channel_id_value &&
+        owner_token != nullptr && lease_owner_ == owner_token) {
       lease_owner_ = nullptr;
       ++lease_releases;
     }
@@ -86,6 +186,9 @@ class FakeCanDriver final : public transport::ICanDriver {
   [[nodiscard]] transport::CanStatus open(
       const transport::CanChannelConfig& config) noexcept override {
     ++opens;
+    if (reenter_stop_on_open && reentrant_bus != nullptr) {
+      reentrant_bus->stop();
+    }
     partial_resources = 1;
     if (open_status != transport::CanStatus::ok) {
       open_ = false;
@@ -108,8 +211,13 @@ class FakeCanDriver final : public transport::ICanDriver {
 
   void close() noexcept override {
     ++closes;
+    if (reenter_stop_on_close && reentrant_bus != nullptr) {
+      reentrant_bus->stop();
+    }
     open_ = false;
     partial_resources = 0;
+    rx_read_ = rx_write_;
+    rx_dropped_report = 0U;
   }
 
   [[nodiscard]] bool is_open() const noexcept override {
@@ -119,6 +227,9 @@ class FakeCanDriver final : public transport::ICanDriver {
   [[nodiscard]] transport::CanStatus try_send(
       const transport::CanFrame& frame) noexcept override {
     ++sends;
+    if (reenter_stop_on_send && reentrant_bus != nullptr) {
+      reentrant_bus->stop();
+    }
     if (send_status != transport::CanStatus::ok) {
       if (close_on_send_failure) {
         open_ = false;
@@ -142,20 +253,39 @@ class FakeCanDriver final : public transport::ICanDriver {
   [[nodiscard]] transport::CanReceiveResult try_receive()
       noexcept override {
     ++receives;
+    if (reenter_stop_on_receive && reentrant_bus != nullptr) {
+      reentrant_bus->stop();
+    }
+
+    const auto dropped = rx_dropped_report;
+    rx_dropped_report = 0U;
+
     if (receive_status != transport::CanStatus::ok) {
-      return {receive_status, {}};
+      return {receive_status, {}, dropped};
     }
     if (!open_) {
-      return {transport::CanStatus::not_open, {}};
+      return {transport::CanStatus::not_open, {}, dropped};
     }
 
     if (rx_read_ == rx_write_) {
-      return {transport::CanStatus::would_block, {}};
+      return {transport::CanStatus::would_block, {}, dropped};
     }
 
-    const auto value = rx_[rx_read_ % rx_.size()];
+    auto value = rx_[rx_read_ % rx_.size()];
     ++rx_read_;
-    return {transport::CanStatus::ok, value};
+
+    if (auto_timestamp &&
+        value.timestamp.status ==
+            time::MonotonicClockStatus::unavailable) {
+      value.timestamp = {
+          time::MonotonicClockStatus::ok,
+          config_.timestamp_domain,
+          time::MonotonicTime{
+              static_cast<std::int64_t>(++timestamp_counter_)},
+          time::MonotonicDuration{1}};
+    }
+
+    return {transport::CanStatus::ok, value, dropped};
   }
 
   bool inject(const transport::ReceivedCanFrame& frame) noexcept {
@@ -180,10 +310,22 @@ class FakeCanDriver final : public transport::ICanDriver {
   std::size_t sends{0};
   std::size_t receives{0};
   bool close_on_send_failure{false};
+  bool auto_timestamp{true};
+  bool reenter_stop_on_open{false};
+  bool reenter_stop_on_send{false};
+  bool reenter_stop_on_receive{false};
+  bool reenter_stop_on_close{false};
+  bool reenter_stop_on_release{false};
+  transport::CanBusRuntime* reentrant_bus{nullptr};
+  transport::ICanChannelArbiter* arbiter_override{nullptr};
+  transport::CanPhysicalChannelId physical_channel_id_value{1U};
+  transport::CanDriverExecutionContract execution_contract_value{
+      kDriverExecution};
   transport::CanCapabilities capabilities_value{true, true, true, true, 64U};
   transport::CanStatus open_status{transport::CanStatus::ok};
   transport::CanStatus send_status{transport::CanStatus::ok};
   transport::CanStatus receive_status{transport::CanStatus::ok};
+  std::uint32_t rx_dropped_report{0U};
 
  private:
   const void* lease_owner_{nullptr};
@@ -194,6 +336,7 @@ class FakeCanDriver final : public transport::ICanDriver {
   std::size_t rx_write_{0U};
   transport::CanFrame last_tx_{};
   std::size_t tx_count_{0U};
+  std::uint64_t timestamp_counter_{0U};
 };
 
 class CountingSink final : public transport::ICanFrameSink {
@@ -217,7 +360,8 @@ class ReentrantSink final : public transport::ICanFrameSink {
         bus->poll(1).status == transport::CanStatus::busy &&
         bus->send(frame.frame) == transport::CanStatus::busy &&
         bus->start(
-            {500000, false, 0, transport::CanMode::normal}) ==
+            {500000, false, 0, transport::CanMode::normal,
+             kTestClockDomain}) ==
             transport::CanStatus::busy;
     rejected = rejected && bus->recover() == transport::CanStatus::busy;
     bus->stop();
@@ -307,9 +451,9 @@ int main() {
         true};
 
     const auto j1939_sub =
-        bus.subscribe(extended_all, j1939_sink);
+        bus.subscribe(extended_all, j1939_sink, kSinkExecution);
     const auto trace_sub =
-        bus.subscribe(all_frames, trace_sink);
+        bus.subscribe(all_frames, trace_sink, kSinkExecution);
 
     failures += require(
         j1939_sub.status ==
@@ -326,7 +470,7 @@ int main() {
 
     CountingSink late_sink;
     failures += require(
-        bus.subscribe(all_frames, late_sink).status ==
+        bus.subscribe(all_frames, late_sink, kSinkExecution).status ==
             transport::CanSubscriptionStatus::configuration_frozen,
         "registration blocked after freeze");
 
@@ -334,7 +478,8 @@ int main() {
         500000U,
         true,
         2000000U,
-        transport::CanMode::normal};
+        transport::CanMode::normal,
+        kTestClockDomain};
 
     failures += require(
         bus.start(config) == transport::CanStatus::ok &&
@@ -347,7 +492,11 @@ int main() {
         transport::CanIdentifierFormat::extended_29_bit;
     extended.frame.format = transport::CanFrameFormat::classic;
     extended.frame.length = 8U;
-    extended.timestamp = std::chrono::microseconds{100};
+    extended.timestamp = {
+        time::MonotonicClockStatus::ok,
+        kTestClockDomain,
+        time::MonotonicTime{100000},
+        time::MonotonicDuration{1}};
 
     transport::ReceivedCanFrame standard{};
     standard.frame.identifier = 0x7E8U;
@@ -355,7 +504,11 @@ int main() {
         transport::CanIdentifierFormat::standard_11_bit;
     standard.frame.format = transport::CanFrameFormat::classic;
     standard.frame.length = 8U;
-    standard.timestamp = std::chrono::microseconds{200};
+    standard.timestamp = {
+        time::MonotonicClockStatus::ok,
+        kTestClockDomain,
+        time::MonotonicTime{200000},
+        time::MonotonicDuration{1}};
 
     failures += require(
         driver.inject(extended) && driver.inject(standard),
@@ -444,17 +597,18 @@ int main() {
     CountingSink sink;
     CanBusRuntime bus{driver};
     for (const auto invalid : {CanFilter{0,0,false,false}, CanFilter{0x20000000,0,true,true}, CanFilter{0,0x20000000,true,true}, CanFilter{0,0x800,true,false}}) {
-      failures += require(bus.subscribe(invalid,sink).status == CanSubscriptionStatus::invalid_argument && bus.subscription_count() == 0, "invalid filter consumes no slot");
+      failures += require(bus.subscribe(invalid,sink,kSinkExecution).status == CanSubscriptionStatus::invalid_argument && bus.subscription_count() == 0, "invalid filter consumes no slot");
     }
     for (std::size_t i = 0; i < CanBusRuntime::kMaxSubscriptions; ++i) {
-      failures += require(bus.subscribe({},sink).handle.valid(), "subscription capacity slot");
+      failures += require(bus.subscribe({},sink,kSinkExecution).handle.valid(), "subscription capacity slot");
     }
-    failures += require(bus.subscribe({},sink).status == CanSubscriptionStatus::capacity_exhausted, "subscription capacity exhausted");
+    failures += require(bus.subscribe({},sink,kSinkExecution).status == CanSubscriptionStatus::capacity_exhausted, "subscription capacity exhausted");
   }
   {
     FakeClock clock;
     safety::DeadlineWatchdog watchdog{clock};
     const auto maximum = std::numeric_limits<time::MonotonicTime::rep>::max();
+    clock.uncertainty = time::MonotonicDuration{0};
     clock.set(time::MonotonicTime{maximum - 10});
     failures += require(watchdog.arm(std::chrono::nanoseconds{10}) == safety::DeadlineWatchdogStatus::ok && watchdog.deadline().count() == maximum, "representable maximum deadline");
     failures += require(watchdog.arm(std::chrono::nanoseconds{11}) == safety::DeadlineWatchdogStatus::invalid_argument && watchdog.deadline().count() == maximum && watchdog.state() == safety::DeadlineWatchdogState::armed, "overflow arm preserves state");
@@ -470,8 +624,8 @@ int main() {
     CountingSink observer;
     CanBusRuntime bus{driver};
     callback.bus = &bus;
-    failures += require(bus.subscribe({},callback).handle.valid() && bus.subscribe({},observer).handle.valid() && bus.freeze_configuration(), "callback setup");
-    const CanChannelConfig classic{500000,false,0,CanMode::normal};
+    failures += require(bus.subscribe({},callback,kSinkExecution).handle.valid() && bus.subscribe({},observer,kSinkExecution).handle.valid() && bus.freeze_configuration(), "callback setup");
+    const CanChannelConfig classic{500000,false,0,CanMode::normal,kTestClockDomain};
     failures += require(bus.start({}) == CanStatus::invalid_argument && driver.opens == 0, "config validated before open");
     failures += require(bus.start(classic) == CanStatus::ok, "classic start");
     CanFrame fd{}; fd.format = CanFrameFormat::fd;
@@ -484,17 +638,18 @@ int main() {
     const auto reads = driver.receives;
     const auto result = bus.poll(8);
     failures += require(callback.rejected && result.deliveries == 2 && observer.count == 1 && driver.receives == reads + 1 && bus.state() == CanBusState::stopped, "reentrancy rejected and stop deferred before next RX");
-    failures += require(bus.start({500000,false,0,CanMode::listen_only}) == CanStatus::ok && bus.send({}) == CanStatus::unsupported && driver.sends == 0, "restart and listen-only TX enforcement");
+    failures += require(bus.start({500000,false,0,CanMode::listen_only,kTestClockDomain}) == CanStatus::ok && bus.send({}) == CanStatus::unsupported && driver.sends == 0, "restart and listen-only TX enforcement");
     bus.stop();
     failures += require(bus.start(classic) == CanStatus::ok, "restart preserves subscriptions");
-    failures += require(bus.poll(1).deliveries == 2 && observer.count == 2, "restart dispatches remaining frame");
+    failures += require(bus.poll(1).deliveries == 0 && observer.count == 1,
+                        "restart does not leak RX from the previous closed session");
   }
   for (const auto fatal : {transport::CanStatus::bus_off, transport::CanStatus::io_error, transport::CanStatus::not_open}) {
     for (unsigned path = 0; path < 3; ++path) {
       using namespace transport;
       FakeCanDriver driver;
       CanBusRuntime bus{driver};
-      const CanChannelConfig config{500000,false,0,CanMode::normal};
+      const CanChannelConfig config{500000,false,0,CanMode::normal,kTestClockDomain};
       failures += require(bus.freeze_configuration(), "fault setup freeze");
       if (path == 0) { driver.open_status = fatal; }
       const auto started = bus.start(config);
@@ -526,13 +681,13 @@ int main() {
                             DeadlineWatchdogStatus::ok, "initial arm");
     clock.advance(std::chrono::nanoseconds{4});
     failures += require(watchdog.kick() == DeadlineWatchdogStatus::ok &&
-                            watchdog.deadline().count() == 14, "kick extends deadline");
+                            watchdog.deadline().count() == 13, "kick extends conservative deadline");
     clock.set(time::MonotonicTime{10});
     failures += require(watchdog.poll() == DeadlineWatchdogStatus::ok,
                         "old deadline no longer expires");
     failures += require(watchdog.arm(std::chrono::nanoseconds{20}) ==
-                            DeadlineWatchdogStatus::ok && watchdog.deadline().count() == 30,
-                        "arm replaces armed deadline");
+                            DeadlineWatchdogStatus::ok && watchdog.deadline().count() == 29,
+                        "arm replaces armed deadline conservatively");
     for (const auto state : {DeadlineWatchdogState::armed, DeadlineWatchdogState::expired}) {
       if (state == DeadlineWatchdogState::expired) {
         clock.set(watchdog.deadline());
@@ -550,7 +705,7 @@ int main() {
     failures += require(watchdog.arm(std::chrono::nanoseconds{5}) ==
                             DeadlineWatchdogStatus::ok &&
                             watchdog.state() == DeadlineWatchdogState::armed &&
-                            watchdog.deadline().count() == 35, "explicit rearm from expired");
+                            watchdog.deadline().count() == 33, "explicit conservative rearm from expired");
     clock.set(watchdog.deadline());
     failures += require(watchdog.kick() == DeadlineWatchdogStatus::expired,
                         "kick at exact deadline expires");
@@ -566,8 +721,8 @@ int main() {
   }
   {
     using namespace transport;
-    const CanChannelConfig classic{500000, false, 0, CanMode::normal};
-    const CanChannelConfig fd{500000, true, 2000000, CanMode::normal};
+    const CanChannelConfig classic{500000, false, 0, CanMode::normal, kTestClockDomain};
+    const CanChannelConfig fd{500000, true, 2000000, CanMode::normal, kTestClockDomain};
     for (unsigned missing = 0; missing < 3; ++missing) {
       FakeCanDriver driver;
       if (missing == 0) { driver.capabilities_value.can_fd = false; }
@@ -627,7 +782,7 @@ int main() {
   }
   {
     using namespace transport;
-    const CanChannelConfig config{500000,false,0,CanMode::normal};
+    const CanChannelConfig config{500000,false,0,CanMode::normal,kTestClockDomain};
     FakeCanDriver driver;
     {
       CanBusRuntime owner{driver};
@@ -640,32 +795,57 @@ int main() {
       }
       failures += require(driver.is_open() && driver.closes == 0 && owner.send({}) == CanStatus::ok,
                           "unacquired second runtime cannot close owner channel");
+      const auto releases_before_stop = driver.lease_releases;
       owner.stop(); owner.stop();
-      failures += require(driver.closes == 1, "stop closes ownership once");
+      failures += require(
+          driver.closes == 1 &&
+              driver.lease_releases == releases_before_stop,
+          "stop closes one session but retains physical-channel lease");
     }
-    failures += require(driver.closes == 1, "stopped destructor does not close again");
+    failures += require(
+        driver.closes == 1 && driver.lease_releases == 1,
+        "stopped destructor releases retained lease without closing again");
     {
       FakeCanDriver shared_driver;
-      CanBusRuntime a{shared_driver};
       CanBusRuntime b{shared_driver};
-      failures += require(a.freeze_configuration() && b.freeze_configuration() &&
-                              a.start(config) == CanStatus::ok, "shared driver setup");
-      const auto opens = shared_driver.opens;
-      const auto closes = shared_driver.closes;
-      const auto resources = shared_driver.partial_resources;
-      failures += require(b.start(config) == CanStatus::busy &&
-                              b.state() == CanBusState::ready &&
-                              shared_driver.opens == opens && shared_driver.closes == closes &&
-                              shared_driver.partial_resources == resources && shared_driver.is_open() &&
-                              a.send({}) == CanStatus::ok,
-                          "valid second runtime cannot open or mutate owned driver");
-      b.stop();
-      failures += require(shared_driver.closes == closes && a.send({}) == CanStatus::ok,
-                          "rejected acquisition grants no ownership");
-      a.stop();
-      failures += require(b.start(config) == CanStatus::ok && b.send({}) == CanStatus::ok &&
-                              shared_driver.opens == opens + 1,
-                          "second runtime acquires after owner stops");
+      failures += require(
+          b.freeze_configuration(),
+          "second runtime configured before owner lifetime test");
+      const auto opens_before = shared_driver.opens;
+      {
+        CanBusRuntime a{shared_driver};
+        failures += require(
+            a.freeze_configuration() &&
+                a.start(config) == CanStatus::ok,
+            "shared driver owner setup");
+        const auto opens = shared_driver.opens;
+        const auto closes = shared_driver.closes;
+        const auto resources = shared_driver.partial_resources;
+        failures += require(
+            b.start(config) == CanStatus::busy &&
+                b.state() == CanBusState::ready &&
+                shared_driver.opens == opens &&
+                shared_driver.closes == closes &&
+                shared_driver.partial_resources == resources &&
+                shared_driver.is_open() &&
+                a.send({}) == CanStatus::ok,
+            "second runtime cannot acquire an owned physical channel");
+
+        a.stop();
+        failures += require(
+            !shared_driver.is_open() &&
+                b.start(config) == CanStatus::busy &&
+                a.start(config) == CanStatus::ok &&
+                shared_driver.opens == opens + 1U,
+            "stopped owner retains lease and can restart its session");
+        a.stop();
+      }
+
+      failures += require(
+          b.start(config) == CanStatus::ok &&
+              b.send({}) == CanStatus::ok &&
+              shared_driver.opens == opens_before + 3U,
+          "second runtime acquires only after former owner destruction");
     }
     {
       FakeCanDriver leased_driver;
@@ -736,12 +916,401 @@ int main() {
           CanBusRuntime bus{driver};
           failures += require(bus.freeze_configuration(), "capability combination freeze");
           const bool supported = (bits & 1) && (!fd || (bits & 2)) && (!listen || (bits & 8));
-          const auto result = bus.start({500000, fd, fd ? 2000000U : 0U, listen ? CanMode::listen_only : CanMode::normal});
+          const auto result = bus.start({500000, fd, fd ? 2000000U : 0U,
+                             listen ? CanMode::listen_only : CanMode::normal,
+                             kTestClockDomain});
           failures += require(result == (supported ? CanStatus::ok : CanStatus::unsupported) &&
                                   driver.opens == (supported ? 1U : 0U), "all channel capability combinations");
         }
       }
     }
+  }
+  {
+    FakeClock clock;
+    safety::DeadlineWatchdog watchdog{clock};
+    failures += require(
+        time::is_valid_clock_properties(watchdog.clock_properties()),
+        "watchdog requires healthy continuous clock properties");
+    failures += require(
+        watchdog.arm(time::MonotonicDuration{10}) ==
+            safety::DeadlineWatchdogStatus::ok,
+        "watchdog healthy clock arm");
+    clock.status = time::MonotonicClockStatus::unavailable;
+    failures += require(
+        watchdog.poll() == safety::DeadlineWatchdogStatus::clock_fault &&
+            watchdog.state() == safety::DeadlineWatchdogState::expired,
+        "armed watchdog fails closed on unavailable clock");
+  }
+  {
+    FakeClock clock;
+    clock.properties_value.continuous_across_suspend = false;
+    safety::DeadlineWatchdog watchdog{clock};
+    failures += require(
+        watchdog.arm(time::MonotonicDuration{10}) ==
+                safety::DeadlineWatchdogStatus::clock_fault &&
+            watchdog.state() == safety::DeadlineWatchdogState::disarmed,
+        "watchdog rejects clock that does not advance across suspend");
+  }
+  {
+    FakeClock clock;
+    safety::DeadlineWatchdog watchdog{clock};
+    failures += require(
+        watchdog.arm(time::MonotonicDuration{2}) ==
+                safety::DeadlineWatchdogStatus::insufficient_clock_precision &&
+            watchdog.state() == safety::DeadlineWatchdogState::disarmed &&
+            watchdog.deadline().count() == 0,
+        "watchdog rejects timeout inside declared clock ambiguity");
+    failures += require(
+        watchdog.arm(time::MonotonicDuration{10}) ==
+                safety::DeadlineWatchdogStatus::ok,
+        "watchdog precision setup arm");
+    const auto deadline = watchdog.deadline();
+    failures += require(
+        watchdog.arm(time::MonotonicDuration{2}) ==
+                safety::DeadlineWatchdogStatus::insufficient_clock_precision &&
+            watchdog.state() == safety::DeadlineWatchdogState::armed &&
+            watchdog.deadline() == deadline,
+        "insufficient precision preserves existing watchdog state");
+  }
+  {
+    FakeClock clock;
+    clock.set(time::MonotonicTime{100});
+    safety::DeadlineWatchdog watchdog{clock};
+    failures += require(
+        watchdog.arm(time::MonotonicDuration{10}) ==
+                safety::DeadlineWatchdogStatus::ok &&
+            watchdog.deadline().count() == 109,
+        "watchdog deadline uses conservative arm lower bound");
+    clock.set(time::MonotonicTime{108});
+    failures += require(
+        watchdog.poll() == safety::DeadlineWatchdogStatus::expired &&
+            watchdog.state() == safety::DeadlineWatchdogState::expired,
+        "watchdog expiry uses conservative poll upper bound");
+  }
+  {
+    FakeClock clock;
+    clock.uncertainty = time::MonotonicDuration{2};
+    safety::DeadlineWatchdog watchdog{clock};
+    failures += require(
+        watchdog.arm(time::MonotonicDuration{10}) ==
+                safety::DeadlineWatchdogStatus::clock_fault &&
+            watchdog.state() == safety::DeadlineWatchdogState::disarmed,
+        "watchdog rejects reading uncertainty above declared maximum");
+  }
+  {
+    FakeClock clock;
+    clock.set(time::MonotonicTime{100});
+    safety::DeadlineWatchdog watchdog{clock};
+    failures += require(
+        watchdog.arm(time::MonotonicDuration{50}) ==
+            safety::DeadlineWatchdogStatus::ok,
+        "watchdog backward-clock setup");
+    clock.set(time::MonotonicTime{99});
+    failures += require(
+        watchdog.poll() == safety::DeadlineWatchdogStatus::clock_fault &&
+            watchdog.state() == safety::DeadlineWatchdogState::expired,
+        "watchdog detects backward clock discontinuity");
+  }
+  {
+    FakeClock clock;
+    safety::DeadlineWatchdog watchdog{clock};
+    failures += require(
+        watchdog.arm(time::MonotonicDuration{50}) ==
+            safety::DeadlineWatchdogStatus::ok,
+        "watchdog domain setup");
+    clock.reading_domain = time::MonotonicClockDomainId{0xBEEFU};
+    failures += require(
+        watchdog.kick() == safety::DeadlineWatchdogStatus::clock_fault &&
+            watchdog.state() == safety::DeadlineWatchdogState::expired,
+        "watchdog rejects wrong clock domain");
+  }
+  {
+    using namespace transport;
+    FakeCanDriver driver;
+    CountingSink first;
+    CountingSink second;
+    CanBusRuntime bus{driver};
+    failures += require(
+        bus.subscribe({}, first, {time::MonotonicDuration{0}}).status ==
+            CanSubscriptionStatus::invalid_argument,
+        "zero callback budget rejected");
+    failures += require(
+        bus.subscribe({}, first, kSinkExecution).handle.valid() &&
+            bus.subscribe({}, second, kSinkExecution).handle.valid() &&
+            bus.freeze_configuration(),
+        "execution-budget subscriptions");
+    const CanChannelConfig config{
+        500000, false, 0, CanMode::normal, kTestClockDomain};
+    failures += require(
+        bus.start(config) == CanStatus::ok,
+        "execution-budget runtime start");
+    const auto poll_budget = bus.max_poll_execution_duration(3U);
+    const auto send_budget = bus.max_send_execution_duration();
+    failures += require(
+        bus.max_single_frame_dispatch_duration().count() == 200 &&
+            send_budget.status == CanStatus::ok &&
+            send_budget.max_duration.count() == 6000 &&
+            poll_budget.status == CanStatus::ok &&
+            poll_budget.max_duration.count() == 8600,
+        "declared external-work budgets include handled close paths");
+    const auto receives_before_oversize = driver.receives;
+    failures += require(
+        bus.poll((std::numeric_limits<std::size_t>::max)()).status ==
+                CanStatus::invalid_argument &&
+            driver.receives == receives_before_oversize,
+        "oversized poll rejected before Win32 delivery counter can overflow");
+  }
+  {
+    using namespace transport;
+    FakeCanDriver driver;
+    driver.execution_contract_value.max_try_receive_duration =
+        time::MonotonicDuration{0};
+    CanBusRuntime bus{driver};
+    failures += require(
+        bus.freeze_configuration() &&
+            bus.start(
+                {500000, false, 0, CanMode::normal, kTestClockDomain}) ==
+                CanStatus::contract_violation &&
+            bus.state() == CanBusState::faulted &&
+            driver.opens == 0U,
+        "invalid driver execution contract fails closed before open");
+    failures += require(
+        bus.recover() == CanStatus::ok,
+        "contract-fault recovery without acquired channel");
+  }
+  {
+    using namespace transport;
+    FakeCanArbiter shared_arbiter;
+    FakeCanDriver first_driver;
+    FakeCanDriver second_driver;
+    first_driver.arbiter_override = &shared_arbiter;
+    second_driver.arbiter_override = &shared_arbiter;
+    first_driver.physical_channel_id_value = {0xCA01U};
+    second_driver.physical_channel_id_value = {0xCA01U};
+    CanBusRuntime first{first_driver};
+    CanBusRuntime second{second_driver};
+    const CanChannelConfig config{
+        500000, false, 0, CanMode::normal, kTestClockDomain};
+    failures += require(
+        first.freeze_configuration() &&
+            second.freeze_configuration() &&
+            first.start(config) == CanStatus::ok &&
+            second.start(config) == CanStatus::busy,
+        "separate wrappers share one physical-channel arbiter");
+    first_driver.send_status = CanStatus::not_open;
+    first_driver.close_on_send_failure = true;
+    failures += require(
+        first.send({}) == CanStatus::not_open &&
+            first.state() == CanBusState::faulted &&
+            second.start(config) == CanStatus::busy,
+        "faulted wrapper retains physical-channel lease");
+    first_driver.send_status = CanStatus::ok;
+    failures += require(
+        first.recover() == CanStatus::ok &&
+            second.start(config) == CanStatus::ok,
+        "physical-channel lease transfers only after recovery");
+  }
+  {
+    using namespace transport;
+    FakeCanDriver driver;
+    CountingSink sink;
+    CanBusRuntime bus{driver};
+    const CanChannelConfig config{
+        500000, false, 0, CanMode::normal, kTestClockDomain};
+    failures += require(
+        bus.subscribe({}, sink, kSinkExecution).handle.valid() &&
+            bus.freeze_configuration() &&
+            bus.start(config) == CanStatus::ok,
+        "timestamp-domain setup");
+    driver.auto_timestamp = false;
+    ReceivedCanFrame wrong_domain{};
+    wrong_domain.timestamp = {
+        time::MonotonicClockStatus::ok,
+        time::MonotonicClockDomainId{0xDEADU},
+        time::MonotonicTime{1},
+        time::MonotonicDuration{1}};
+    failures += require(
+        driver.inject(wrong_domain) &&
+            bus.poll(1).status == CanStatus::invalid_timestamp &&
+            bus.state() == CanBusState::faulted &&
+            sink.count == 0U,
+        "wrong-domain RX timestamp faults before delivery");
+    failures += require(
+        bus.recover() == CanStatus::ok,
+        "timestamp fault recovery");
+    failures += require(
+        bus.start(config) == CanStatus::ok,
+        "timestamp recovery restart");
+    ReceivedCanFrame later{};
+    later.timestamp = {
+        time::MonotonicClockStatus::ok,
+        kTestClockDomain,
+        time::MonotonicTime{10},
+        time::MonotonicDuration{1}};
+    ReceivedCanFrame earlier{};
+    earlier.timestamp = {
+        time::MonotonicClockStatus::ok,
+        kTestClockDomain,
+        time::MonotonicTime{9},
+        time::MonotonicDuration{1}};
+    failures += require(
+        driver.inject(later) && driver.inject(earlier) &&
+            bus.poll(1).status == CanStatus::ok &&
+            bus.poll(1).status == CanStatus::invalid_timestamp &&
+            bus.state() == CanBusState::faulted,
+        "backward RX timestamp faults within one transport session");
+    failures += require(
+        bus.recover() == CanStatus::ok &&
+            bus.start(config) == CanStatus::ok,
+        "timestamp ordering recovery restart");
+    ReceivedCanFrame excessive_uncertainty{};
+    excessive_uncertainty.timestamp = {
+        time::MonotonicClockStatus::ok,
+        kTestClockDomain,
+        time::MonotonicTime{2},
+        time::MonotonicDuration{101}};
+    failures += require(
+        driver.inject(excessive_uncertainty) &&
+            bus.poll(1).status == CanStatus::invalid_timestamp &&
+            bus.state() == CanBusState::faulted,
+        "RX timestamp uncertainty bound enforced");
+    failures += require(
+        bus.recover() == CanStatus::ok,
+        "timestamp uncertainty recovery");
+    driver.auto_timestamp = true;
+    failures += require(
+        bus.start(config) == CanStatus::ok,
+        "timestamp loss-observation restart");
+    driver.rx_dropped_report = 7U;
+    const auto loss = bus.poll(1);
+    failures += require(
+        loss.status == CanStatus::ok &&
+            loss.rx_dropped == 7U &&
+            loss.frames_received == 0U,
+        "RX loss is observable even when queue is empty");
+  }
+  {
+    using namespace transport;
+    const CanChannelConfig config{
+        500000, false, 0, CanMode::normal, kTestClockDomain};
+
+    for (unsigned path = 0U; path < 3U; ++path) {
+      FakeCanDriver driver;
+      CanBusRuntime bus{driver};
+      driver.reentrant_bus = &bus;
+      failures += require(
+          bus.freeze_configuration(),
+          "driver reentrancy setup");
+
+      if (path == 0U) {
+        driver.reenter_stop_on_open = true;
+        failures += require(
+            bus.start(config) == CanStatus::contract_violation &&
+                bus.state() == CanBusState::faulted,
+            "driver stop reentry during open fails closed");
+      } else {
+        failures += require(
+            bus.start(config) == CanStatus::ok,
+            "driver reentrancy running setup");
+        if (path == 1U) {
+          driver.reenter_stop_on_send = true;
+          failures += require(
+              bus.send({}) == CanStatus::contract_violation &&
+                  bus.state() == CanBusState::faulted,
+              "driver stop reentry during send fails closed");
+        } else {
+          driver.reenter_stop_on_receive = true;
+          failures += require(
+              bus.poll(1).status == CanStatus::contract_violation &&
+                  bus.state() == CanBusState::faulted,
+              "driver stop reentry during receive fails closed");
+        }
+      }
+
+      failures += require(
+          bus.recover() == CanStatus::ok,
+          "driver reentrancy explicit recovery");
+    }
+  }
+  {
+    using namespace transport;
+    const CanChannelConfig config{
+        500000, false, 0, CanMode::normal, kTestClockDomain};
+    FakeCanDriver driver;
+    CanBusRuntime owner{driver};
+    CanBusRuntime contender{driver};
+    driver.reentrant_bus = &owner;
+    failures += require(
+        owner.freeze_configuration() &&
+            contender.freeze_configuration() &&
+            owner.start(config) == CanStatus::ok,
+        "close-reentrancy ownership setup");
+    const auto releases_before_close = driver.lease_releases;
+    driver.reenter_stop_on_close = true;
+    owner.stop();
+    failures += require(
+        owner.state() == CanBusState::faulted &&
+            driver.lease_releases == releases_before_close &&
+            contender.start(config) == CanStatus::busy,
+        "close reentrancy faults while retaining physical-channel lease");
+    driver.reenter_stop_on_close = false;
+    failures += require(
+        owner.recover() == CanStatus::ok &&
+            contender.start(config) == CanStatus::ok,
+        "explicit recovery releases lease after close reentrancy");
+  }
+  {
+    using namespace transport;
+    const CanChannelConfig config{
+        500000, false, 0, CanMode::normal, kTestClockDomain};
+    FakeCanDriver driver;
+    ReentrantSink callback;
+    CanBusRuntime bus{driver};
+    callback.bus = &bus;
+    driver.reentrant_bus = &bus;
+    driver.reenter_stop_on_close = true;
+    failures += require(
+        bus.subscribe({}, callback, kSinkExecution).handle.valid() &&
+            bus.freeze_configuration() &&
+            bus.start(config) == CanStatus::ok &&
+            driver.inject({}),
+        "deferred-close reentrancy setup");
+    const auto result = bus.poll(1U);
+    failures += require(
+        callback.rejected &&
+            result.status == CanStatus::contract_violation &&
+            bus.state() == CanBusState::faulted,
+        "poll reports contract violation when deferred close reenters runtime");
+    driver.reenter_stop_on_close = false;
+    failures += require(
+        bus.recover() == CanStatus::ok,
+        "deferred-close reentrancy recovery");
+  }
+  {
+    using namespace transport;
+    const CanChannelConfig config{
+        500000, false, 0, CanMode::normal, kTestClockDomain};
+    FakeCanDriver driver;
+    CanBusRuntime bus{driver};
+    driver.reentrant_bus = &bus;
+    failures += require(
+        bus.freeze_configuration() &&
+            bus.start(config) == CanStatus::ok,
+        "arbiter-release reentrancy setup");
+    driver.send_status = CanStatus::io_error;
+    failures += require(
+        bus.send({}) == CanStatus::io_error &&
+            bus.state() == CanBusState::faulted,
+        "arbiter-release reentrancy fault setup");
+    driver.reenter_stop_on_release = true;
+    failures += require(
+        bus.recover() == CanStatus::contract_violation &&
+            bus.state() == CanBusState::faulted,
+        "arbiter release reentrancy is detected during explicit recovery");
+    driver.reenter_stop_on_release = false;
+    failures += require(
+        bus.recover() == CanStatus::ok,
+        "recovery can complete after arbiter contract violation is removed");
   }
   {
     using namespace transport;
@@ -750,7 +1319,7 @@ int main() {
     FakeClock clock;
     safety::DeadlineWatchdog watchdog{clock};
     CanBusRuntime bus{driver};
-    failures += require(bus.subscribe({}, sink).handle.valid() && bus.freeze_configuration() &&
+    failures += require(bus.subscribe({}, sink, kSinkExecution).handle.valid() && bus.freeze_configuration() &&
                             driver.inject({}), "allocation probe setup");
     // Verify the probe itself before measuring Core calls.
     const auto probe_before = allocation_probe::count;
@@ -763,7 +1332,7 @@ int main() {
     failures += require(probe_after == probe_before + 1, "allocation counter active");
     FakeCanDriver cleanup_driver;
     const auto before = allocation_probe::count;
-    const auto started = bus.start({500000, false, 0, CanMode::normal});
+    const auto started = bus.start({500000, false, 0, CanMode::normal, kTestClockDomain});
     const auto sent = bus.send({});
     const auto received = bus.poll(8);
     const auto armed = watchdog.arm(std::chrono::nanoseconds{10});
@@ -772,13 +1341,13 @@ int main() {
     driver.send_status = CanStatus::io_error;
     const auto fault = bus.send({});
     const auto recovered = bus.recover();
-    const auto restarted = bus.start({500000, false, 0, CanMode::normal});
+    const auto restarted = bus.start({500000, false, 0, CanMode::normal, kTestClockDomain});
     bus.stop();
     watchdog.disarm();
     {
       CanBusRuntime cleanup_bus{cleanup_driver};
       const auto frozen = cleanup_bus.freeze_configuration();
-      const auto cleanup_start = cleanup_bus.start({500000, false, 0, CanMode::normal});
+      const auto cleanup_start = cleanup_bus.start({500000, false, 0, CanMode::normal, kTestClockDomain});
       if (!frozen || cleanup_start != CanStatus::ok) { ++failures; }
     }
     const auto after = allocation_probe::count;

@@ -15,6 +15,9 @@ for extension in h hh hpp hxx c cc cpp cxx ipp tpp inl; do
     '#include <ctime>' \
     '#include <time.h>' \
     '#include <future>' \
+    '#include <mutex>' \
+    '#include <atomic>' \
+    '#include <condition_variable>' \
     '#include <vector>' \
     '#include "memory"' \
     '#include <string>' \
@@ -29,6 +32,15 @@ for extension in h hh hpp hxx c cc cpp cxx ipp tpp inl; do
     'std::shared_future<int> value;' \
     'std::promise<int> value;' \
     'std::packaged_task<void()> value;' \
+    'std::mutex value;' \
+    'std::atomic<int> value;' \
+    'thread_local int value;' \
+    'throw 1;' \
+    'try { work(); } catch (...) {}' \
+    'dynamic_cast<void*>(ptr);' \
+    'typeid(value);' \
+    'while (true) { work(); }' \
+    'for (;;) { work(); }' \
     'thrd_create(worker, callback, 0);' \
     'std::allocate_shared<int>(allocator);' \
     'std::any value;' \

@@ -18,7 +18,19 @@ set_target_properties(ecu_core_v2 PROPERTIES
 )
 
 if(MSVC)
-  target_compile_options(ecu_core_v2 PRIVATE /W4 /WX)
+  target_compile_options(
+    ecu_core_v2
+    PRIVATE /W4 /WX /permissive- /Zc:__cplusplus /GR-
+  )
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(ecu_core_v2 PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  target_compile_options(
+    ecu_core_v2
+    PRIVATE
+      -Wall
+      -Wextra
+      -Wpedantic
+      -Werror
+      -fno-exceptions
+      -fno-rtti
+  )
 endif()

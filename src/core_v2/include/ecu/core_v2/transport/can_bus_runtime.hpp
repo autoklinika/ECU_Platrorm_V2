@@ -9,8 +9,6 @@
 
 namespace ecu::core::v2::transport {
 
-// Identifier/mask bits must fit 29 bits when extended is enabled, otherwise
-// 11 bits. At least one identifier format must be enabled.
 struct CanFilter {
   std::uint32_t identifier{0U};
   std::uint32_t mask{0U};
@@ -21,13 +19,18 @@ struct CanFilter {
   [[nodiscard]] bool matches(const CanFrame& frame) const noexcept;
 };
 
+struct CanSinkExecutionContract {
+  time::MonotonicDuration max_callback_duration{0};
+};
+
 class ICanFrameSink {
  public:
   virtual ~ICanFrameSink() = default;
 
-  // frame is borrowed and valid only for the duration of this callback.
-  // Consumers that need deferred processing must copy the required data into
-  // their own bounded storage. Response TX is deferred until dispatch returns.
+  // The callback executes on the bus-owning executor. It never blocks, sleeps,
+  // allocates dynamically, waits for external events or calls back into this
+  // CanBusRuntime except stop(), which is deferred. It completes within the
+  // bound declared at subscription time.
   virtual void on_can_frame(const ReceivedCanFrame& frame) noexcept = 0;
 };
 
@@ -64,17 +67,21 @@ struct CanPollResult {
   CanStatus status{CanStatus::ok};
   std::size_t frames_received{0U};
   std::size_t deliveries{0U};
+  std::uint32_t rx_dropped{0U};
+};
+
+struct CanExecutionBudgetResult {
+  CanStatus status{CanStatus::invalid_state};
+  time::MonotonicDuration max_duration{0};
 };
 
 class CanBusRuntime {
  public:
   static constexpr std::size_t kMaxSubscriptions = 32U;
 
-  // Driver and all registered sinks MUST outlive this runtime object, including
-  // stopped intervals and restarts. No unregister or hot-removal is supported.
-  // One executor serializes all calls; callbacks must not destroy the runtime.
-  // Driver lease ownership is exclusive and remains held while faulted even if
-  // the underlying adapter reports the physical channel as closed.
+  // Driver and all registered sinks MUST outlive this runtime object. The
+  // runtime is single-executor: all public operations and callbacks are
+  // serialized by the host. It is not internally thread-safe.
   explicit CanBusRuntime(ICanDriver& driver) noexcept;
   ~CanBusRuntime() noexcept;
 
@@ -85,31 +92,33 @@ class CanBusRuntime {
 
   [[nodiscard]] CanSubscriptionResult subscribe(
       const CanFilter& filter,
-      ICanFrameSink& sink) noexcept;
+      ICanFrameSink& sink,
+      CanSinkExecutionContract execution) noexcept;
 
   [[nodiscard]] bool freeze_configuration() noexcept;
 
-  // bus_off/io_error/not_open from open/TX/RX latch faulted. No ordinary
-  // driver calls occur while faulted except explicit recover(); stop cannot
-  // clear a fault. Destruction closes only a driver successfully opened by this runtime.
-  // Failed open never transfers ownership.
   [[nodiscard]] CanStatus start(
       const CanChannelConfig& config) noexcept;
-  // During dispatch start/send/poll return busy; stop is deferred until every
-  // matching sink receives the current frame, before another RX. A protocol
-  // needing response TX records bounded pending work in its callback and sends
-  // after the owning executor regains control from poll().
   void stop() noexcept;
-  // Only explicit recovery may leave faulted; closes an owned driver and enters stopped.
   [[nodiscard]] CanStatus recover() noexcept;
 
   [[nodiscard]] CanStatus send(const CanFrame& frame) noexcept;
-
-  [[nodiscard]] CanPollResult poll(
-      std::size_t max_frames) noexcept;
+  [[nodiscard]] CanPollResult poll(std::size_t max_frames) noexcept;
 
   [[nodiscard]] CanBusState state() const noexcept;
   [[nodiscard]] std::size_t subscription_count() const noexcept;
+
+  // Upper bound for declared external work (driver calls + subscriber
+  // callbacks). max_frames bounds work by frame count; each frame may reach all
+  // matching subscribers. The host scheduler must add target-specific measured
+  // Core WCET/dispatch overhead before treating this as an end-to-end WCET.
+  // One possible deferred close() is included in the poll bound.
+  [[nodiscard]] time::MonotonicDuration
+  max_single_frame_dispatch_duration() const noexcept;
+  [[nodiscard]] CanExecutionBudgetResult max_poll_execution_duration(
+      std::size_t max_frames) const noexcept;
+  [[nodiscard]] CanExecutionBudgetResult
+  max_send_execution_duration() const noexcept;
 
  private:
   struct Subscription {
@@ -117,24 +126,44 @@ class CanBusRuntime {
     std::uint16_t generation{0U};
     CanFilter filter{};
     ICanFrameSink* sink{nullptr};
+    CanSinkExecutionContract execution{};
   };
 
+  [[nodiscard]] bool operation_busy() const noexcept;
+  [[nodiscard]] bool add_callback_budget(
+      time::MonotonicDuration duration) noexcept;
   [[nodiscard]] std::size_t dispatch(
       const ReceivedCanFrame& frame) noexcept;
-
   [[nodiscard]] CanStatus validate_frame(const CanFrame& frame) const noexcept;
+  [[nodiscard]] CanStatus validate_received_frame(
+      const ReceivedCanFrame& frame) noexcept;
+
   void latch_fault(CanStatus status) noexcept;
+  void latch_external_reentrancy_fault() noexcept;
+  void release_lease_only() noexcept;
+  void close_session_keep_lease() noexcept;
+  void close_and_release() noexcept;
+  void transition_to_stopped() noexcept;
 
   ICanDriver& driver_;
+  ICanChannelArbiter* arbiter_{nullptr};
+  CanPhysicalChannelId channel_id_{};
   CanChannelConfig active_config_{};
   CanCapabilities active_capabilities_{};
+  CanDriverExecutionContract active_execution_{};
   bool owns_driver_lease_{false};
+  bool owns_open_session_{false};
   bool dispatching_{false};
+  bool external_call_active_{false};
+  bool external_reentry_detected_{false};
   bool stop_pending_{false};
   runtime::ConfigurationGate configuration_{};
   std::array<Subscription, kMaxSubscriptions> subscriptions_{};
   CanBusState state_{CanBusState::configuring};
   std::uint16_t next_generation_{1U};
+  time::MonotonicDuration callback_budget_{0};
+  time::MonotonicTime last_rx_timestamp_{0};
+  bool has_last_rx_timestamp_{false};
 };
 
 }  // namespace ecu::core::v2::transport

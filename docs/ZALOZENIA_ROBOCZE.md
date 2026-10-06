@@ -110,7 +110,7 @@
 - **[USTALONE]** Docelowy produkt komercyjny może w przyszłości używać innej platformy sprzętowej lub systemu operacyjnego. Zmiana platformy powinna wymagać przede wszystkim dostarczenia nowych adapterów warstwy platformowej, a nie przepisywania logiki ECU Platform.
 - **[USTALONE]** Nie zakładamy pełnej przenośności na dowolny typ urządzenia. Celem jest niezależność w rozsądnym zakresie dla klasy urządzeń zdolnych uruchomić Core; przejście na bardzo ograniczony mikrokontroler bez systemu operacyjnego może wymagać osobnej adaptacji architektury.
 - **[DO USTALENIA]** Minimalny formalny kontrakt warstwy platformowej: CAN, clock/scheduler, storage, networking, system lifecycle, hardware I/O oraz pozostałe zależności od OS.
-- **[DO USTALENIA]** Czy CI będzie od początku kompilować i testować Core w więcej niż jednym środowisku/adapterze (np. Linux + platforma symulowana), aby wykrywać przypadkowe zależności od Linuxa.
+- **[USTALONE / NADRZĘDNE]** Core V2 jest kompilowany i testowany w CI na Linuxie z GCC i Clang oraz na Windows z MSVC (x64 i Win32); dodatkowy build z `CMAKE_SYSTEM_NAME=Generic` sprawdza, czy graf Core-only nie zależy od warunków Linuxa. Adaptery platformowe otrzymują osobne testy zgodności z kontraktami Core.
 
 **Dlaczego przyjmujemy to założenie:**
 

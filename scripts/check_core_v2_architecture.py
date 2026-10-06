@@ -62,6 +62,8 @@ unsafe_headers = {
     'list', 'deque', 'forward_list', 'filesystem', 'sstream', 'iostream',
     'istream', 'ostream', 'fstream', 'streambuf', 'syncstream', 'regex',
     'valarray', 'stack', 'queue', 'scoped_allocator', 'stop_token',
+    'atomic', 'mutex', 'shared_mutex', 'condition_variable', 'semaphore',
+    'barrier', 'latch',
 }
 
 patterns = {
@@ -70,6 +72,9 @@ patterns = {
     'std namespace import': r'\busing\s+namespace\s+(?:::\s*)?std\b',
     'std namespace alias': r'\bnamespace\s+\w+\s*=\s*(?:::\s*)?std\b',
     'worker/sleep API': r'\bstd\s*::\s*(?:thread|jthread|async|future|shared_future|promise|packaged_task)\b|\b(?:pthread_\w+|thrd_\w+|mtx_\w+|cnd_\w+|tss_\w+|call_once|sleep_for|sleep_until|sleep|usleep|nanosleep)\s*\(',
+    'synchronization primitive': r'\bstd\s*::\s*(?:atomic|mutex|recursive_mutex|timed_mutex|recursive_timed_mutex|shared_mutex|shared_timed_mutex|condition_variable|condition_variable_any|counting_semaphore|binary_semaphore|barrier|latch)\b|\bthread_local\b',
+    'exception/RTTI facility': r'\b(?:throw|try|catch|dynamic_cast|typeid)\b',
+    'unbounded loop': r'\bwhile\s*\(\s*(?:true|1)\s*\)|\bfor\s*\(\s*;\s*;\s*\)',
     'allocation facility': r'\bstd\s*::\s*(?:vector|set|multiset|map|multimap|list|forward_list|deque|unordered_\w+|string|basic_string|function|any|make_any|make_unique|make_shared|allocate_shared|allocator|unique_ptr|shared_ptr|ostringstream|istringstream|stringstream)\b|\bstd\s*::\s*pmr\s*::|\bnew\b|\b(?:malloc|calloc|realloc|aligned_alloc)\s*\(',
     'OS API': r'\bstd\s*::\s*filesystem\b',
     'platform process API': r'\b(?:system|popen|_popen|fork|vfork|exec[lvpe]*|posix_spawn(?:p)?|CreateProcess(?:A|W)?)\b',

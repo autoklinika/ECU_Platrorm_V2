@@ -54,6 +54,12 @@ First-class protocol families:
     actuator timing.
 13. Standards conformance is never inferred from ordinary unit-test success.
 14. `main` merge remains a separate user-authorized decision.
+15. Runtime-path adapter calls and protocol callbacks are non-blocking and have
+    declared finite execution bounds; a `try_*` name alone is not evidence.
+16. Safety time uses a healthy named clock domain that advances across
+    suspend/resume and reports discontinuity/unavailability explicitly.
+17. Core public C++ structures are source-level contracts, not wire/IPC or
+    cross-toolchain binary ABI records; serialization uses explicit encodings.
 
 ## 3. Layer model
 
@@ -87,6 +93,9 @@ Examples:
 - hardware I/O adapters.
 
 These are contracts only. Linux/Windows/MCU implementations live outside Core.
+A platform implementation must also provide one authoritative physical-resource
+arbiter for every CAN channel identity, including when multiple adapter wrapper
+objects reference the same hardware channel.
 
 ### L2 — Link ownership and routing
 
@@ -188,24 +197,83 @@ The baseline contract is:
 
 - configuration calls happen before RUNNING,
 - frame dispatch for one bus is serialized by its owning executor,
-- protocol callbacks are non-blocking,
+- `CanBusRuntime` and `DeadlineWatchdog` are single-executor objects and are
+  not internally thread-safe; all calls are serialized by their owner,
+- protocol callbacks are non-blocking, allocation-free on the runtime path and
+  carry a declared maximum callback duration,
 - callback registration is immutable while RUNNING,
 - registered sinks and the driver MUST outlive the CanBusRuntime object itself,
   including stopped intervals and restarts; no unregister/hot-removal exists,
-- physical-driver lease ownership is distinct from physical open state; a
-  faulted runtime retains its exclusive lease until explicit recover or terminal
-  destruction, so another runtime cannot acquire a channel merely because the
-  adapter has transitioned itself to closed,
+- physical-driver lease ownership is distinct from physical open state; once
+  acquired, a runtime retains its exclusive lease across both stopped and
+  faulted states. Normal stop closes only the transport session; explicit
+  recovery from fault or terminal destruction releases the physical-channel
+  lease. Another runtime therefore cannot acquire the channel merely because
+  the adapter has transitioned itself to closed,
+- lease arbitration is by stable physical-channel identity through one
+  authoritative arbiter shared by all wrappers for that physical channel,
 - RX callback frames are borrowed only until the callback returns; consumers
   copy any deferred data into their own bounded storage,
-- TX frames are borrowed only during `try_send()`; the adapter consumes or copies
-  required data before returning. `ok` means acceptance into its bounded TX path,
-  without guaranteeing physical transmission,
+- TX frames are borrowed only during `try_send()`; the adapter consumes or
+  copies required data before returning. `ok` means exactly-once acceptance
+  into a bounded FIFO submission path, not physical transmission; `would_block`
+  means no acceptance,
+- runtime-path driver calls never sleep, wait on an external event or blocking
+  lock, allocate dynamically, perform unbounded retry, or call back into the
+  runtime; they complete within the driver's declared execution contract,
 - cross-thread submission must be serialized by a platform/runtime adapter
   before entering the single-owner Core path.
 
 This deliberately removes ambiguous lock/lifetime combinations from the
 portable foundation.
+
+### 4.1 Time-domain contract
+
+Safety clocks expose a stable non-zero domain identifier, finite resolution,
+a finite maximum read-latency bound and a declared maximum timestamp
+uncertainty. A clock used for safety deadlines must advance across host
+suspend/resume. Reads explicitly report healthy, unavailable or discontinuous
+state and carry a conservative uncertainty bound that must not exceed the
+declared maximum. Backward progression, a domain mismatch or an out-of-contract
+uncertainty is a fail-closed condition for an armed watchdog.
+
+The deadline watchdog treats a reading as an interval around its reported
+value. Arm/kick use the conservative lower bound and expiry observation uses
+the conservative upper bound, so clock uncertainty cannot silently extend a
+safety deadline. A timeout must be strictly larger than twice the worse of the
+clock resolution and declared maximum uncertainty; otherwise arming is rejected
+with an explicit insufficient-precision status.
+
+A received CAN timestamp is not an arbitrary device tick. Before entering Core,
+the platform adapter maps native controller/VCI ticks into the configured Core
+monotonic domain. Every successful RX carries the domain, mapped timestamp and
+a conservative uncertainty bound. Runtime rejects a mismatched/unhealthy
+timestamp, uncertainty above the driver's declared maximum, or backward
+timestamp progression within one transport session.
+
+The watchdog's `state()` is cached. `poll()` is the deadline-observation
+operation and the owning scheduler must call it within the product's declared
+safety service period.
+
+### 4.2 CAN adapter session contract
+
+The driver execution contract declares finite bounds for physical-lease
+acquire/release, open, close, `try_send()`, `try_receive()` and RX timestamp
+uncertainty.
+
+- `try_send() == ok` accepts a frame exactly once into a bounded FIFO path.
+- `would_block` and every other non-ok TX result accept nothing.
+- fatal driver status quarantines/discards pending TX so it cannot leak into a
+  later session.
+- `close()` cancels/discards pending TX and clears RX/TX session queues before
+  returning; old frames cannot appear after restart.
+- RX loss is observable through an explicit dropped-frame count.
+- normal `stop()` closes the current adapter session but retains the
+  physical-channel lease, allowing deterministic restart by the same runtime.
+- driver-to-runtime reentrancy is forbidden; a reentrant stop observed while an
+  external driver/arbiter call is active is treated as a contract violation and
+  faults the runtime. Reentrancy during close retains the lease until explicit
+  recovery.
 
 ## 5. Memory model
 
@@ -215,10 +283,17 @@ For foundational and time-critical paths:
 - bounded payloads,
 - explicit capacity-exhausted status,
 - no hidden dynamic growth,
-- no exceptions as normal control flow.
+- no exception/RTTI-based control paths in the deterministic foundation,
+- no Core-owned mutex/atomic/thread-local synchronization; serialization belongs
+  to the owning executor.
 
 Dynamic allocation may exist in non-time-critical adapters/services later, but
 it must not leak into deterministic Core contracts.
+
+C++ object layout is not a persistence, network, VCI or IPC format. Padding,
+`bool`, virtual ABI, `size_t` and compiler ABI may differ across targets.
+Every external boundary uses an explicit versioned byte encoding instead of raw
+serialization of Core structs.
 
 ## 6. Lifecycle model
 
@@ -238,8 +313,9 @@ Rules:
 - runtime ownership starts from `ready` or `stopped` after successful open,
 - a fault cannot silently return to `running`,
 - `CanBusRuntime` cannot be copied or moved,
-- successful start retains validated channel configuration and capabilities;
-  Core validates TX/RX frames, rejects FD on classic channels and TX in listen-only,
+- successful start retains validated channel configuration, capabilities,
+  physical-channel identity and driver execution/timestamp contract; Core
+  validates TX/RX frames, rejects FD on classic channels and TX in listen-only,
 - bus_off, io_error and not_open from open/TX/RX latch `faulted`; send/poll/start
   and stop perform no driver operations in that state,
 - a successfully opened runtime retains the exclusive driver lease across
@@ -250,17 +326,26 @@ Rules:
   including while faulted; failed open never transfers ownership,
 - explicit `recover()` idempotently closes the driver, releases its exclusive
   lease and moves faulted to stopped; a separate validated start is required to
-  run again. Ordinary stop cannot clear a fault or release a faulted lease,
-- serialized callbacks reject nested send/poll/start/recover with busy;
-  stop is deferred until the current frame reaches all matching subscribers,
-  then closes the driver before any further receive. Callbacks cannot destroy
-  the runtime or registered objects,
-- invalid RX is consumed but never delivered and returns invalid_frame (or
-  unsupported for channel/capability mismatch); it does not imply a driver fault,
+  run again. Ordinary stop cannot clear a fault and never releases the
+  physical-channel lease, including from the stopped state,
+- serialized subscriber callbacks reject nested send/poll/start/recover with
+  busy; stop is deferred until the current frame reaches all matching
+  subscribers, then closes the driver before any further receive. Callbacks
+  cannot destroy the runtime or registered objects,
+- external driver/arbiter calls are also protected against lifecycle reentrancy;
+  a stop request originating during such a call faults with contract_violation,
+- invalid frame payload/identifier RX is consumed but not delivered; invalid,
+  mismatched or over-uncertain RX timestamp faults the runtime because timing
+  provenance is part of the transport contract,
+- close/recover creates a new transport session: pending TX and queued RX from
+  the previous session do not survive restart,
 - valid watchdog arm explicitly rearms from disarmed, armed or expired state;
   zero/negative or overflowing arm changes neither state nor deadline,
 - watchdog arm rejects an unrepresentable deadline without changing state;
-  kick with an unrepresentable deadline expires fail-closed.
+  kick with an unrepresentable deadline expires fail-closed,
+- unhealthy clock reads, backward time, clock-domain mismatch or a clock that
+  cannot guarantee suspend-continuous progression fail closed for an armed
+  watchdog.
 
 ## 7. Heavy-duty protocol priority
 
@@ -286,11 +371,17 @@ A Core V2 foundation gate requires at minimum:
 - strict warning-as-error build,
 - Debug and Release,
 - independent GCC and Clang Linux validation (multi-compiler evidence),
+- Windows MSVC Core-only Debug/Release validation on x64 and Win32,
+- Generic non-Linux CMake-system build/test evidence,
 - ASAN/UBSAN where supported,
 - core-only build graph,
-- portability gate,
-- no forbidden dynamic/thread/platform APIs in deterministic foundation,
-- negative/boundary tests,
+- portability and architecture gates,
+- no external runtime/library symbols in the Core archive beyond intra-Core
+  references on supported inspection toolchains,
+- no dynamic static initialization sections in deterministic Core objects,
+- no forbidden dynamic/thread/synchronization/platform/exception/RTTI APIs in
+  deterministic foundation,
+- negative/boundary/reentrancy/clock-domain/physical-lease tests,
 - independent review,
 - standards traceability status recorded honestly.
 

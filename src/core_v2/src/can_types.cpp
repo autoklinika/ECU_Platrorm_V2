@@ -19,15 +19,23 @@ constexpr std::uint32_t kMaxExtendedIdentifier = 0x1FFFFFFFU;
          length == 48U || length == 64U;
 }
 
+[[nodiscard]] constexpr bool positive_duration(
+    const time::MonotonicDuration value) noexcept {
+  return value.count() > 0;
+}
+
 }  // namespace
 
 bool is_valid_can_frame(const CanFrame& frame) noexcept {
   if ((frame.identifier_format != CanIdentifierFormat::standard_11_bit &&
        frame.identifier_format != CanIdentifierFormat::extended_29_bit) ||
-      (frame.format != CanFrameFormat::classic && frame.format != CanFrameFormat::fd) ||
-      (frame.type != CanFrameType::data && frame.type != CanFrameType::remote)) {
+      (frame.format != CanFrameFormat::classic &&
+       frame.format != CanFrameFormat::fd) ||
+      (frame.type != CanFrameType::data &&
+       frame.type != CanFrameType::remote)) {
     return false;
   }
+
   const auto max_identifier =
       frame.identifier_format == CanIdentifierFormat::standard_11_bit
           ? kMaxStandardIdentifier
@@ -55,8 +63,10 @@ bool is_valid_can_frame(const CanFrame& frame) noexcept {
 
 bool is_valid_can_channel_config(
     const CanChannelConfig& config) noexcept {
-  if ((config.mode != CanMode::normal && config.mode != CanMode::listen_only) ||
-      config.nominal_bitrate == 0U) {
+  if ((config.mode != CanMode::normal &&
+       config.mode != CanMode::listen_only) ||
+      config.nominal_bitrate == 0U ||
+      !config.timestamp_domain.valid()) {
     return false;
   }
 
@@ -65,6 +75,17 @@ bool is_valid_can_channel_config(
   }
 
   return config.data_bitrate == 0U;
+}
+
+bool is_valid_can_driver_execution_contract(
+    const CanDriverExecutionContract& contract) noexcept {
+  return positive_duration(contract.max_lease_acquire_duration) &&
+         positive_duration(contract.max_lease_release_duration) &&
+         positive_duration(contract.max_open_duration) &&
+         positive_duration(contract.max_close_duration) &&
+         positive_duration(contract.max_try_send_duration) &&
+         positive_duration(contract.max_try_receive_duration) &&
+         positive_duration(contract.max_rx_timestamp_uncertainty);
 }
 
 bool capabilities_support(
@@ -102,14 +123,23 @@ bool capabilities_support_frame(
         capabilities.max_payload_bytes < frame.length) {
       return false;
     }
+
     if (frame.bit_rate_switch && !capabilities.bit_rate_switch) {
       return false;
     }
+
     return true;
   }
 
   return capabilities.classic_can &&
          capabilities.max_payload_bytes >= frame.length;
+}
+
+bool is_valid_received_can_frame(
+    const ReceivedCanFrame& frame,
+    const time::MonotonicClockDomainId expected_domain) noexcept {
+  return is_valid_can_frame(frame.frame) &&
+         time::is_valid_clock_reading(frame.timestamp, expected_domain);
 }
 
 }  // namespace ecu::core::v2::transport
