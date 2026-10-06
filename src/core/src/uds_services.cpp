@@ -41,6 +41,17 @@ UdsRequest make_read_data_by_identifier(
   return request;
 }
 
+UdsRequest make_read_dtc_information_by_status_mask(
+    const std::uint8_t status_mask) noexcept {
+  UdsRequest request{};
+  request.length = 3U;
+  request.payload[0] =
+      static_cast<std::byte>(kSidReadDtcInformation);
+  request.payload[1] = std::byte{0x02};
+  request.payload[2] = static_cast<std::byte>(status_mask);
+  return request;
+}
+
 UdsRequest make_tester_present() noexcept {
   UdsRequest request{};
   request.length = 2U;

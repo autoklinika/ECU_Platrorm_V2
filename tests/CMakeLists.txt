@@ -91,6 +91,35 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 add_test(NAME ecu.sac.module COMMAND ecu_sac_module_tests)
+add_executable(ecu_sac_read_services_tests
+  sac_read_services_tests.cpp
+)
+
+target_link_libraries(
+  ecu_sac_read_services_tests
+  PRIVATE ECU::sac ECU::core
+)
+
+set_target_properties(ecu_sac_read_services_tests PROPERTIES
+  CXX_EXTENSIONS OFF
+)
+
+if(MSVC)
+  target_compile_options(
+    ecu_sac_read_services_tests
+    PRIVATE /W4 /WX
+  )
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(
+    ecu_sac_read_services_tests
+    PRIVATE -Wall -Wextra -Wpedantic -Werror
+  )
+endif()
+
+add_test(
+  NAME ecu.sac.read_services
+  COMMAND ecu_sac_read_services_tests
+)
 
 if(TARGET ECU::platform_linux_socketcan)
   add_executable(ecu_socketcan_codec_tests
