@@ -12,6 +12,19 @@
 
 ---
 
+## 0. Governance projektu i granice kontekstu
+
+- **[USTALONE / NADRZĘDNE / INVARIANT]** ECU Platform V2 jest traktowana jako **odrębny projekt z własnym kontekstem, repozytorium, architekturą, danymi i decyzjami**.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Nie wolno automatycznie przenosić do ECU Platform V2 kodu, danych, założeń, architektury, namingów, workflowów ani decyzji z innych projektów użytkownika.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Odniesienie do innego projektu, wykorzystanie rozwiązania z innego projektu lub współdzielenie komponentu między projektami wymaga **wyraźnego polecenia użytkownika dotyczącego ECU Platform**.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Legacy `autoklinika/ecu_platform` jest wyjątkiem, ponieważ stanowi bezpośrednią historię i bazę wiedzy tego samego projektu ECU Platform; pozostaje jednak źródłem referencyjnym, a nie wzorcem architektury V2.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Żadne scalenie, merge, fast-forward, squash ani bezpośredni commit do produkcyjnego `main` ECU Platform V2 nie może zostać wykonany bez **jawnej zgody użytkownika na konkretny merge/release**.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Prace przygotowawcze należy prowadzić na branchach roboczych. Można wykonywać audyty, testy, poprawki i przygotowywać PR-y, ale wejście do produkcyjnego `main` jest osobnym gate'em decyzyjnym użytkownika.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Zgoda użytkownika na wykonanie pracy, testów lub przygotowanie PR-a **nie jest równoznaczna** ze zgodą na merge do `main`.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Jeśli dokumentacja lub kod zawiera przypadkowe zależności od innego projektu, należy je traktować jako naruszenie granicy projektu i usunąć lub odseparować przed merge.
+
+---
+
 ## 1. Charakter projektu
 
 - **[USTALONE]** ECU Platform V2 powstaje jako nowy projekt w nowym repozytorium.
@@ -55,7 +68,7 @@
 - **[USTALONE / NADRZĘDNE / INVARIANT]** Żaden moduł domenowy/Core nie może importować ani wywoływać bezpośrednio API specyficznego dla Raspberry Pi, Linux SocketCAN, systemd, GPIO, SPI, konkretnego filesystemu lub konkretnego sterownika sprzętowego. Takie zależności muszą kończyć się w adapterze/platform layer.
 - **[USTALONE / NADRZĘDNE / INVARIANT]** Każdy PR zmieniający Core lub warstwy transportowe musi być oceniany pod kątem przenośności OS/hardware. Brak tej separacji jest powodem do odrzucenia zmiany.
 - **[USTALONE / NADRZĘDNE / INVARIANT]** W dokumentacji, testach i CI będziemy utrzymywać to rozdzielenie jako jawny gate architektoniczny, tak aby przypadkowe związanie produktu z CM5/Linuxem było wykrywane wcześnie.
-- **[USTALONE / NADRZĘDNE / INVARIANT]** Ta sama zasada obowiązuje wszystkie peryferia i urządzenia pomocnicze. Kamera, ekran/touch, drukarka, moduły CAN/CAN-FD, LIN/K-Line, Automotive Ethernet/DoIP PHY, moduły I/O, przekaźniki, czujniki, termowizja, robotyka, storage, VCI i przyszłe urządzenia zewnętrzne muszą być projektowane jako **łatwo wymienne komponenty za stabilnym kontraktem urządzenia**.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Ta sama zasada obowiązuje wszystkie peryferia i urządzenia pomocnicze ECU Platform. Interfejsy komunikacyjne, HMI, moduły I/O, storage, VCI oraz przyszłe urządzenia zewnętrzne muszą być projektowane jako **łatwo wymienne komponenty za stabilnym kontraktem urządzenia**.
 - **[USTALONE / NADRZĘDNE / INVARIANT]** Core i logika domenowa nie mogą zależeć od konkretnego producenta, modelu, VID/PID, ścieżki urządzenia, numeru GPIO, portu szeregowego ani specyficznego SDK peryferium. Te szczegóły należą wyłącznie do drivera/adaptora urządzenia.
 - **[USTALONE / NADRZĘDNE / INVARIANT]** Każda klasa peryferiów musi mieć abstrakcyjny kontrakt capability-oriented, np. `ICamera`, `IThermalCamera`, `IPrinter`, `IDigitalIO`, `IRobotArm`, `ICanInterface`, zamiast kodu pisanego pod jeden konkretny model.
 - **[USTALONE / NADRZĘDNE / INVARIANT]** Wymiana peryferium na inne urządzenie tej samej klasy powinna wymagać przede wszystkim nowego adaptera/drivera i konfiguracji capability, bez modyfikacji logiki Core ani WebGUI poza ewentualnym ujawnieniem nowych możliwości.
@@ -226,8 +239,7 @@ Poniższa lista jest roboczym indeksem pierwszej fazy projektowania. Nie oznacza
 
 - **[USTALONE]** Jednym z fundamentalnych problemów legacy ECU Platform było zbyt silne sprzężenie sterowania EGR z GUI.
 - **[USTALONE]** Późniejsza przebudowa do ActuatorEngine pokazała potrzebę trwałego oddzielenia procesów czasowo-krytycznych od warstwy prezentacji.
-- **[USTALONE]** Doświadczenia z projektu Workshop Ventilation Controller potwierdziły skuteczność modelu, w którym Core jest autonomiczny, a GUI pełni wyłącznie rolę klienta.
-- **[USTALONE]** ECU Platform V2 ma wykorzystać wiedzę zdobytą na legacy Platform oraz późniejszych projektach, zamiast odtwarzać historyczne błędy architektoniczne.
+- **[USTALONE]** ECU Platform V2 ma wykorzystać wiedzę zdobytą w ramach legacy ECU Platform, zamiast odtwarzać jej historyczne błędy architektoniczne.
 
 ---
 
