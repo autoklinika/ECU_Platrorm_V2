@@ -12,6 +12,10 @@ git -C "$ROOT_DIR" rev-parse --abbrev-ref HEAD
 git -C "$ROOT_DIR" status --short
 
 echo
+echo "=== Portability gate self-test ==="
+"$ROOT_DIR/scripts/selftest_core_portability_gate.sh"
+
+echo
 echo "=== Portability gate ==="
 "$ROOT_DIR/scripts/check_core_portability.sh"
 

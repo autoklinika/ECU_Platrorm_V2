@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
   ECUPlatformV2
-  VERSION 0.1.0
   DESCRIPTION "ECU Platform V2"
   LANGUAGES CXX
 )

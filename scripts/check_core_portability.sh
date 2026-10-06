@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CORE_DIR="$ROOT_DIR/src/core"
+CORE_DIR="${ECU_CORE_PORTABILITY_ROOT:-$ROOT_DIR/src/core}"
 
 if [[ ! -d "$CORE_DIR" ]]; then
   echo "FAIL: missing Core directory: $CORE_DIR"
