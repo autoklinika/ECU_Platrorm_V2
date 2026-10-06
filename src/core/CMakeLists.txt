@@ -1,6 +1,8 @@
 add_library(ecu_core STATIC
   src/build_info.cpp
   src/can_types.cpp
+  src/isotp_types.cpp
+  src/isotp_endpoint.cpp
 )
 
 add_library(ECU::core ALIAS ecu_core)

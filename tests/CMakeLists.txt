@@ -26,8 +26,28 @@ foreach(target ecu_core_smoke ecu_can_contract_tests)
   endif()
 endforeach()
 
+add_executable(ecu_isotp_core_tests
+  isotp_core_tests.cpp
+)
+
+target_link_libraries(ecu_isotp_core_tests PRIVATE ECU::core)
+
+set_target_properties(ecu_isotp_core_tests PROPERTIES
+  CXX_EXTENSIONS OFF
+)
+
+if(MSVC)
+  target_compile_options(ecu_isotp_core_tests PRIVATE /W4 /WX)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(
+    ecu_isotp_core_tests
+    PRIVATE -Wall -Wextra -Wpedantic -Werror
+  )
+endif()
+
 add_test(NAME ecu.core.smoke COMMAND ecu_core_smoke)
 add_test(NAME ecu.contract.can COMMAND ecu_can_contract_tests)
+add_test(NAME ecu.protocol.isotp COMMAND ecu_isotp_core_tests)
 
 if(TARGET ECU::platform_linux_socketcan)
   add_executable(ecu_socketcan_codec_tests
