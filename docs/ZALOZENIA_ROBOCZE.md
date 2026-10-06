@@ -41,6 +41,17 @@
 
 ## 3. Fundamentalne zasady architektury
 
+### 3.0. Nadrzędne wymaganie: niezależność ECU Platform V2 od konkretnego OS i hardware
+
+- **[USTALONE / NADRZĘDNE]** ECU Platform V2 nie jest projektowana jako „aplikacja na CM5” ani jako produkt związany z Raspberry Pi OS. **CM5 + Raspberry Pi OS Lite są wyłącznie pierwszą implementacją referencyjną i platformą Prototype A.**
+- **[USTALONE / NADRZĘDNE]** Architektura od pierwszej linii kodu musi zakładać możliwość migracji ECU Platform V2 na inny hardware i/lub inny system operacyjny bez przepisywania logiki domenowej produktu.
+- **[USTALONE / NADRZĘDNE]** Core, model Command/State/Event, logika ECU, UDS, J1939, DoIP, diagnostyka, actuator runtime, safety, logging/replay, licencjonowanie i reguły biznesowe nie mogą zależeć bezpośrednio od Raspberry Pi, CM5, konkretnej dystrybucji Linuxa ani konkretnego sterownika urządzenia.
+- **[USTALONE / NADRZĘDNE]** Zależności od systemu operacyjnego i sprzętu muszą być zamknięte za stabilnymi interfejsami/adaptorami warstwy platformowej i transportowej, m.in. dla CAN/CAN-FD, Ethernet/DoIP, clock/scheduler, storage, lifecycle, hardware I/O, device identity oraz security.
+- **[USTALONE / NADRZĘDNE]** WebGUI pozostaje klientem Core/API i również nie może zawierać logiki zależnej od konkretnego hardware. Lokalny kiosk na CM5 jest tylko jednym ze sposobów uruchamiania tego samego WebGUI.
+- **[USTALONE / NADRZĘDNE]** Zmiana z CM5/Raspberry Pi OS na inną platformę, np. AM62P, i.MX, STM32MP2, x86/Linux lub Windows + inteligentny VCI, powinna wymagać przede wszystkim dostarczenia nowych adapterów platformowych/transportowych, a nie tworzenia nowej wersji ECU Platform od zera.
+- **[USTALONE / NADRZĘDNE]** Nie gwarantujemy przenośności na dowolnie ograniczony mikrokontroler bare-metal. Celem jest przenośność w obrębie klasy platform zdolnych uruchomić Core i jego usługi.
+- **[USTALONE / NADRZĘDNE]** Każda nowa zależność dodawana do Core musi przejść pytanie kontrolne: „czy ta zależność wiąże logikę domenową z konkretnym OS lub hardware?”. Jeśli tak, musi zostać przeniesiona do adaptera warstwy platformowej.
+
 - **[USTALONE]** Core jest źródłem prawdy o stanie systemu.
 - **[USTALONE]** GUI nie może być właścicielem logiki sterowania urządzeniem.
 - **[USTALONE]** WebGUI ma być klientem Core/API i nie może posiadać logiki sprzętowej ani diagnostycznej.
