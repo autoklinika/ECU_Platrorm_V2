@@ -82,10 +82,10 @@ Tailscale and Remote Desktop Commander are **development/maintenance tooling for
 | Component | Version / source | Purpose | Status |
 |---|---|---|---|
 | DRM/KMS / `vc4-kms-v3d` | kernel + Raspberry Pi boot configuration | Prototype A local display backend | VERIFIED |
-| `cage` | `0.3.1-1~bpo13+1+rpt2` | Minimal Wayland kiosk compositor | INSTALLED |
-| `chromium` | `1:154.0.8037.92-1~deb13u1+rpt1` | Local WebGUI kiosk client using native Wayland/Ozone | INSTALLED |
-| `rpi-chromium-mods` | `20260211` | Raspberry Pi-specific Chromium runtime settings; Prototype A only | INSTALLED |
-| `ecu-kiosk.service` | project-managed systemd unit; enabled + active | Boot-time Cage/Chromium session on tty1 | INSTALLED |
+| `cage` | `0.3.1-1~bpo13+1+rpt2` | Minimal Wayland kiosk compositor | VERIFIED |
+| `chromium` | `1:154.0.8037.92-1~deb13u1+rpt1` | Local WebGUI kiosk client using native Wayland/Ozone | VERIFIED |
+| `rpi-chromium-mods` | `20260211` | Raspberry Pi-specific Chromium runtime settings; Prototype A only | VERIFIED |
+| `ecu-kiosk.service` | project-managed systemd unit; reboot recovery verified | Boot-time Cage/Chromium session on tty1 | VERIFIED |
 
 No desktop environment, display manager, panel, file manager, XWayland or separate seat daemon is part of the Stage D baseline.
 
@@ -248,3 +248,23 @@ Independent validation through the CM5 MCP endpoint confirmed:
 - Remote Desktop Commander user service remained enabled + active
 
 Final Stage D status remains **PENDING REBOOT + PHYSICAL TOUCH VALIDATION**.
+
+
+## 16. Stage D reboot validation — 2026-10-06
+
+Result: **PASS (technical reboot gate)**
+
+After controlled reboot:
+
+- boot timestamp: `2026-10-06 13:39:28 CEST`
+- kiosk service automatically started at `13:39:34 CEST`
+- `STAGE_D_KIOSK=PASS`
+- native Wayland/Cage/Chromium chain restored
+- `seat0/tty1` kiosk session restored
+- no XWayland process
+- HDMI-A-1 connected
+- WaveShare HID present
+- Tailscale automatically recovered
+- Remote Desktop Commander automatically recovered
+
+Software and reboot behavior are VERIFIED. Final Stage D acceptance awaits only local confirmation that the page is visibly rendered and the physical WaveShare touch interaction works.

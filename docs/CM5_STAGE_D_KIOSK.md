@@ -146,3 +146,26 @@ Observed after running the Stage D bootstrap:
 - automated marker: `STAGE_D_KIOSK=PASS`
 
 Stage D remains **PENDING REBOOT / PHYSICAL TOUCH VALIDATION**. The final gate still requires proving automatic kiosk recovery after reboot and confirming touch interaction on the local display.
+
+
+## Post-reboot validation — 2026-10-06
+
+Result: **PASS (technical reboot gate)**
+
+Controlled reboot evidence:
+
+- boot time: `2026-10-06 13:39:28 CEST`
+- `ecu-kiosk.service` started automatically at `13:39:34 CEST`
+- `ecu-kiosk.service`: enabled + active
+- Cage owns Chromium on `seat0/tty1`
+- Chromium restarted automatically with `--ozone-platform=wayland --kiosk`
+- Wayland socket restored at `/run/user/1000/wayland-0`
+- no XWayland process
+- HDMI-A-1 reports `connected`
+- WaveShare USB HID device is present after reboot
+- `tailscaled.service`: enabled + active
+- `desktop-commander-remote.service`: enabled + active
+- Remote Desktop Commander endpoint returned online automatically
+- automated validator returned `STAGE_D_KIOSK=PASS`
+
+The software/reboot portion of Stage D is verified. Final physical acceptance still requires a local human check that the placeholder page is visible and the WaveShare touch input actually moves/activates the Chromium UI.
