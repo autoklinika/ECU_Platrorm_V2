@@ -15,8 +15,8 @@ git -C "$ROOT_DIR" rev-parse --abbrev-ref HEAD
 git -C "$ROOT_DIR" status --short
 
 echo
-echo "=== Standards baseline gate ==="
-bash "$ROOT_DIR/scripts/check_core_standards.sh"
+echo "=== Standards/conformance gate ==="
+bash "$ROOT_DIR/scripts/check_core_standards.sh" --require-conformance
 
 echo
 echo "=== Architecture gate ==="

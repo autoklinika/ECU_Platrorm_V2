@@ -65,13 +65,18 @@ fi
 
 echo "CORE_STANDARDS_BASELINE_GATE=PASS"
 
-if grep -Fq "CORE_STANDARDS_CONFORMANCE=PASS" "$DOC"; then
+python3 "$ROOT_DIR/scripts/check_core_v2_conformance.py"
+bash "$ROOT_DIR/scripts/test_core_v2_conformance_gate.sh"
+
+if grep -Fq "CORE_STANDARDS_CONFORMANCE=PASS" "$DOC" &&
+   grep -Fq "CORE_V2_FOUNDATION_STANDARDS_CONFORMANCE=PASS" "$DOC" &&
+   grep -Fq "CORE_PROTOCOL_CONFORMANCE_POLICY=MODULE_GATED" "$DOC"; then
   echo "CORE_STANDARDS_CONFORMANCE_GATE=PASS"
   exit 0
 fi
 
 echo "CORE_STANDARDS_CONFORMANCE_GATE=BLOCKED"
 if [[ "$REQUIRE_CONFORMANCE" -eq 1 ]]; then
-  echo "Formal standards conformance is not closed." >&2
+  echo "Scoped Core V2 foundation conformance is not closed." >&2
   exit 1
 fi

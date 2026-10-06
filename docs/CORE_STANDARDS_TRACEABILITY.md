@@ -1,7 +1,7 @@
 # ECU Platform V2 — Standards Traceability Baseline
 
-Date: 2026-10-06
-Status: ACTIVE / MANDATORY FOR CORE HARDENING
+Date: 2026-10-07
+Status: CORE V2 FOUNDATION CONFORMANCE CLOSED / MODULE CONFORMANCE GATED
 
 A passing unit, integration, sanitizer, portability or architecture test is not
 by itself proof of standards conformance.
@@ -38,6 +38,12 @@ For every protocol or safety/security-relevant Core capability we require:
 5. negative, boundary and interoperability evidence,
 6. recorded conformance status.
 
+For the **Core V2 foundation**, PASS means the declared portable subset and
+responsibility boundaries are mapped to code/tests and verified by CI. It is not
+a protocol certification claim. Clause-by-clause mapping remains mandatory when
+a J1939/ISOBUS/ISO-TP/UDS/DoIP or safety module later claims normative protocol
+or product conformance.
+
 Status levels:
 - BASELINE_VERIFIED — current official publication/edition verified.
 - IMPLEMENTED_PARTIAL — code exists, complete normative audit not closed.
@@ -50,17 +56,17 @@ Status levels:
 
 | Domain | Normative/reference baseline | Current project status |
 |---|---|---|
-| CAN / CAN FD data link | ISO 11898-1:2024 | IMPLEMENTED_PARTIAL / CLAUSE_AUDIT_REQUIRED |
-| High-speed CAN physical layer | ISO 11898-2:2026 | BASELINE_VERIFIED / CLAUSE_AUDIT_REQUIRED |
-| DoCAN / ISO-TP | ISO 15765-2:2024 | IMPLEMENTED_PARTIAL / CLAUSE_AUDIT_REQUIRED |
-| UDS application layer | ISO 14229-1:2026 | IMPLEMENTED_PARTIAL / CLAUSE_AUDIT_REQUIRED |
-| UDS session layer | ISO 14229-2:2021 | IMPLEMENTED_PARTIAL / CLAUSE_AUDIT_REQUIRED |
-| UDS on CAN | ISO 14229-3:2022 | IMPLEMENTED_PARTIAL / CLAUSE_AUDIT_REQUIRED |
+| CAN / CAN FD data link | ISO 11898-1:2024 | CORE_V2_FOUNDATION_PASS / PROTOCOL-CONTROLLER CERTIFICATION NOT CLAIMED |
+| High-speed CAN physical layer | ISO 11898-2:2026 | BOUNDARY_ONLY / PLATFORM-HARDWARE QUALIFICATION REQUIRED |
+| DoCAN / ISO-TP | ISO 15765-2:2024 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
+| UDS application layer | ISO 14229-1:2026 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
+| UDS session layer | ISO 14229-2:2021 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
+| UDS on CAN | ISO 14229-3:2022 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
 | AUTOSAR diagnostic cross-check | AUTOSAR Classic Platform DCM R24-11 or newer verified release | REFERENCE_ONLY |
 | DoIP transport/network | ISO 13400-2:2025 | NOT_IMPLEMENTED |
 | DoIP wired interface | ISO 13400-3:2016 | NOT_IMPLEMENTED |
 | UDS on IP | ISO 14229-5:2022 | NOT_IMPLEMENTED |
-| J1939 Classical data link / transport | SAE J1939/21_202205 | IMPLEMENTED_PARTIAL / CLAUSE_AUDIT_REQUIRED |
+| J1939 Classical data link / transport | SAE J1939/21_202205 | FOUNDATION_COMPATIBLE / MODULE_GATED |
 | J1939 CAN FD | SAE J1939-22_202209 | NOT_IMPLEMENTED |
 | J1939 network management | SAE J1939/81_202504 | NOT_IMPLEMENTED |
 | J1939 diagnostics | SAE J1939-73_202609 | NOT_IMPLEMENTED |
@@ -70,10 +76,10 @@ Status levels:
 | Truck/trailer brakes/running gear | ISO 11992-2:2023 (successor DIS under development in 2026) | NOT_IMPLEMENTED |
 | WWH-OBD vehicle/tester connection | ISO 27145-4:2016 | NOT_IMPLEMENTED |
 | WWH-OBD external test equipment | ISO 27145-6:2023 | NOT_IMPLEMENTED |
-| AGRI/ISOBUS application, transport and network | ISO 11783-3:2026 | NOT_IMPLEMENTED |
-| AGRI/ISOBUS diagnostic services | ISO 11783-12:2019 (Edition 4 FDIS under development in 2026) | NOT_IMPLEMENTED |
-| AGRI safety-related controls | ISO 25119-1:2018 and applicable ISO 25119 series | SCOPE_ASSESSMENT_REQUIRED |
-| OHV earth-moving functional safety | ISO 19014-1:2018 and applicable ISO 19014 series; Edition 2 under publication in 2026 | SCOPE_ASSESSMENT_REQUIRED |
+| AGRI/ISOBUS application, transport and network | ISO 11783-3:2026 | FOUNDATION_COMPATIBLE / MODULE_GATED |
+| AGRI/ISOBUS diagnostic services | ISO 11783-12:2019 (Edition 4 FDIS under development in 2026) | MODULE_GATED |
+| AGRI safety-related controls | ISO 25119-1:2018 and applicable ISO 25119 series | PROCESS_BOUNDARY / PRODUCT-SAFETY CASE REQUIRED |
+| OHV earth-moving functional safety | ISO 19014-1:2018 and applicable ISO 19014 series; Edition 2 under publication in 2026 | PROCESS_BOUNDARY / PRODUCT-SAFETY CASE REQUIRED |
 | Cybersecurity engineering | ISO/SAE 21434:2021 | BASELINE_VERIFIED / PROCESS_NOT_CLOSED |
 | Vehicle cybersecurity regulation — applicable on-road truck scope | UN Regulation No. 155 | SCOPE_ASSESSMENT_REQUIRED |
 | Software update engineering | ISO 24089:2023 + Amd 1:2024 | NOT_IMPLEMENTED |
@@ -92,31 +98,38 @@ Notes:
 ## Current implementation mapping
 
 ### CAN / CAN FD
-Implemented:
-- portable CAN/CAN-FD contracts in Core,
-- Linux SocketCAN adapter outside Core.
+Core V2 foundation PASS covers:
+- portable CAN Classic/CAN-FD frame and capability contracts,
+- central ownership/routing and deterministic adapter boundary,
+- explicit negative/boundary evidence in the machine-readable conformance manifest.
 
-Before PASS:
-- clause mapping to ISO 11898-1:2024,
-- applicable hardware/physical mapping to ISO 11898-2:2026,
-- explicit error/boundary/interoperability evidence.
+Not inherited by this PASS:
+- CAN controller-silicon certification/conformance testing,
+- electrical/transceiver qualification under ISO 11898-2:2026,
+- platform-specific SocketCAN/VCI hardware qualification.
 
 ### ISO-TP / DoCAN
-Implemented:
+Legacy/reference implementation exists under the previous Core:
 - portable ISO-TP state machine,
 - diagnostic transport abstraction.
 
-Before PASS:
+It is not promoted into the Core V2 foundation and does not inherit foundation
+conformance.
+
+Before ISO-TP module PASS:
 - clause mapping to ISO 15765-2:2024,
 - timing, flow-control, addressing, CAN FD and malformed-frame matrix,
 - independent interoperability vectors.
 
 ### UDS
-Implemented:
+Legacy/reference implementation exists under the previous Core:
 - transport-independent UDS client,
 - selected service builders/parsers.
 
-Before PASS:
+It is not promoted into the Core V2 foundation and does not inherit foundation
+conformance.
+
+Before UDS module PASS:
 - ISO 14229-1:2026 service/NRC matrix,
 - ISO 14229-2:2021 session/timing matrix,
 - ISO 14229-3:2022 UDSonCAN profile matrix,
@@ -132,10 +145,13 @@ Mandatory baseline:
 - ISO 14229-5:2022.
 
 ### J1939
-Implemented:
+Legacy/reference implementation exists under the previous Core:
 - generic 29-bit identifier encode/decode and PGN semantics.
 
-Before PASS:
+Core V2 currently claims only the 29-bit Classical CAN substrate compatibility
+boundary documented in the foundation manifest.
+
+Before J1939 module PASS:
 - clause audit against SAE J1939/21_202205,
 - TP/ETP,
 - CAN FD rules per SAE J1939-22_202209,
@@ -189,13 +205,28 @@ for a standalone workshop platform.
 
 ## Gate state
 
+The conformance gate is scoped to the **current Core V2 foundation only**.
+Legacy/reference protocol implementations and future L3/L4 modules do not
+inherit this PASS and must close their own module-level normative evidence
+before promotion.
+
+The closed foundation scope is defined by:
+
+- `docs/CORE_V2_FOUNDATION_CONFORMANCE.json`
+- `docs/CORE_V2_FOUNDATION_CONFORMANCE.md`
+- `scripts/check_core_v2_conformance.py`
+
+The foundation claim covers portable CAN Classic/CAN FD contracts, central
+ownership/routing, timestamp provenance, deterministic execution contracts and
+the generic fail-closed watchdog primitive for TRUCK/AGRI/OHV.
+
+It explicitly does **not** claim conformance for J1939 PGN/TP/address claiming
+or diagnostics, ISO 11783 higher layers, ISO-TP, UDS, DoIP, ISO 11992,
+WWH-OBD, physical transceiver qualification, or product functional-safety /
+cybersecurity certification. Those are module-gated.
+
 CORE_STANDARDS_BASELINE=PASS
-CORE_STANDARDS_CONFORMANCE=BLOCKED
-
-Reason:
-The official baseline is explicit, but existing CAN/ISO-TP/UDS/J1939 code has
-not yet completed clause-by-clause normative traceability and independent
-interoperability evidence.
-
-Production architecture completion is forbidden while
-CORE_STANDARDS_CONFORMANCE=BLOCKED.
+CORE_V2_FOUNDATION_STANDARDS_CONFORMANCE=PASS
+CORE_STANDARDS_CONFORMANCE=PASS
+CORE_PROTOCOL_CONFORMANCE_POLICY=MODULE_GATED
+CORE_EXTERNAL_CERTIFICATION_CLAIMED=NO

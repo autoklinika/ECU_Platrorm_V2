@@ -10,6 +10,10 @@ GENERIC_DIR="$ROOT_DIR/build/core-v2-generic-os"
 echo "[ECU V2] Core V2 TRUCK/AGRI/OHV foundation validation"
 
 echo
+echo "=== Standards / scoped conformance ==="
+bash "$ROOT_DIR/scripts/check_core_standards.sh" --require-conformance
+
+echo
 echo "=== Architecture ==="
 bash "$ROOT_DIR/scripts/check_core_v2_architecture.sh"
 ECU_CORE_PORTABILITY_ROOT="$ROOT_DIR/src/core_v2"   bash "$ROOT_DIR/scripts/check_core_portability.sh"

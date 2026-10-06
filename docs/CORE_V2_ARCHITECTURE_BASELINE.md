@@ -1,8 +1,8 @@
 # ECU Platform V2 — Core V2 Architecture Baseline
 
-Date: 2026-10-06
+Date: 2026-10-07
 
-Status: **FOUNDATION / ACTIVE DEVELOPMENT**
+Status: **FOUNDATION / TECHNICAL + SCOPED CONFORMANCE GATES PASS**
 
 Reference baseline preserved at:
 
@@ -389,10 +389,14 @@ A Core V2 foundation gate requires at minimum:
   deterministic foundation,
 - negative/boundary/reentrancy/clock-domain/physical-lease tests,
 - independent review,
-- standards traceability status recorded honestly.
+- standards traceability status recorded honestly,
+- machine-readable foundation conformance manifest validates requirement-to-code,
+  requirement-to-test and responsibility-boundary evidence for TRUCK/AGRI/OHV.
 
-No protocol receives a standards PASS until its declared normative scope has
-requirement-to-code and requirement-to-test evidence.
+The current Core V2 foundation has a scoped conformance PASS. No later protocol
+module inherits that PASS: each protocol receives a standards PASS only after
+its own declared normative scope has requirement-to-code, requirement-to-test
+and interoperability evidence.
 
 Driver `open()` is transactional: every non-ok return leaves the driver closed
 and releases partial resources within the adapter. There is no externally visible
