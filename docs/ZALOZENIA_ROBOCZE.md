@@ -19,7 +19,7 @@
 - **[USTALONE]** Platforma ma obsługiwać pracę zarówno ze sterownikami/modułami na stole, jak i — tam gdzie jest to technicznie i bezpiecznie uzasadnione — w pojeździe.
 - **[USTALONE]** Zakładany zakres platformy obejmuje co najmniej: komunikację z ECU/modułami, identyfikację sterowników, diagnostykę, odczyt i kasowanie DTC, dane live/runtime, sterowanie aktuatorami, automatyczne procedury i testy, skanowanie i analizę CAN, rejestrację komunikacji oraz generowanie raportów.
 - **[USTALONE]** Obsługa nowych ECU nie może ograniczać się do CAN/CAN-FD. ECU Platform V2 musi od początku uwzględniać diagnostykę **DoIP (Diagnostics over Internet Protocol, ISO 13400)** jako równorzędny, pierwszoplanowy transport diagnostyczny.
-- **[USTALONE]** Platforma ma posiadać lokalny interfejs użytkownika oraz WebGUI.
+- **[USTALONE]** ECU Platform V2 jest budowana jako **WebGUI-first**. WebGUI jest jedyną bazową technologią interfejsu użytkownika V2; lokalny ekran urządzenia uruchamia tę samą aplikację WebGUI w trybie kioskowym.
 - **[USTALONE]** Rozwijalność jest wymaganiem fundamentalnym: dodanie w przyszłości nowego ECU, modułu, urządzenia wykonawczego, protokołu, transportu, klienta lub innej klasy obsługiwanych elementów nie może wymagać przebudowy całej platformy.
 - **[USTALONE]** Architektura ma zapewniać stabilne granice odpowiedzialności i kontrakty między Core a modułami funkcjonalnymi, tak aby rozszerzenia można było dodawać lokalnie zamiast zmieniać wiele niezwiązanych części systemu.
 - **[USTALONE]** Nie zakładamy z góry zamkniętej listy obsługiwanych ECU, protokołów ani urządzeń. V2 ma być bazą do dalszego wieloletniego rozwoju.
@@ -43,15 +43,16 @@
 
 - **[USTALONE]** Core jest źródłem prawdy o stanie systemu.
 - **[USTALONE]** GUI nie może być właścicielem logiki sterowania urządzeniem.
-- **[USTALONE]** GUI lokalne ma być klientem Core.
-- **[USTALONE]** WebGUI ma być klientem Core.
+- **[USTALONE]** WebGUI ma być klientem Core/API i nie może posiadać logiki sprzętowej ani diagnostycznej.
+- **[USTALONE]** Lokalny ekran urządzenia nie posiada osobnej aplikacji GUI; uruchamia WebGUI w przeglądarce/runtime kioskowym.
+- **[USTALONE]** Lokalny kiosk i autoryzowani klienci zdalni korzystają z tego samego modelu API i tej samej aplikacji WebGUI.
 - **[USTALONE]** Krytyczne czasowo sterowanie nie może zależeć od GUI, renderowania, event loop warstwy prezentacji ani od aktywności użytkownika.
 - **[USTALONE]** Klient wysyła polecenia wysokiego poziomu; sposób bezpiecznego wykonania polecenia należy do Core.
 - **[USTALONE]** Fizyczny interfejs CAN / hardware musi mieć jednoznacznego właściciela i kontrolowany mechanizm arbitrażu dostępu.
 - **[USTALONE]** Awaria lub restart GUI nie może powodować destabilizacji warstwy komunikacji i sterowania.
 - **[USTALONE]** Funkcje specyficzne dla konkretnego ECU, aktuatora lub protokołu nie mogą wymuszać zmian w niezwiązanych modułach systemu.
 - **[DO USTALENIA]** Dokładny podział procesów: osobny `ecu-platform-core.service` i oddzielne klienty vs inny model wdrożeniowy.
-- **[DO USTALENIA]** Czy lokalne Qt GUI korzysta z dokładnie tego samego zdalnego API co WebGUI, czy z lokalnego adaptera do tej samej warstwy application.
+- **[USTALONE]** Nie budujemy osobnego lokalnego Qt/QML GUI dla V2. Lokalny interfejs jest instancją WebGUI uruchomioną w kiosku.
 - **[DO USTALENIA]** Dokładny mechanizm rozszerzeń: statyczne moduły kompilowane z Core, rejestrowane moduły runtime, pluginy lub model hybrydowy.
 
 ### 3.1. Niezależność od docelowej platformy sprzętowej i systemu operacyjnego
@@ -61,7 +62,7 @@
 - **[USTALONE]** Core ma być projektowany jako `platform-agnostic`: logika diagnostyczna, protokoły, modele ECU, sterowanie aktuatorami, state machine, safety, model Command/State/Event oraz pozostała logika domenowa nie mogą zależeć bezpośrednio od Linuxa ani od konkretnej płyty sprzętowej.
 - **[USTALONE]** Zależności specyficzne dla systemu operacyjnego i hardware — m.in. SocketCAN, sockety systemowe, GPIO, zegary/timery systemowe, filesystem, procesy/usługi systemowe, konfiguracja interfejsów i inne I/O — muszą być odseparowane za stabilnymi interfejsami/adapterami platformowymi.
 - **[USTALONE]** Kod domenowy nie może bezpośrednio używać nagłówków/API specyficznych dla Linuxa, takich jak `linux/can.h`, systemowych socketów CAN ani poleceń typu `ip link`; takie zależności należą wyłącznie do implementacji platformowej dla Linuxa.
-- **[USTALONE]** Qt/QML nie jest częścią Core i nie może być wymaganiem dla działania logiki domenowej. Qt może być technologią klienta lokalnego, ale jego ewentualna wymiana nie może wymagać przebudowy Core.
+- **[USTALONE]** Qt/QML nie jest częścią bazowej architektury UI ECU Platform V2. Warstwa prezentacji jest realizowana przez WebGUI; Core nie zależy od technologii frontendowej ani od przeglądarki/runtime kioskowego.
 - **[USTALONE]** Docelowy produkt komercyjny może w przyszłości używać innej platformy sprzętowej lub systemu operacyjnego. Zmiana platformy powinna wymagać przede wszystkim dostarczenia nowych adapterów warstwy platformowej, a nie przepisywania logiki ECU Platform.
 - **[USTALONE]** Nie zakładamy pełnej przenośności na dowolny typ urządzenia. Celem jest niezależność w rozsądnym zakresie dla klasy urządzeń zdolnych uruchomić Core; przejście na bardzo ograniczony mikrokontroler bez systemu operacyjnego może wymagać osobnej adaptacji architektury.
 - **[DO USTALENIA]** Minimalny formalny kontrakt warstwy platformowej: CAN, clock/scheduler, storage, networking, system lifecycle, hardware I/O oraz pozostałe zależności od OS.
@@ -154,11 +155,13 @@
 
 ## 6. Klienci systemu
 
-- **[USTALONE]** Architektura V2 od początku musi uwzględniać więcej niż jeden typ klienta.
-- **[USTALONE]** Planowane są co najmniej lokalne GUI oraz WebGUI.
-- **[USTALONE]** Dodanie nowego klienta w przyszłości nie może wymagać kopiowania logiki sprzętowej lub diagnostycznej.
-- **[DO USTALENIA]** Zakres funkcjonalny lokalnego GUI.
-- **[DO USTALENIA]** Zakres funkcjonalny WebGUI.
+- **[USTALONE]** Bazowym klientem ECU Platform V2 jest WebGUI.
+- **[USTALONE]** Lokalny ekran urządzenia uruchamia WebGUI w trybie kioskowym; nie utrzymujemy osobnego lokalnego GUI.
+- **[USTALONE]** Ta sama aplikacja WebGUI ma obsługiwać pracę lokalną oraz — po autoryzacji — dostęp z innych urządzeń.
+- **[USTALONE]** Dodanie innego klienta w przyszłości nie może wymagać kopiowania logiki sprzętowej lub diagnostycznej.
+- **[DO USTALENIA]** Dokładny frontend stack WebGUI.
+- **[DO USTALENIA]** Dokładny backend/API pomiędzy WebGUI a Core.
+- **[DO USTALENIA]** Runtime kioskowy na minimalnym Linuxie.
 - **[DO USTALENIA]** Model autoryzacji, ról i dostępu zdalnego.
 
 ## 7. Obszary do omówienia
@@ -184,8 +187,8 @@ Poniższa lista jest roboczym indeksem pierwszej fazy projektowania. Nie oznacza
 - **[DO USTALENIA]** Analiza i monitoring Ethernet/DoIP/Automotive Ethernet.
 - **[DO USTALENIA]** Model Command / State / Event.
 - **[DO USTALENIA]** API Core.
-- **[DO USTALENIA]** Lokalny klient GUI.
-- **[DO USTALENIA]** WebGUI.
+- **[USTALONE]** WebGUI jest bazowym i lokalnym interfejsem użytkownika; lokalny ekran działa jako kiosk.
+- **[DO USTALENIA]** Frontend WebGUI, backend/API i runtime kioskowy.
 - **[DO USTALENIA]** Raporty i eksport danych.
 - **[DO USTALENIA]** Logging, telemetry i audit trail.
 - **[DO USTALENIA]** Bezpieczeństwo funkcjonalne i fail-safe.
