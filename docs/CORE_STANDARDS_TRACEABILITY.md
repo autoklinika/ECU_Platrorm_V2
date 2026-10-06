@@ -6,6 +6,27 @@ Status: ACTIVE / MANDATORY FOR CORE HARDENING
 A passing unit, integration, sanitizer, portability or architecture test is not
 by itself proof of standards conformance.
 
+## Product applicability scope
+
+ECU Platform V2 targets only:
+- heavy-duty road trucks,
+- agricultural machinery (AGRI),
+- off-highway machinery (OHV).
+
+Passenger cars are explicitly out of product scope. Standards common to road
+vehicles remain applicable only where they are technically or legally relevant
+to truck/AGRI/OHV.
+
+Priority domain split:
+- Heavy-duty truck: SAE J1939, ISO 11992, ISO 27145/WWH-OBD, UDS/DoCAN/DoIP.
+- AGRI: SAE J1939 plus ISO 11783/ISOBUS; ISO 25119 for safety-related control
+  systems where applicable.
+- OHV: SAE J1939 plus OEM/industry protocols; ISO 19014 where the machine is
+  earth-moving machinery within ISO 6165 scope.
+
+ISO 26262 and UNECE R155/R156 are not generic AGRI/OHV requirements. They are
+kept only for the applicable on-road truck/vehicle scope.
+
 ## Mandatory conformance policy
 
 For every protocol or safety/security-relevant Core capability we require:
@@ -43,11 +64,21 @@ Status levels:
 | J1939 CAN FD | SAE J1939-22_202209 | NOT_IMPLEMENTED |
 | J1939 network management | SAE J1939/81_202504 | NOT_IMPLEMENTED |
 | J1939 diagnostics | SAE J1939-73_202609 | NOT_IMPLEMENTED |
+| J1939 top-level heavy-duty network | SAE J1939_202603 | BASELINE_VERIFIED |
+| J1939 vehicle application layer | SAE J1939/71_202502 | CLAUSE_AUDIT_REQUIRED |
+| Truck/trailer diagnostic communication | ISO 11992-4:2023 | NOT_IMPLEMENTED |
+| Truck/trailer brakes/running gear | ISO 11992-2:2023 (successor DIS under development in 2026) | NOT_IMPLEMENTED |
+| WWH-OBD vehicle/tester connection | ISO 27145-4:2016 | NOT_IMPLEMENTED |
+| WWH-OBD external test equipment | ISO 27145-6:2023 | NOT_IMPLEMENTED |
+| AGRI/ISOBUS application, transport and network | ISO 11783-3:2026 | NOT_IMPLEMENTED |
+| AGRI/ISOBUS diagnostic services | ISO 11783-12:2019 (Edition 4 FDIS under development in 2026) | NOT_IMPLEMENTED |
+| AGRI safety-related controls | ISO 25119-1:2018 and applicable ISO 25119 series | SCOPE_ASSESSMENT_REQUIRED |
+| OHV earth-moving functional safety | ISO 19014-1:2018 and applicable ISO 19014 series; Edition 2 under publication in 2026 | SCOPE_ASSESSMENT_REQUIRED |
 | Cybersecurity engineering | ISO/SAE 21434:2021 | BASELINE_VERIFIED / PROCESS_NOT_CLOSED |
-| Vehicle cybersecurity regulation | UN Regulation No. 155 | SCOPE_ASSESSMENT_REQUIRED |
+| Vehicle cybersecurity regulation — applicable on-road truck scope | UN Regulation No. 155 | SCOPE_ASSESSMENT_REQUIRED |
 | Software update engineering | ISO 24089:2023 + Amd 1:2024 | NOT_IMPLEMENTED |
-| Vehicle software-update regulation | UN Regulation No. 156 | SCOPE_ASSESSMENT_REQUIRED |
-| Functional safety | ISO 26262:2018 series | SCOPE_ASSESSMENT_REQUIRED |
+| Vehicle software-update regulation — applicable on-road truck scope | UN Regulation No. 156 | SCOPE_ASSESSMENT_REQUIRED |
+| Functional safety — on-road truck scope only | ISO 26262:2018 series | SCOPE_ASSESSMENT_REQUIRED |
 
 Notes:
 - ISO 15765-2 Edition 5 is under development in 2026; ISO 15765-2:2024 remains
@@ -110,6 +141,38 @@ Before PASS:
 - CAN FD rules per SAE J1939-22_202209,
 - Address Claiming/network management per SAE J1939/81_202504,
 - diagnostics per SAE J1939-73_202609 when implemented.
+
+## Heavy-duty / AGRI / OHV profile
+
+### Heavy-duty trucks
+
+Primary standards and families:
+- SAE J1939 family for in-vehicle heavy-duty communications,
+- ISO 11992 for towing/towed vehicle communication,
+- ISO 27145 for WWH-OBD external diagnostic equipment where applicable,
+- UDS / ISO-TP / DoIP where used by the target ECU architecture.
+
+### AGRI
+
+Primary standards and families:
+- ISO 11783 / ISOBUS,
+- SAE J1939 where used below or alongside ISOBUS,
+- ISO 25119 for safety-related control systems where applicable.
+
+ISO 11783-3:2026 maps its application/transport/network layers to CAN and bases
+transport/network behavior on SAE J1939-21. ISO 11783-12 defines the network
+diagnostic system.
+
+### OHV
+
+Primary standards and families:
+- SAE J1939 for construction/off-highway networks,
+- UDS / ISO-TP / DoIP where OEMs use them,
+- ISO 19014 where the target is earth-moving machinery within ISO 6165 scope.
+
+Other OHV sectors can require additional sector-specific standards. They must
+be added to this matrix before a corresponding module can receive a standards
+conformance PASS.
 
 ## Safety, security and updates
 
