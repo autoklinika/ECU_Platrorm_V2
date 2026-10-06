@@ -2,7 +2,7 @@
 
 ## Status
 
-**IMPLEMENTED CANDIDATE / validation required / not frozen**
+**VALIDATED CANDIDATE / AWAITING ARCHITECTURE APPROVAL / NOT FROZEN**
 
 This stage is intentionally isolated on:
 
@@ -200,3 +200,32 @@ The first implementation review tightened the candidate before acceptance:
 - `bus_off` is represented as a portable CAN-domain status rather than being collapsed into an OS-specific error.
 
 These changes keep the capability API internally consistent without adding Linux-specific behavior.
+
+
+## Validation evidence — 2026-10-06
+
+Result: **TECHNICAL PASS**
+
+Validated on the physical Prototype A CM5 from a clean checkout of
+`stage-f/platform-transport-contracts`:
+
+- branch HEAD before evidence commit: `f047834c2f0a0466d41df4a3dd53ddbfb77f9dc9`
+- Core portability self-test: PASS
+- real Core portability scan: PASS
+- Debug configure/build: PASS
+- Debug CTest: `2/2` PASS
+- Release configure/build: PASS
+- Release CTest: `2/2` PASS
+- direct CAN contract test: `CAN_CONTRACT_TESTS=PASS`
+- final marker: `STAGE_F_CONTRACT_CANDIDATE=PASS`
+- working tree: clean before validation
+- no additional OS packages installed
+- no SocketCAN/Linux adapter introduced
+
+### Architectural status
+
+Technical validation does **not** constitute architectural approval.
+
+The candidate remains intentionally unmerged and not frozen until the user
+accepts the review points listed above. A real SocketCAN adapter must not be
+implemented against this interface as a production contract before that decision.
