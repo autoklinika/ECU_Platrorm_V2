@@ -3,6 +3,9 @@ add_library(ecu_core STATIC
   src/can_types.cpp
   src/isotp_types.cpp
   src/isotp_endpoint.cpp
+  src/uds_types.cpp
+  src/uds_services.cpp
+  src/uds_client.cpp
 )
 
 add_library(ECU::core ALIAS ecu_core)
