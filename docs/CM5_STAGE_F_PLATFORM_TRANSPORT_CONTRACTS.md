@@ -2,7 +2,7 @@
 
 ## Status
 
-**VALIDATED CANDIDATE / AWAITING ARCHITECTURE APPROVAL / NOT FROZEN**
+**APPROVED / FROZEN CONTRACT**
 
 This stage is intentionally isolated on:
 
@@ -229,3 +229,26 @@ Technical validation does **not** constitute architectural approval.
 The candidate remains intentionally unmerged and not frozen until the user
 accepts the review points listed above. A real SocketCAN adapter must not be
 implemented against this interface as a production contract before that decision.
+
+
+## Architecture approval — 2026-10-06
+
+User decision: **APPROVED**
+
+The Stage F CAN/time contract is now the accepted baseline for subsequent adapters and protocol work.
+
+Frozen baseline includes:
+
+- `ICanInterface` lifecycle: `open/close/is_open`
+- nonblocking `try_receive()`
+- portable `CanStatus` values including `bus_off`
+- capability-oriented CAN/CAN-FD interface description
+- classic CAN + CAN-FD frame representation
+- strict CAN-FD wire-length validation
+- normal/listen-only mode
+- monotonic timestamps in nanoseconds
+- injectable `IMonotonicClock`
+
+Future changes to this contract require an explicit architecture revision; adapters must conform to it rather than leak OS/vendor details into Core.
+
+This approval does **not** authorize a merge to production `main`.
