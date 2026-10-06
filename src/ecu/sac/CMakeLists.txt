@@ -3,6 +3,7 @@ add_library(ecu_sac STATIC
   src/sac_runtime.cpp
   src/sac_dtc_reader.cpp
   src/sac_runtime_monitor.cpp
+  src/sac_controller.cpp
 )
 
 add_library(ECU::sac ALIAS ecu_sac)
