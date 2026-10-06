@@ -2,7 +2,7 @@
 
 ## Status
 
-**IMPLEMENTATION / VALIDATION IN PROGRESS**
+**VERIFIED / PASS**
 
 Branch:
 
@@ -107,3 +107,34 @@ Tests cover:
 ## Merge boundary
 
 No merge to production `main` is authorized by Stage K.
+
+
+## Validation evidence — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Validated on Prototype A:
+
+- Core portability gate: PASS
+- SAC module portability gate: PASS
+- Debug build: PASS
+- Debug CTest: `7/7` PASS
+- Release build: PASS
+- Release CTest: `7/7` PASS
+- direct read-services test: `SAC_READ_SERVICES_TESTS=PASS`
+- final marker: `STAGE_K_SAC_READ=PASS`
+- AddressSanitizer: PASS
+- UndefinedBehaviorSanitizer: PASS
+- no physical SAC transmission performed
+
+Validated workflows:
+
+- generic UDS `19 02 <mask>` builder
+- SAC extended-session entry `10 03`
+- positive DTC read and fixed-record parsing
+- NRC preservation
+- explicit FE96 voltage request
+- prevention of overlapping voltage requests
+- passive PGN pressure ingest remains independent of UDS traffic
+
+Stage K is complete.

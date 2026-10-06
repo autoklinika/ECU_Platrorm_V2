@@ -403,3 +403,27 @@ Validation:
 - ASan/UBSan: PASS
 
 No physical ECU communication was performed by Stage J.
+
+
+## 22. Stage K SAC read-only services — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Added:
+
+- `SacDtcReader`
+- `SacRuntimeMonitor`
+- generic UDS `ReadDTCInformation 0x19/0x02` builder
+- fixed-size DTC result storage
+- explicit FE96 voltage read workflow
+
+Validation:
+
+- Debug CTest: `7/7` PASS
+- Release CTest: `7/7` PASS
+- `SAC_READ_SERVICES_TESTS=PASS`
+- `STAGE_K_SAC_READ=PASS`
+- ASan/UBSan: PASS
+- Core + SAC portability gates: PASS
+
+No destructive UDS service and no physical SAC transmission were introduced.
