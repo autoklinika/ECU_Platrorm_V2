@@ -2,7 +2,7 @@
 
 ## Status
 
-**IMPLEMENTATION IN PROGRESS**
+**G1 VERIFIED / G2 PHYSICAL GATE PENDING**
 
 Branch:
 
@@ -147,3 +147,34 @@ Stage G does not implement:
 Stage G is VERIFIED only after G1 and G2 both pass on Prototype A and `can0` is confirmed DOWN after the physical test.
 
 No merge to `main` is authorized by Stage G work.
+
+
+## G1 validation evidence — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Validated directly on Prototype A:
+
+- GNU C++ 14.2.0
+- Debug build: PASS
+- Release build: PASS
+- Debug CTest: `3/3` PASS
+- Release CTest: `3/3` PASS
+- Core portability self-test: PASS
+- real Core portability scan: PASS
+- SocketCAN codec tests: PASS
+- read-only rtnetlink probe of physical `can0`: PASS
+- detected physical link:
+  - `up=0`
+  - `bus_off=0`
+  - `cap_classic=1`
+  - `cap_fd=1`
+  - `cap_brs=1`
+  - `cap_listen_only=1`
+  - `max_payload=64`
+- no CAN frame was transmitted
+- `can0` remained DOWN after G1
+
+A parser defect discovered during G1 was fixed before physical validation: nested netlink attribute flags are now masked with `NLA_TYPE_MASK`, allowing `IFLA_CAN_CTRLMODE_SUPPORTED` to be decoded correctly.
+
+G2 remains the only open acceptance gate.
