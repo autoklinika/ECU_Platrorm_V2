@@ -27,8 +27,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake ninja-build g++
 
-      - name: Standards baseline gate
-        run: bash scripts/check_core_standards.sh
+      - name: Standards and scoped conformance gate
+        run: bash scripts/check_core_standards.sh --require-conformance
 
       - name: Architecture gate
         run: bash scripts/check_core_architecture.sh
@@ -75,6 +75,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Core V2 scoped conformance gate
+        shell: pwsh
+        run: python scripts/check_core_v2_conformance.py
 
       - name: Architecture gate
         shell: pwsh
