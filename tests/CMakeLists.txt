@@ -120,6 +120,25 @@ if(TARGET ECU::platform_linux_socketcan)
     endif()
   endforeach()
 
+  add_executable(ecu_sac_uds_read_probe
+    sac_uds_read_probe.cpp
+  )
+  target_link_libraries(
+    ecu_sac_uds_read_probe
+    PRIVATE ECU::platform_linux_socketcan ECU::core
+  )
+  set_target_properties(
+    ecu_sac_uds_read_probe
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_sac_uds_read_probe
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+
   add_test(
     NAME ecu.platform.linux.socketcan.codec
     COMMAND ecu_socketcan_codec_tests
