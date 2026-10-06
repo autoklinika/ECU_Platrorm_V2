@@ -1,6 +1,9 @@
 add_library(ecu_core STATIC
   src/build_info.cpp
   src/can_types.cpp
+  src/lifecycle.cpp
+  src/resource_manager.cpp
+  src/j1939_identifier.cpp
   src/isotp_types.cpp
   src/isotp_endpoint.cpp
   src/isotp_diagnostic_transport.cpp

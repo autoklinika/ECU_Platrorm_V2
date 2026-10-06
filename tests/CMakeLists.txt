@@ -68,6 +68,52 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 add_test(NAME ecu.protocol.uds COMMAND ecu_uds_core_tests)
+add_executable(ecu_core_foundation_tests
+  core_foundation_tests.cpp
+)
+
+target_link_libraries(
+  ecu_core_foundation_tests
+  PRIVATE ECU::core
+)
+
+set_target_properties(ecu_core_foundation_tests PROPERTIES
+  CXX_EXTENSIONS OFF
+)
+
+add_executable(ecu_j1939_core_tests
+  j1939_core_tests.cpp
+)
+
+target_link_libraries(
+  ecu_j1939_core_tests
+  PRIVATE ECU::core
+)
+
+set_target_properties(ecu_j1939_core_tests PROPERTIES
+  CXX_EXTENSIONS OFF
+)
+
+foreach(target ecu_core_foundation_tests ecu_j1939_core_tests)
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /W4 /WX)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ${target}
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+endforeach()
+
+add_test(
+  NAME ecu.core.foundation
+  COMMAND ecu_core_foundation_tests
+)
+
+add_test(
+  NAME ecu.protocol.j1939.identifier
+  COMMAND ecu_j1939_core_tests
+)
 add_executable(ecu_sac_module_tests
   sac_module_tests.cpp
 )
