@@ -12,6 +12,16 @@
 
 ---
 
+## Zakres produktu — klasy obsługiwanych pojazdów i maszyn
+
+- **[USTALONE / NADRZĘDNE / INVARIANT]** ECU Platform V2 obsługuje wyłącznie trzy klasy docelowe: **ciężarówki / heavy-duty road vehicles, maszyny rolnicze (AGRI) oraz maszyny off-highway (OHV)**.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Samochody osobowe nie są zakresem produktu. Nie projektujemy funkcji, protokołów ani zgodności wyłącznie dla passenger-car, chyba że dany standard jest wspólnym fundamentem technicznym wymaganym także przez truck/AGRI/OHV.
+- **[USTALONE / NADRZĘDNE]** SAE J1939 jest protokołem pierwszoplanowym wspólnym dla heavy-duty, wielu zastosowań AGRI i OHV.
+- **[USTALONE / NADRZĘDNE]** Dla AGRI rodzina ISO 11783 (ISOBUS) jest standardem pierwszoplanowym.
+- **[USTALONE / NADRZĘDNE]** Dla ciężarówek uwzględniamy ISO 11992 (ciągnik–naczepa/przyczepa) oraz WWH-OBD / ISO 27145 tam, gdzie ma zastosowanie.
+- **[USTALONE / NADRZĘDNE]** Standardy bezpieczeństwa i regulacyjne są dobierane według klasy maszyny: ISO 26262/UNECE tylko tam, gdzie dotyczą pojazdu drogowego; ISO 25119 dla maszyn rolniczych; ISO 19014 dla maszyn ziemnych/OHV objętych zakresem tej rodziny norm.
+- **[USTALONE]** UDS, DoCAN/ISO-TP i DoIP pozostają wspólnymi technologiami diagnostycznymi tam, gdzie są stosowane przez ECU w truck/AGRI/OHV; nie traktujemy ich jako „standardów osobówkowych”.
+
 ## 0. Governance projektu i granice kontekstu
 
 - **[USTALONE / NADRZĘDNE / INVARIANT]** ECU Platform V2 jest traktowana jako **odrębny projekt z własnym kontekstem, repozytorium, architekturą, danymi i decyzjami**.
