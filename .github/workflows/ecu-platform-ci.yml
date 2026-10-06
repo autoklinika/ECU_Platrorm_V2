@@ -1,0 +1,40 @@
+name: ECU Platform CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecu-platform-ci-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  core-linux:
+    name: Core Linux x86_64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build g++
+
+      - name: Standards baseline gate
+        run: bash scripts/check_core_standards.sh
+
+      - name: Architecture gate
+        run: bash scripts/check_core_architecture.sh
+
+      - name: Portability gate
+        run: bash scripts/check_core_portability.sh
+
+      - name: Full Core hardening validation
+        run: bash scripts/validate_core_hardening.sh
