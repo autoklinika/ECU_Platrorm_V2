@@ -19,6 +19,15 @@ REPO_SLUG="autoklinika/ECU_Platrorm_V2"
 
 mkdir -p "$STATE_DIR" "$LOG_DIR" "$WORKTREE_ROOT"
 
+exec 9>"$STATE_ROOT/master.lock"
+if ! flock -n 9; then
+  printf 'BLOCKED %s\\n' "$(date -Is)" > "$STATE_DIR/status"
+  printf 'another ECU autopilot task is already running\\n' > "$STATE_DIR/reason"
+  ECU_AUTOPILOT_ENV="${ECU_AUTOPILOT_ENV:-$HOME/.config/ecu-platform/autopilot.env}" \\
+    python3 "$NOTIFY" BLOCKED "$TASK_ID" "Another ECU autopilot task is already running." >/dev/null 2>&1 || true
+  exit 2
+fi
+
 set_state() {
   printf '%s %s\n' "$1" "$(date -Is)" > "$STATE_DIR/status"
 }
