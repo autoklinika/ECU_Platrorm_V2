@@ -1,0 +1,263 @@
+#include "ecu/platform/linux/socketcan/socketcan_link_info.hpp"
+
+#include <linux/can/netlink.h>
+#include <linux/if.h>
+#include <linux/if_link.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
+
+#include <sys/socket.h>
+
+#include <cerrno>
+#include <cstdint>
+#include <cstring>
+#include <unistd.h>
+
+namespace ecu::platform::linux::socketcan {
+namespace {
+
+bool parse_can_data(
+    rtattr* data,
+    int data_length,
+    SocketCanLinkInfo& info) noexcept {
+  bool found_bittiming_const = false;
+  bool found_data_bittiming_const = false;
+  std::uint32_t ctrlmode_supported = 0U;
+
+  for (auto* attr = data;
+       RTA_OK(attr, data_length);
+       attr = RTA_NEXT(attr, data_length)) {
+    switch (attr->rta_type) {
+      case IFLA_CAN_BITTIMING:
+        if (RTA_PAYLOAD(attr) >= sizeof(can_bittiming)) {
+          const auto* value =
+              static_cast<const can_bittiming*>(RTA_DATA(attr));
+          info.nominal_bitrate = value->bitrate;
+        }
+        break;
+
+      case IFLA_CAN_BITTIMING_CONST:
+        found_bittiming_const = true;
+        break;
+
+      case IFLA_CAN_DATA_BITTIMING:
+        if (RTA_PAYLOAD(attr) >= sizeof(can_bittiming)) {
+          const auto* value =
+              static_cast<const can_bittiming*>(RTA_DATA(attr));
+          info.data_bitrate = value->bitrate;
+        }
+        break;
+
+      case IFLA_CAN_DATA_BITTIMING_CONST:
+        found_data_bittiming_const = true;
+        break;
+
+      case IFLA_CAN_CTRLMODE:
+        if (RTA_PAYLOAD(attr) >= sizeof(can_ctrlmode)) {
+          const auto* value =
+              static_cast<const can_ctrlmode*>(RTA_DATA(attr));
+          info.fd_enabled = (value->flags & CAN_CTRLMODE_FD) != 0U;
+          info.listen_only_enabled =
+              (value->flags & CAN_CTRLMODE_LISTENONLY) != 0U;
+          ctrlmode_supported |= value->mask;
+        }
+        break;
+
+      case IFLA_CAN_STATE:
+        if (RTA_PAYLOAD(attr) >= sizeof(std::uint32_t)) {
+          std::uint32_t state = 0U;
+          std::memcpy(&state, RTA_DATA(attr), sizeof(state));
+          info.bus_off = state == CAN_STATE_BUS_OFF;
+        }
+        break;
+
+      case IFLA_CAN_CTRLMODE_EXT: {
+        int nested_length = RTA_PAYLOAD(attr);
+        auto* nested = static_cast<rtattr*>(RTA_DATA(attr));
+        for (; RTA_OK(nested, nested_length);
+             nested = RTA_NEXT(nested, nested_length)) {
+          if (nested->rta_type == IFLA_CAN_CTRLMODE_SUPPORTED &&
+              RTA_PAYLOAD(nested) >= sizeof(std::uint32_t)) {
+            std::uint32_t supported = 0U;
+            std::memcpy(&supported, RTA_DATA(nested), sizeof(supported));
+            ctrlmode_supported |= supported;
+          }
+        }
+        break;
+      }
+
+      default:
+        break;
+    }
+  }
+
+  info.capabilities.classic_can = found_bittiming_const;
+  info.capabilities.can_fd =
+      found_data_bittiming_const ||
+      (ctrlmode_supported & CAN_CTRLMODE_FD) != 0U;
+  info.capabilities.bit_rate_switch =
+      found_data_bittiming_const;
+  info.capabilities.listen_only =
+      (ctrlmode_supported & CAN_CTRLMODE_LISTENONLY) != 0U;
+  info.capabilities.max_payload_bytes =
+      info.capabilities.can_fd ? 64U : 8U;
+
+  return found_bittiming_const;
+}
+
+bool parse_link_info(
+    rtattr* link_info,
+    int link_info_length,
+    SocketCanLinkInfo& info) noexcept {
+  bool is_can = false;
+  rtattr* can_data = nullptr;
+  int can_data_length = 0;
+
+  for (auto* attr = link_info;
+       RTA_OK(attr, link_info_length);
+       attr = RTA_NEXT(attr, link_info_length)) {
+    if (attr->rta_type == IFLA_INFO_KIND) {
+      const auto* kind = static_cast<const char*>(RTA_DATA(attr));
+      is_can = std::strcmp(kind, "can") == 0;
+    } else if (attr->rta_type == IFLA_INFO_DATA) {
+      can_data = static_cast<rtattr*>(RTA_DATA(attr));
+      can_data_length = RTA_PAYLOAD(attr);
+    }
+  }
+
+  if (!is_can || can_data == nullptr) {
+    return false;
+  }
+
+  return parse_can_data(can_data, can_data_length, info);
+}
+
+LinkQueryResult parse_link_message(
+    nlmsghdr* message,
+    const unsigned int interface_index) noexcept {
+  LinkQueryResult result{};
+
+  if (message->nlmsg_type != RTM_NEWLINK) {
+    return result;
+  }
+
+  auto* ifinfo = static_cast<ifinfomsg*>(NLMSG_DATA(message));
+  if (static_cast<unsigned int>(ifinfo->ifi_index) != interface_index) {
+    return result;
+  }
+
+  result.info.up = (ifinfo->ifi_flags & IFF_UP) != 0U;
+
+  int length =
+      static_cast<int>(message->nlmsg_len) -
+      static_cast<int>(NLMSG_LENGTH(sizeof(*ifinfo)));
+  auto* attr = IFLA_RTA(ifinfo);
+
+  for (; RTA_OK(attr, length); attr = RTA_NEXT(attr, length)) {
+    if (attr->rta_type == IFLA_LINKINFO) {
+      int nested_length = RTA_PAYLOAD(attr);
+      auto* nested = static_cast<rtattr*>(RTA_DATA(attr));
+      if (parse_link_info(nested, nested_length, result.info)) {
+        result.status = LinkQueryStatus::ok;
+      } else {
+        result.status = LinkQueryStatus::not_can;
+      }
+      return result;
+    }
+  }
+
+  result.status = LinkQueryStatus::not_can;
+  return result;
+}
+
+}  // namespace
+
+LinkQueryResult query_socketcan_link(
+    const char* interface_name) noexcept {
+  if (interface_name == nullptr || interface_name[0] == '\0') {
+    return LinkQueryResult{LinkQueryStatus::not_found, {}};
+  }
+
+  const unsigned int interface_index = if_nametoindex(interface_name);
+  if (interface_index == 0U) {
+    return LinkQueryResult{LinkQueryStatus::not_found, {}};
+  }
+
+  const int fd = ::socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
+  if (fd < 0) {
+    return LinkQueryResult{LinkQueryStatus::io_error, {}};
+  }
+
+  sockaddr_nl local{};
+  local.nl_family = AF_NETLINK;
+
+  if (::bind(
+          fd,
+          reinterpret_cast<const sockaddr*>(&local),
+          sizeof(local)) < 0) {
+    ::close(fd);
+    return LinkQueryResult{LinkQueryStatus::io_error, {}};
+  }
+
+  struct Request {
+    nlmsghdr header;
+    ifinfomsg info;
+  } request{};
+
+  request.header.nlmsg_len = NLMSG_LENGTH(sizeof(ifinfomsg));
+  request.header.nlmsg_type = RTM_GETLINK;
+  request.header.nlmsg_flags = NLM_F_REQUEST;
+  request.header.nlmsg_seq = 1U;
+  request.info.ifi_family = AF_UNSPEC;
+  request.info.ifi_index = static_cast<int>(interface_index);
+
+  sockaddr_nl kernel{};
+  kernel.nl_family = AF_NETLINK;
+
+  if (::sendto(
+          fd,
+          &request,
+          request.header.nlmsg_len,
+          0,
+          reinterpret_cast<const sockaddr*>(&kernel),
+          sizeof(kernel)) < 0) {
+    ::close(fd);
+    return LinkQueryResult{LinkQueryStatus::io_error, {}};
+  }
+
+  alignas(nlmsghdr) char buffer[8192];
+
+  while (true) {
+    const ssize_t received = ::recv(fd, buffer, sizeof(buffer), 0);
+    if (received < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      ::close(fd);
+      return LinkQueryResult{LinkQueryStatus::io_error, {}};
+    }
+
+    int remaining = static_cast<int>(received);
+    for (auto* message = reinterpret_cast<nlmsghdr*>(buffer);
+         NLMSG_OK(message, remaining);
+         message = NLMSG_NEXT(message, remaining)) {
+      if (message->nlmsg_type == NLMSG_ERROR) {
+        ::close(fd);
+        return LinkQueryResult{LinkQueryStatus::io_error, {}};
+      }
+
+      if (message->nlmsg_type == NLMSG_DONE) {
+        ::close(fd);
+        return LinkQueryResult{LinkQueryStatus::not_found, {}};
+      }
+
+      const auto parsed = parse_link_message(message, interface_index);
+      if (parsed.status != LinkQueryStatus::io_error) {
+        ::close(fd);
+        return parsed;
+      }
+    }
+  }
+}
+
+}  // namespace ecu::platform::linux::socketcan

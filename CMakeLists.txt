@@ -10,6 +10,10 @@ option(ECU_BUILD_TESTS "Build ECU Platform V2 tests" ON)
 
 add_subdirectory(src/core)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_subdirectory(src/platform/linux/socketcan)
+endif()
+
 if(ECU_BUILD_TESTS)
   include(CTest)
   enable_testing()
