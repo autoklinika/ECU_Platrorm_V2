@@ -71,9 +71,9 @@ Validation must cover classic CAN **and CAN-FD**. A legacy 8-byte-only test is i
 
 | Component | Source | Purpose | Status |
 |---|---|---|---|
-| Tailscale | official Tailscale repository/installer | Stable remote network access | PLANNED |
-| Node.js 22 LTS+ | NodeSource | Runtime required by current Remote Desktop Commander | PLANNED |
-| Remote Desktop Commander | `@wonderwhy-er/desktop-commander` | MCP access to Prototype A | PLANNED |
+| Tailscale | official Tailscale installer; service enabled + active | Stable remote network access | INSTALLED |
+| Node.js 22 LTS+ | NodeSource; `v22.23.3`, npm `10.9.9` | Runtime required by current Remote Desktop Commander | VERIFIED |
+| Remote Desktop Commander | `@wonderwhy-er/desktop-commander`, app `0.2.52` | MCP access to Prototype A | INSTALLED |
 
 Tailscale and Remote Desktop Commander are **development/maintenance tooling for Prototype A**, not product dependencies of ECU Platform Core.
 
@@ -169,3 +169,23 @@ Target components:
 - user linger enabled for reboot-safe MCP service
 
 Stage C remains unverified until both Tailscale and Remote Desktop Commander reconnect after reboot without a manually open terminal.
+
+
+## 12. Stage C pre-reboot verification — 2026-10-06
+
+Result: **PASS (pre-reboot)**
+
+Independent verification through the new CM5 MCP endpoint confirmed:
+
+- fresh CM5 MCP device online
+- Tailscale service: enabled + active
+- Tailscale address: `100.92.219.91`
+- tailnet device name currently rendered as `ecu-1` because the pre-wipe `ecu` node still exists offline
+- Node.js: `v22.23.3`
+- npm: `10.9.9`
+- Remote Desktop Commander app: `0.2.52`
+- `desktop-commander-remote.service`: enabled + active
+- user `ecu`: `Linger=yes`
+- Desktop Commander runs from the persistent user service, not from a manually open `npx` terminal
+
+Final Stage C status remains **PENDING REBOOT VALIDATION**. After one controlled CM5 reboot, Tailscale and Remote Desktop Commander must reconnect automatically without a manually open terminal.
