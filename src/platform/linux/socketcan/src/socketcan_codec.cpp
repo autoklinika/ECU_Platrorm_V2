@@ -53,7 +53,7 @@ CanStatus encode_classic_frame(
   target.len = source.length;
 
   if (source.type == core::transport::CanFrameType::data) {
-    std::copy_n(source.payload.begin(), source.length, target.data);
+    std::memcpy(target.data, source.payload.data(), source.length);
   }
 
   return CanStatus::ok;
@@ -78,7 +78,7 @@ CanStatus encode_fd_frame(
     target.flags |= CANFD_ESI;
   }
 
-  std::copy_n(source.payload.begin(), source.length, target.data);
+  std::memcpy(target.data, source.payload.data(), source.length);
   return CanStatus::ok;
 }
 
