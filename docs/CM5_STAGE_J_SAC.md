@@ -2,7 +2,7 @@
 
 ## Status
 
-**IMPLEMENTATION / VALIDATION IN PROGRESS**
+**VERIFIED / PASS**
 
 Branch:
 
@@ -144,3 +144,35 @@ Validation includes:
 ## Merge boundary
 
 No merge to production `main` is authorized by Stage J.
+
+
+## Validation evidence — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Validated on Prototype A:
+
+- Core portability gate: PASS
+- SAC module portability gate: PASS
+- Debug build: PASS
+- Debug CTest: `6/6` PASS
+- Release build: PASS
+- Release CTest: `6/6` PASS
+- direct module test: `SAC_MODULE_TESTS=PASS`
+- final marker: `STAGE_J_SAC=PASS`
+- AddressSanitizer: PASS
+- UndefinedBehaviorSanitizer: PASS
+- no new OS packages installed
+- no physical SAC request transmitted
+
+Validated SAC behavior:
+
+- fixed 29-bit diagnostic IDs
+- VIN/SW/HW read-only identification sequence through real UDS + ISO-TP Core
+- NRC preservation
+- J1939 PGN 65198 pressure decode
+- UDS PF 0xDA exclusion from passive pressure decoder
+- FE96 voltage response decode
+- separate module portability boundary
+
+Stage J is complete.

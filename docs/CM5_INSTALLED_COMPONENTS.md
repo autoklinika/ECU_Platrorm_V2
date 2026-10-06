@@ -379,3 +379,27 @@ Validation:
 No new OS packages were installed.
 
 Physical SAC read-only validation is prepared but not executed because the currently connected SAC bitrate has not yet been conclusively identified between legacy-supported 250 kbit/s and 500 kbit/s profiles.
+
+
+## 21. Stage J SAC module — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+SAC-specific product module implemented outside generic Core:
+
+- SAC addressing/profile constants
+- VIN/SW/HW identification sequence
+- legacy bitrate candidates retained as evidence only
+- PGN 65198 pressure decoder
+- FE96 voltage decoder
+- dedicated module portability gate
+
+Validation:
+
+- Debug CTest: `6/6` PASS
+- Release CTest: `6/6` PASS
+- `SAC_MODULE_TESTS=PASS`
+- `STAGE_J_SAC=PASS`
+- ASan/UBSan: PASS
+
+No physical ECU communication was performed by Stage J.
