@@ -427,3 +427,26 @@ Validation:
 - Core + SAC portability gates: PASS
 
 No destructive UDS service and no physical SAC transmission were introduced.
+
+
+## 23. Stage L SAC controller — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Added application/domain coordinator:
+
+- serializes active UDS operations
+- allows passive pressure ingestion independently
+- exposes identification, DTC, pressure, voltage and error state
+- keeps WebGUI/API framework decisions open
+
+Validation:
+
+- Debug CTest: `8/8` PASS
+- Release CTest: `8/8` PASS
+- `SAC_CONTROLLER_TESTS=PASS`
+- `STAGE_L_SAC_CONTROLLER=PASS`
+- ASan/UBSan: PASS
+- Core + SAC portability gates: PASS
+
+No physical SAC communication was performed by Stage L.

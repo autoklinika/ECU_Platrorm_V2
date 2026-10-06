@@ -2,7 +2,7 @@
 
 ## Status
 
-**IMPLEMENTATION / VALIDATION IN PROGRESS**
+**VERIFIED / PASS**
 
 Branch:
 
@@ -92,3 +92,33 @@ Tests verify:
 ## Merge boundary
 
 No merge to production `main` is authorized by Stage L.
+
+
+## Validation evidence — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Validated on Prototype A:
+
+- Core portability gate: PASS
+- SAC module portability gate: PASS
+- Debug build: PASS
+- Debug CTest: `8/8` PASS
+- Release build: PASS
+- Release CTest: `8/8` PASS
+- direct controller test: `SAC_CONTROLLER_TESTS=PASS`
+- final marker: `STAGE_L_SAC_CONTROLLER=PASS`
+- AddressSanitizer: PASS
+- UndefinedBehaviorSanitizer: PASS
+- no physical SAC transmission performed
+
+Validated controller behavior:
+
+- identification blocks overlapping DTC/voltage operations
+- voltage read blocks overlapping identification/DTC operations
+- DTC read blocks overlapping identification/voltage operations
+- passive pressure frames are accepted while a UDS operation is active
+- completed identification/DTC/voltage state is exposed upward
+- reset clears accumulated product state
+
+Stage L is complete.
