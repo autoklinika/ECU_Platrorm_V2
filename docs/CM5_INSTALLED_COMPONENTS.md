@@ -268,3 +268,27 @@ After controlled reboot:
 - Remote Desktop Commander automatically recovered
 
 Software and reboot behavior are VERIFIED. Final Stage D acceptance awaits only local confirmation that the page is visibly rendered and the physical WaveShare touch interaction works.
+
+
+## 17. Stage D physical touch acceptance — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Touch input was validated beyond device enumeration:
+
+- WaveShare HID classified by udev as `ID_INPUT_TOUCHSCREEN=1`
+- raw `/dev/input/event1` capture produced 200 valid absolute/multitouch events
+- Cage/Wayland session was active on `seat0`
+- an isolated temporary Chromium page running on the live Wayland session received DOM pointer events
+- browser-side test requests contained changing X/Y coordinates from real finger touches
+- temporary test processes and files were removed afterward
+- the normal Stage D kiosk remained active
+
+Therefore the full display/input path is verified:
+
+```text
+DRM/KMS -> Cage/Wayland -> Chromium
+WaveShare HID -> Linux input -> Cage/Wayland -> Chromium DOM
+```
+
+**Stage D is complete.**

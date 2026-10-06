@@ -169,3 +169,54 @@ Controlled reboot evidence:
 - automated validator returned `STAGE_D_KIOSK=PASS`
 
 The software/reboot portion of Stage D is verified. Final physical acceptance still requires a local human check that the placeholder page is visible and the WaveShare touch input actually moves/activates the Chromium UI.
+
+
+## Physical touch acceptance — 2026-10-06
+
+Result: **PASS**
+
+The initial observation that the pointer cursor did not move was **not a touchscreen failure**. Under this native Wayland kiosk stack, the WaveShare panel is exposed as a touchscreen device and touch input is not required to emulate relative mouse movement.
+
+Validation evidence:
+
+- udev classification: `ID_INPUT_TOUCHSCREEN=1`
+- device: `/dev/input/event1`
+- device name: `WaveShare WaveShare`
+- USB VID:PID: `0712:0009`
+- device assigned to `seat0`
+- user `ecu` has access through the `input` group
+- raw kernel capture produced 200 touch events
+- event stream included:
+  - `BTN_TOUCH`
+  - `ABS_MT_TRACKING_ID`
+  - `ABS_MT_POSITION_X`
+  - `ABS_MT_POSITION_Y`
+- a temporary local Chromium touch page was attached to the live Cage Wayland session
+- Chromium/JavaScript successfully reported real touch coordinates through local requests, including multiple distinct positions
+- temporary test browser/server/profile were removed after validation
+- production `ecu-kiosk.service` remained active throughout cleanup
+
+Confirmed end-to-end input path:
+
+```text
+WaveShare USB HID
+  -> Linux input
+  -> libinput / wlroots
+  -> Cage / Wayland
+  -> Chromium Ozone Wayland
+  -> DOM pointer event / JavaScript
+```
+
+### Final Stage D status
+
+**VERIFIED / PASS**
+
+All Stage D acceptance conditions are satisfied:
+
+1. CM5 boots directly to Cage + Chromium without a desktop environment.
+2. Stage D placeholder is visibly rendered over HDMI.
+3. WaveShare touch reaches Chromium and JavaScript.
+4. SSH/Tailscale/Remote Desktop Commander recover after reboot.
+5. `STAGE_D_KIOSK=PASS` after reboot.
+
+The lack of mouse-cursor movement from finger input is expected and must not be used as a failure criterion for this touchscreen configuration.
