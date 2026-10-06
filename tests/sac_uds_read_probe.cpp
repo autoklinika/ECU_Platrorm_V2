@@ -1,4 +1,5 @@
 #include "ecu/core/protocol/isotp/isotp_endpoint.hpp"
+#include "ecu/core/protocol/isotp/isotp_diagnostic_transport.hpp"
 #include "ecu/core/protocol/uds/uds_client.hpp"
 #include "ecu/core/protocol/uds/uds_services.hpp"
 #include "ecu/platform/linux/socketcan/socketcan_adapter.hpp"
@@ -125,8 +126,10 @@ int main(int argc, char** argv) {
       address,
       isotp_config};
 
+  ecu::core::protocol::isotp::IsoTpDiagnosticTransport diagnostic_transport{transport};
+
   ecu::core::protocol::uds::UdsClient uds{
-      transport,
+      diagnostic_transport,
       clock,
       ecu::core::protocol::uds::UdsTiming{
           std::chrono::milliseconds{100},

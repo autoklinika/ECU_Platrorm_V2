@@ -1,4 +1,5 @@
 #include "ecu/core/protocol/isotp/isotp_endpoint.hpp"
+#include "ecu/core/protocol/isotp/isotp_diagnostic_transport.hpp"
 #include "ecu/core/protocol/uds/uds_client.hpp"
 #include "ecu/core/protocol/uds/uds_services.hpp"
 #include "ecu/sac/sac_dtc_reader.hpp"
@@ -179,8 +180,9 @@ int main() {
     IsoTpEndpoint server_tp{
         server_can, clock, reverse, iso};
 
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient uds{
-        client_tp,
+        diagnostic_transport,
         clock,
         UdsTiming{
             std::chrono::milliseconds{100},
@@ -296,8 +298,9 @@ int main() {
     IsoTpEndpoint server_tp{
         server_can, clock, reverse, iso};
 
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient uds{
-        client_tp,
+        diagnostic_transport,
         clock,
         UdsTiming{
             std::chrono::milliseconds{100},
@@ -368,8 +371,9 @@ int main() {
     IsoTpEndpoint server_tp{
         server_can, clock, reverse, iso};
 
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient uds{
-        client_tp,
+        diagnostic_transport,
         clock,
         UdsTiming{
             std::chrono::milliseconds{100},

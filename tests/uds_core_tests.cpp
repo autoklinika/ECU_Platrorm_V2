@@ -1,4 +1,5 @@
 #include "ecu/core/protocol/isotp/isotp_endpoint.hpp"
+#include "ecu/core/protocol/isotp/isotp_diagnostic_transport.hpp"
 #include "ecu/core/protocol/uds/uds_client.hpp"
 #include "ecu/core/protocol/uds/uds_services.hpp"
 
@@ -260,8 +261,9 @@ int main() {
         client_can, clock, client_address(), iso};
     IsoTpEndpoint server_tp{
         server_can, clock, server_address(), iso};
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient client{
-        client_tp, clock, uds_timing()};
+        diagnostic_transport, clock, uds_timing()};
 
     const auto request =
         make_read_data_by_identifier(0xF190U);
@@ -312,8 +314,9 @@ int main() {
         client_can, clock, client_address(), iso};
     IsoTpEndpoint server_tp{
         server_can, clock, server_address(), iso};
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient client{
-        client_tp, clock, uds_timing()};
+        diagnostic_transport, clock, uds_timing()};
 
     const auto request =
         make_read_data_by_identifier(0x1234U);
@@ -355,8 +358,9 @@ int main() {
         client_can, clock, client_address(), iso};
     IsoTpEndpoint server_tp{
         server_can, clock, server_address(), iso};
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient client{
-        client_tp, clock, uds_timing()};
+        diagnostic_transport, clock, uds_timing()};
 
     const auto request =
         make_read_data_by_identifier(0xF190U);
@@ -439,8 +443,9 @@ int main() {
     auto iso = isotp_config();
     IsoTpEndpoint client_tp{
         client_can, clock, client_address(), iso};
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient client{
-        client_tp, clock, uds_timing()};
+        diagnostic_transport, clock, uds_timing()};
 
     const auto request =
         make_read_data_by_identifier(0xF190U);
@@ -475,8 +480,9 @@ int main() {
         client_can, clock, client_address(), iso};
     IsoTpEndpoint server_tp{
         server_can, clock, server_address(), iso};
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient client{
-        client_tp,
+        diagnostic_transport,
         clock,
         UdsTiming{
             std::chrono::milliseconds{5},
@@ -537,8 +543,9 @@ int main() {
         client_can, clock, client_address(), iso};
     IsoTpEndpoint server_tp{
         server_can, clock, server_address(), iso};
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient client{
-        client_tp,
+        diagnostic_transport,
         clock,
         UdsTiming{
             std::chrono::milliseconds{10},
@@ -600,8 +607,9 @@ int main() {
         client_can, clock, client_address(), iso};
     IsoTpEndpoint server_tp{
         server_can, clock, server_address(), iso};
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient client{
-        client_tp, clock, uds_timing()};
+        diagnostic_transport, clock, uds_timing()};
 
     const auto request =
         make_read_data_by_identifier(0xF190U);
@@ -654,8 +662,9 @@ int main() {
         client_can, clock, client_address(), iso};
     IsoTpEndpoint server_tp{
         server_can, clock, server_address(), iso};
+    IsoTpDiagnosticTransport diagnostic_transport{client_tp};
     UdsClient client{
-        client_tp, clock, uds_timing()};
+        diagnostic_transport, clock, uds_timing()};
 
     const auto request =
         make_read_data_by_identifier(0xF190U);
