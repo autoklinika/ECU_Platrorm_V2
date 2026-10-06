@@ -71,9 +71,9 @@ Validation must cover classic CAN **and CAN-FD**. A legacy 8-byte-only test is i
 
 | Component | Source | Purpose | Status |
 |---|---|---|---|
-| Tailscale | official Tailscale installer; service enabled + active | Stable remote network access | INSTALLED |
+| Tailscale | official Tailscale installer; service enabled + active; reboot recovery verified | Stable remote network access | VERIFIED |
 | Node.js 22 LTS+ | NodeSource; `v22.23.3`, npm `10.9.9` | Runtime required by current Remote Desktop Commander | VERIFIED |
-| Remote Desktop Commander | `@wonderwhy-er/desktop-commander`, app `0.2.52` | MCP access to Prototype A | INSTALLED |
+| Remote Desktop Commander | `@wonderwhy-er/desktop-commander`, app `0.2.52`; persistent user service; reboot recovery verified | MCP access to Prototype A | VERIFIED |
 
 Tailscale and Remote Desktop Commander are **development/maintenance tooling for Prototype A**, not product dependencies of ECU Platform Core.
 
@@ -189,3 +189,20 @@ Independent verification through the new CM5 MCP endpoint confirmed:
 - Desktop Commander runs from the persistent user service, not from a manually open `npx` terminal
 
 Final Stage C status remains **PENDING REBOOT VALIDATION**. After one controlled CM5 reboot, Tailscale and Remote Desktop Commander must reconnect automatically without a manually open terminal.
+
+
+## 13. Stage C final reboot validation — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Controlled reboot validation confirmed automatic recovery without manually starting any terminal process:
+
+- boot time observed: `2026-10-06 13:20:59`
+- `tailscaled.service`: enabled + active after reboot
+- Tailscale IP preserved: `100.92.219.91`
+- Desktop Commander user service: enabled + active after reboot
+- user `ecu`: `Linger=yes`
+- persistent Desktop Commander process started automatically from `systemd --user`
+- fresh CM5 MCP endpoint became reachable automatically from ChatGPT
+
+Stage C is complete.
