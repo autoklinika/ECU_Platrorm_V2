@@ -2,7 +2,7 @@
 
 ## Status
 
-**IMPLEMENTATION / VALIDATION IN PROGRESS**
+**VERIFIED / PASS**
 
 Branch:
 
@@ -190,3 +190,92 @@ The validation includes:
 ## Merge boundary
 
 Stage H work does not authorize merge to production `main`.
+
+
+## Validation evidence — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Validated directly on Prototype A:
+
+- compiler: GNU C++ 14.2.0
+- Core portability self-test: PASS
+- real Core portability scan: PASS
+- Debug build: PASS
+- Debug CTest: `4/4` PASS
+- Release build: PASS
+- Release CTest: `4/4` PASS
+- direct ISO-TP suite: `ISOTP_CORE_TESTS=PASS`
+- final validator: `STAGE_H_ISOTP=PASS`
+- AddressSanitizer: PASS
+- UndefinedBehaviorSanitizer: PASS
+- no new OS packages installed
+- no physical CAN link configuration changed by Stage H
+
+Additional edge coverage verified:
+
+- standard 11-bit addressing
+- extended 29-bit addressing
+- Classic CAN SF and multi-frame
+- CAN-FD SF escape format
+- CAN-FD multi-frame
+- repeated Flow Control with block size
+- STmin in milliseconds
+- STmin in 100-us units
+- sequence-number mismatch rejection
+- FC Overflow handling
+- FC Wait limit
+- FC timeout
+- 4095-byte full PDU transfer
+- sequence-number wrap during long transfer
+- >4095-byte transfer rejection with FC Overflow response
+
+## Defects found and fixed during validation
+
+### STmin across FC block boundaries
+
+The first implementation allowed a new CF immediately after a new FC frame when
+`BS=1`, even if the previous CF-to-CF STmin had not elapsed.
+
+The scheduler was corrected so the next eligible CF time remains:
+
+```text
+previous CF send time + STmin
+```
+
+even when a block boundary requires another FC.
+
+A regression test now covers this behavior.
+
+### FC Overflow delivery ordering
+
+The first implementation queued FC Overflow for unsupported extended FF length
+but could return the local `payload_too_large` result before the queued FC was
+actually sent.
+
+`poll()` now defers the local error return until pending control traffic has had
+a send attempt. A regression test verifies that unsupported extended FF encoding
+produces FC Overflow.
+
+## Final Stage H boundary
+
+The validated Core path is now:
+
+```text
+future UDS
+   |
+   v
+IsoTpEndpoint
+   |
+   v
+ICanInterface
+   |
+   +--> SocketCanAdapter on Prototype A
+   +--> future platform adapters
+```
+
+Stage H remains intentionally limited to normal physical 1:1 addressing and
+12-bit FF payload length up to 4095 bytes. Extended/mixed/functional addressing
+and extended-length FF are future revisions, not hidden Stage H assumptions.
+
+No merge to production `main` was performed or authorized.

@@ -321,3 +321,33 @@ Validation on the physical CM5:
 - `STAGE_E_CORE_BOOTSTRAP=PASS`
 
 No Linux/Raspberry Pi implementation dependency was introduced into Core. The exact platform/transport contracts remain intentionally open for the next design stage.
+
+
+## 19. Stage H Core ISO-TP — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Stage H is a portable Core/source stage and installed no additional operating-system packages.
+
+Implemented above the frozen `ICanInterface` contract:
+
+- nonblocking ISO-TP endpoint/state machine
+- Classic CAN + CAN-FD
+- SF / FF / CF / FC
+- block size and STmin
+- flow-control timeout and consecutive-frame timeout
+- sequence checking
+- 11-bit and 29-bit normal physical addressing
+- fixed 4095-byte PDU buffer
+- FC Wait / Overflow handling
+
+Validation:
+
+- Debug CTest: `4/4` PASS
+- Release CTest: `4/4` PASS
+- `ISOTP_CORE_TESTS=PASS`
+- `STAGE_H_ISOTP=PASS`
+- ASan/UBSan: PASS
+- Core portability gate: PASS
+
+No Linux/SocketCAN dependency was added to ISO-TP Core.
