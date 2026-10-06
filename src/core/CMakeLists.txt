@@ -1,5 +1,6 @@
 add_library(ecu_core STATIC
   src/build_info.cpp
+  src/can_types.cpp
 )
 
 add_library(ECU::core ALIAS ecu_core)
@@ -9,7 +10,7 @@ target_include_directories(ecu_core
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 
-# Stage E bootstrap minimum only. This is not a frozen product-language decision.
+# Bootstrap minimum only. The final product language level remains a project decision.
 target_compile_features(ecu_core PUBLIC cxx_std_17)
 
 set_target_properties(ecu_core PROPERTIES
