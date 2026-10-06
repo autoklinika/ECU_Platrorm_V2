@@ -164,6 +164,10 @@ bool pump_server_response(
     const auto client_status = client.poll();
     const auto server_status = server.poll();
 
+    if (client.has_response()) {
+      return true;
+    }
+
     const auto fatal_client =
         client_status != UdsStatus::ok &&
         client_status != UdsStatus::idle &&
