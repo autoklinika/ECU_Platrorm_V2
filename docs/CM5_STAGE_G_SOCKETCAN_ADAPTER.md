@@ -2,7 +2,7 @@
 
 ## Status
 
-**G1 VERIFIED / G2 PHYSICAL GATE PENDING**
+**VERIFIED / PASS**
 
 Branch:
 
@@ -178,3 +178,74 @@ Validated directly on Prototype A:
 A parser defect discovered during G1 was fixed before physical validation: nested netlink attribute flags are now masked with `NLA_TYPE_MASK`, allowing `IFLA_CAN_CTRLMODE_SUPPORTED` to be decoded correctly.
 
 G2 remains the only open acceptance gate.
+
+
+## G2 physical validation evidence — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Physical Prototype A gate executed on `can0` with:
+
+- nominal bitrate: `500000`
+- data bitrate: `2000000`
+- CAN-FD: enabled
+- kernel listen-only: enabled
+- controller: MCP251xFD
+- controller state during test: `ERROR-ACTIVE`
+- TX error counter: `0`
+- RX error counter: `0`
+
+Adapter evidence:
+
+- `LISTEN_ONLY_TX_GUARD=PASS`
+- `SOCKETCAN_RECEIVE_PROBE=PASS status=1`
+  - status `1` = portable `would_block`
+- `SOCKETCAN_ADAPTER_PROBE=PASS`
+- `STAGE_G2_LISTEN_ONLY=PASS`
+
+Safety evidence before and after the adapter probe:
+
+- kernel remained in `<LISTEN-ONLY,FD,TDC-AUTO>`
+- TX packets: `0`
+- TX bytes: `0`
+- TX errors: `0`
+- bus-off count: `0`
+- no test frame was transmitted
+
+Post-test independent verification confirmed:
+
+- `can0`: `DOWN`
+- CAN state: `STOPPED`
+- TX packets/bytes remained `0/0`
+- RX packets/bytes remained `0/0`
+- error counters remained `0/0`
+
+The temporary CAN profile remains stored by the kernel while the interface is DOWN:
+
+```text
+500 kbit/s nominal
+2 Mbit/s data
+FD enabled
+listen-only enabled
+```
+
+This is safe because the interface is DOWN. Stage G does not define persistent boot-time CAN configuration; a future lifecycle/configuration stage must own that responsibility explicitly.
+
+## Final Stage G status
+
+**VERIFIED / PASS**
+
+The frozen Stage F `ICanInterface` contract now has a real Linux/SocketCAN adapter validated against Prototype A without leaking Linux details into Core.
+
+Validated path:
+
+```text
+ECU Core
+  -> ICanInterface
+  -> SocketCanAdapter
+  -> Linux PF_CAN / CAN_RAW
+  -> can0
+  -> MCP251xFD
+```
+
+Stage G acceptance did not authorize or perform a merge to production `main`.
