@@ -107,3 +107,19 @@ Observed:
 - fresh MCP endpoint visible from ChatGPT
 
 Final gate: one reboot must prove that both remote-access paths recover automatically.
+
+
+## Final reboot validation — 2026-10-06
+
+Status: **VERIFIED / PASS**
+
+After a controlled CM5 reboot:
+
+- Tailscale reconnected automatically
+- Tailscale address remained `100.92.219.91`
+- `tailscaled.service` was enabled + active
+- `desktop-commander-remote.service` was enabled + active
+- `Linger=yes`
+- the MCP device returned online without a manually open terminal
+
+Stage C is closed.
