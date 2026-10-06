@@ -17,7 +17,7 @@ git -C "$ROOT_DIR" status --short
 
 echo
 echo "=== Standards baseline gate ==="
-"$ROOT_DIR/scripts/check_core_standards.sh"
+bash "$ROOT_DIR/scripts/check_core_standards.sh"
 
 echo
 echo "=== Architecture gate ==="
