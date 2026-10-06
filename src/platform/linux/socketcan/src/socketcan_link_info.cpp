@@ -1,7 +1,7 @@
 #include "ecu/platform/linux/socketcan/socketcan_link_info.hpp"
 
 #include <linux/can/netlink.h>
-#include <linux/if.h>
+#include <net/if.h>
 #include <linux/if_link.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>

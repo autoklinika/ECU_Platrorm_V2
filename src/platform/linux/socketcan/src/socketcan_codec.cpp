@@ -1,7 +1,7 @@
 #include "ecu/platform/linux/socketcan/detail/socketcan_codec.hpp"
 
-#include <algorithm>
 #include <cstddef>
+#include <cstring>
 
 namespace ecu::platform::linux::socketcan::detail {
 namespace {
@@ -52,7 +52,8 @@ CanStatus encode_classic_frame(
   target.can_id = encode_identifier(source);
   target.len = source.length;
 
-  if (source.type == core::transport::CanFrameType::data) {
+  if (source.type == core::transport::CanFrameType::data &&
+      source.length != 0U) {
     std::memcpy(target.data, source.payload.data(), source.length);
   }
 
@@ -78,7 +79,9 @@ CanStatus encode_fd_frame(
     target.flags |= CANFD_ESI;
   }
 
-  std::memcpy(target.data, source.payload.data(), source.length);
+  if (source.length != 0U) {
+    std::memcpy(target.data, source.payload.data(), source.length);
+  }
   return CanStatus::ok;
 }
 
@@ -97,11 +100,12 @@ CanStatus decode_classic_frame(
   decode_identifier(source.can_id, target.value.frame);
   target.value.frame.length = source.len;
 
-  if (target.value.frame.type == core::transport::CanFrameType::data) {
-    std::copy_n(
+  if (target.value.frame.type == core::transport::CanFrameType::data &&
+      source.len != 0U) {
+    std::memcpy(
+        target.value.frame.payload.data(),
         source.data,
-        source.len,
-        target.value.frame.payload.begin());
+        source.len);
   }
 
   return CanStatus::ok;
@@ -129,10 +133,13 @@ CanStatus decode_fd_frame(
   target.value.frame.length = source.len;
   target.value.frame.bit_rate_switch = (source.flags & CANFD_BRS) != 0U;
   target.value.frame.error_state_indicator = (source.flags & CANFD_ESI) != 0U;
-  std::copy_n(
-      source.data,
-      source.len,
-      target.value.frame.payload.begin());
+
+  if (source.len != 0U) {
+    std::memcpy(
+        target.value.frame.payload.data(),
+        source.data,
+        source.len);
+  }
 
   if (!core::transport::is_valid_can_frame(target.value.frame)) {
     return CanStatus::invalid_argument;
