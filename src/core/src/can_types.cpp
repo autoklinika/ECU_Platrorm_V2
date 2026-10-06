@@ -80,16 +80,41 @@ bool capabilities_support(
     return false;
   }
 
-  if (!capabilities.classic_can) {
+  if (config.mode == CanMode::listen_only && !capabilities.listen_only) {
     return false;
   }
 
   if (!config.fd_enabled) {
-    return capabilities.max_payload_bytes >= 8U;
+    return capabilities.classic_can &&
+           capabilities.max_payload_bytes >= 8U;
   }
 
   return capabilities.can_fd &&
-         capabilities.max_payload_bytes >= 64U;
+         capabilities.max_payload_bytes > 8U;
+}
+
+bool capabilities_support_frame(
+    const CanCapabilities& capabilities,
+    const CanFrame& frame) noexcept {
+  if (!is_valid_can_frame(frame)) {
+    return false;
+  }
+
+  if (frame.format == CanFrameFormat::classic) {
+    return capabilities.classic_can &&
+           frame.length <= capabilities.max_payload_bytes;
+  }
+
+  if (!capabilities.can_fd ||
+      frame.length > capabilities.max_payload_bytes) {
+    return false;
+  }
+
+  if (frame.bit_rate_switch && !capabilities.bit_rate_switch) {
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace ecu::core::transport

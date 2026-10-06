@@ -49,7 +49,7 @@ Current candidate capabilities:
 - classic CAN,
 - CAN-FD,
 - bit-rate switching,
-- maximum payload size.
+- listen-only support,\n- maximum payload size.
 
 The exact hardware identity and discovery mechanism are deliberately excluded.
 
@@ -86,9 +86,9 @@ The first candidate set is intentionally small:
 - `not_open`,
 - `invalid_argument`,
 - `unsupported`,
-- `io_error`.
+- `bus_off`,\n- `io_error`.
 
-More domain-relevant states can be added when the safety/runtime design proves they are needed.
+`bus_off` is included because it is a CAN-domain state needed by safety/runtime logic, not an OS-specific error. More states can be added only when the runtime design proves they are needed.
 
 ### 6. Monotonic timestamps only
 
@@ -162,7 +162,7 @@ The user should approve or change these contract decisions before a real SocketC
 
 1. `ICanInterface` lifecycle: `open/close/is_open`.
 2. Nonblocking `try_receive()` rather than callback-based receive.
-3. Current portable `CanStatus` set.
+3. Current portable `CanStatus` set, including domain-level `bus_off`.
 4. `CanChannelConfig` fields and listen-only mode.
 5. Strict CAN-FD wire-length representation.
 6. Monotonic timestamp representation in nanoseconds.
@@ -188,3 +188,15 @@ Validation includes the Stage E portability guard plus Debug and Release builds 
 ## Merge boundary
 
 Do not merge this branch to `main` without explicit user approval.
+
+
+## Semantic review refinement
+
+The first implementation review tightened the candidate before acceptance:
+
+- `listen_only` is now an explicit capability; requesting listen-only mode on an interface that does not advertise it is rejected.
+- frame-level BRS support is validated against interface capabilities.
+- maximum payload capability is checked per transmitted frame instead of assuming every CAN-FD device exposes 64 bytes.
+- `bus_off` is represented as a portable CAN-domain status rather than being collapsed into an OS-specific error.
+
+These changes keep the capability API internally consistent without adding Linux-specific behavior.

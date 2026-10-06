@@ -43,6 +43,7 @@ struct CanCapabilities {
   bool classic_can{true};
   bool can_fd{false};
   bool bit_rate_switch{false};
+  bool listen_only{false};
   std::uint8_t max_payload_bytes{8};
 };
 
@@ -64,6 +65,7 @@ enum class CanStatus : std::uint8_t {
   not_open,
   invalid_argument,
   unsupported,
+  bus_off,
   io_error,
 };
 
@@ -78,5 +80,8 @@ struct CanReceiveResult {
 [[nodiscard]] bool capabilities_support(
     const CanCapabilities& capabilities,
     const CanChannelConfig& config) noexcept;
+[[nodiscard]] bool capabilities_support_frame(
+    const CanCapabilities& capabilities,
+    const CanFrame& frame) noexcept;
 
 }  // namespace ecu::core::transport

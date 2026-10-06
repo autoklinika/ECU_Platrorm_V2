@@ -3,8 +3,6 @@
 #include "ecu/core/transport/i_can_interface.hpp"
 
 #include <chrono>
-#include <cstddef>
-#include <cstdint>
 #include <iostream>
 
 namespace {
@@ -28,13 +26,14 @@ class FakeClock final : public IMonotonicClock {
 class FakeCanInterface final : public ICanInterface {
  public:
   CanCapabilities capabilities() const noexcept override {
-    return CanCapabilities{true, true, true, 64U};
+    return CanCapabilities{true, true, true, true, 64U};
   }
 
   CanStatus open(const CanChannelConfig& config) noexcept override {
     if (!capabilities_support(capabilities(), config)) {
       return CanStatus::unsupported;
     }
+    config_ = config;
     open_ = true;
     return CanStatus::ok;
   }
@@ -51,9 +50,19 @@ class FakeCanInterface final : public ICanInterface {
     if (!open_) {
       return CanStatus::not_open;
     }
-    return is_valid_can_frame(frame)
-               ? CanStatus::ok
-               : CanStatus::invalid_argument;
+    if (config_.mode == CanMode::listen_only) {
+      return CanStatus::unsupported;
+    }
+    if (!is_valid_can_frame(frame)) {
+      return CanStatus::invalid_argument;
+    }
+    if (!capabilities_support_frame(capabilities(), frame)) {
+      return CanStatus::unsupported;
+    }
+    if (frame.format == CanFrameFormat::fd && !config_.fd_enabled) {
+      return CanStatus::unsupported;
+    }
+    return CanStatus::ok;
   }
 
   CanReceiveResult try_receive() noexcept override {
@@ -62,6 +71,7 @@ class FakeCanInterface final : public ICanInterface {
 
  private:
   bool open_{false};
+  CanChannelConfig config_{};
 };
 
 int require(const bool condition, const char* message) {
@@ -127,12 +137,43 @@ int main() {
       is_valid_can_channel_config(fd_config),
       "valid CAN-FD channel config");
 
-  const CanCapabilities classic_only{true, false, false, 8U};
+  const CanCapabilities classic_only{true, false, false, true, 8U};
+  failures += require(
+      capabilities_support(classic_only, classic_config),
+      "classic interface accepts classic config");
   failures += require(
       !capabilities_support(classic_only, fd_config),
       "classic-only interface rejects FD config");
 
-  const CanCapabilities full{true, true, true, 64U};
+  const CanCapabilities fd_no_listen{true, true, true, false, 64U};
+  CanChannelConfig listen_config = fd_config;
+  listen_config.mode = CanMode::listen_only;
+  failures += require(
+      !capabilities_support(fd_no_listen, listen_config),
+      "interface without listen-only capability rejects listen mode");
+
+  const CanCapabilities no_brs{true, true, false, true, 64U};
+  CanFrame brs_frame{};
+  brs_frame.format = CanFrameFormat::fd;
+  brs_frame.length = 64U;
+  brs_frame.bit_rate_switch = true;
+  failures += require(
+      !capabilities_support_frame(no_brs, brs_frame),
+      "interface without BRS capability rejects BRS frame");
+
+  const CanCapabilities fd_32{true, true, true, true, 32U};
+  CanFrame fd_32_frame{};
+  fd_32_frame.format = CanFrameFormat::fd;
+  fd_32_frame.length = 32U;
+  failures += require(
+      capabilities_support_frame(fd_32, fd_32_frame),
+      "capability max payload accepts matching FD frame");
+  fd_32_frame.length = 48U;
+  failures += require(
+      !capabilities_support_frame(fd_32, fd_32_frame),
+      "capability max payload rejects oversized FD frame");
+
+  const CanCapabilities full{true, true, true, true, 64U};
   failures += require(
       capabilities_support(full, fd_config),
       "FD-capable interface accepts FD config");
@@ -152,10 +193,30 @@ int main() {
       fake.send(good_send) == CanStatus::ok,
       "valid frame accepted by fake");
 
+  CanFrame fd_send{};
+  fd_send.identifier = 0x123U;
+  fd_send.format = CanFrameFormat::fd;
+  fd_send.length = 64U;
+  fd_send.bit_rate_switch = true;
+  failures += require(
+      fake.send(fd_send) == CanStatus::ok,
+      "valid FD/BRS frame accepted by capable fake");
+
   const auto receive = fake.try_receive();
   failures += require(
       receive.status == CanStatus::would_block,
       "nonblocking receive has explicit would_block state");
+
+  fake.close();
+  CanChannelConfig listen_only{};
+  listen_only.nominal_bitrate = 500000U;
+  listen_only.mode = CanMode::listen_only;
+  failures += require(
+      fake.open(listen_only) == CanStatus::ok,
+      "fake opens listen-only mode");
+  failures += require(
+      fake.send(good_send) == CanStatus::unsupported,
+      "listen-only mode rejects transmit");
 
   FakeClock clock{std::chrono::milliseconds{1234}};
   failures += require(
