@@ -43,6 +43,9 @@ for extension in h hh hpp hxx c cc cpp cxx ipp tpp inl; do
     'for (;;) { work(); }' \
     'thrd_create(worker, callback, 0);' \
     'std::allocate_shared<int>(allocator);' \
+    'memcpy(dst, src, 8);' \
+    'std::memset(dst, 0, 8);' \
+    '__builtin_memmove(dst, src, 8);' \
     'std::any value;' \
     'std::make_unique<int>();' \
     'std::make_shared<int>();' \

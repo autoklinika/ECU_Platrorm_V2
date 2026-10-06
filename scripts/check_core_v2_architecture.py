@@ -76,6 +76,7 @@ patterns = {
     'exception/RTTI facility': r'\b(?:throw|try|catch|dynamic_cast|typeid)\b',
     'unbounded loop': r'\bwhile\s*\(\s*(?:true|1)\s*\)|\bfor\s*\(\s*;\s*;\s*\)',
     'allocation facility': r'\bstd\s*::\s*(?:vector|set|multiset|map|multimap|list|forward_list|deque|unordered_\w+|string|basic_string|function|any|make_any|make_unique|make_shared|allocate_shared|allocator|unique_ptr|shared_ptr|ostringstream|istringstream|stringstream)\b|\bstd\s*::\s*pmr\s*::|\bnew\b|\b(?:malloc|calloc|realloc|aligned_alloc)\s*\(',
+    'explicit memory primitive': r'\b(?:(?:std\s*::\s*)?(?:memcpy|memset|memmove|memcmp)|__builtin_(?:memcpy|memset|memmove|memcmp))\s*\(',
     'OS API': r'\bstd\s*::\s*filesystem\b',
     'platform process API': r'\b(?:system|popen|_popen|fork|vfork|exec[lvpe]*|posix_spawn(?:p)?|CreateProcess(?:A|W)?)\b',
     'direct clock API': r'\b(?:steady_clock|system_clock|high_resolution_clock|clock_gettime|gettimeofday|QueryPerformanceCounter|GetTickCount(?:64)?)\b',
