@@ -286,10 +286,12 @@ For foundational and time-critical paths:
 - no exception/RTTI-based control paths in the deterministic foundation,
 - no Core-owned mutex/atomic/thread-local synchronization; serialization belongs
   to the owning executor,
-- direct source use of memory-runtime functions such as `memcpy`/`memset` is
-  forbidden. A compiler may still lower aggregate copies/zeroing to those exact
-  freestanding primitives; CI treats only such compiler-generated symbols as
-  acceptable and rejects every other external unresolved runtime symbol.
+- direct source use of compiler/runtime hooks such as `memcpy`, `memset`
+  or `__stack_chk_fail` is forbidden. A compiler may still lower aggregate
+  copies/zeroing to the exact memory primitives or inject `__stack_chk_fail`
+  for stack-protector hardening; CI treats only these exact compiler-generated
+  symbols as acceptable and rejects every other external unresolved runtime
+  symbol.
 
 Dynamic allocation may exist in non-time-critical adapters/services later, but
 it must not leak into deterministic Core contracts.

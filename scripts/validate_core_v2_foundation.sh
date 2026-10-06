@@ -35,14 +35,16 @@ assert_runtime_independence() {
   if command -v nm >/dev/null 2>&1; then
     local external
     external="$(
-      # Clang may lower aggregate copy/zero operations to the freestanding
-      # compiler primitives memcpy/memset even when Core source never calls
-      # them. The architecture scanner forbids explicit source use; only these
-      # exact unresolved lowering symbols are accepted here.
+      # Toolchains may inject a very small set of freestanding/compiler
+      # runtime primitives without any explicit Core source dependency:
+      # Clang may lower aggregate copy/zero to memcpy/memset and hardened GCC
+      # may emit __stack_chk_fail for stack-protector checks. The architecture
+      # scanner forbids explicit source use; only these exact unresolved
+      # compiler-generated symbols are accepted here.
       nm -uC "$library" | awk '
         / U / &&
         $0 !~ / U ecu::core::v2::/ &&
-        $0 !~ / U (memcpy|memset)$/ {print}
+        $0 !~ / U (memcpy|memset|__stack_chk_fail)$/ {print}
       '
     )"
     if [[ -n "$external" ]]; then
