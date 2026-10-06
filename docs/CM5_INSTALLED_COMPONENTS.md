@@ -82,10 +82,10 @@ Tailscale and Remote Desktop Commander are **development/maintenance tooling for
 | Component | Version / source | Purpose | Status |
 |---|---|---|---|
 | DRM/KMS / `vc4-kms-v3d` | kernel + Raspberry Pi boot configuration | Prototype A local display backend | VERIFIED |
-| `cage` | candidate `0.3.1-1~bpo13+1+rpt2` | Minimal Wayland kiosk compositor | PLANNED |
-| `chromium` | candidate `1:154.0.8037.92-1~deb13u1+rpt1` | Local WebGUI kiosk client using native Wayland/Ozone | PLANNED |
-| `rpi-chromium-mods` | candidate `20260211` | Raspberry Pi-specific Chromium runtime settings; Prototype A only | PLANNED |
-| `ecu-kiosk.service` | project-managed systemd unit | Boot-time Cage/Chromium session on tty1 | PLANNED |
+| `cage` | `0.3.1-1~bpo13+1+rpt2` | Minimal Wayland kiosk compositor | INSTALLED |
+| `chromium` | `1:154.0.8037.92-1~deb13u1+rpt1` | Local WebGUI kiosk client using native Wayland/Ozone | INSTALLED |
+| `rpi-chromium-mods` | `20260211` | Raspberry Pi-specific Chromium runtime settings; Prototype A only | INSTALLED |
+| `ecu-kiosk.service` | project-managed systemd unit; enabled + active | Boot-time Cage/Chromium session on tty1 | INSTALLED |
 
 No desktop environment, display manager, panel, file manager, XWayland or separate seat daemon is part of the Stage D baseline.
 
@@ -225,3 +225,26 @@ Prepared artifacts:
 - `docs/CM5_STAGE_D_KIOSK.md`
 
 No Stage D component is marked INSTALLED or VERIFIED until the bootstrap and validation have actually run.
+
+
+## 15. Stage D pre-reboot validation — 2026-10-06
+
+Result: **PASS (pre-reboot)**
+
+Independent validation through the CM5 MCP endpoint confirmed:
+
+- Stage D bootstrap marker: `STAGE_D_INSTALL=PASS`
+- Stage D validation marker: `STAGE_D_KIOSK=PASS`
+- Cage, Chromium and `rpi-chromium-mods` installed at the versions recorded above
+- `ecu-kiosk.service`: enabled + active
+- `graphical.target`: default
+- active `seat0/tty1` logind session for the kiosk
+- native Wayland socket `/run/user/1000/wayland-0`
+- Chromium using `--ozone-platform=wayland` and `--kiosk`
+- no XWayland process
+- HDMI-A-1 reported connected
+- WaveShare USB HID touch device present in the input subsystem
+- Tailscale remained active
+- Remote Desktop Commander user service remained enabled + active
+
+Final Stage D status remains **PENDING REBOOT + PHYSICAL TOUCH VALIDATION**.

@@ -43,7 +43,7 @@ Observed before installation:
   - Chromium: `1:154.0.8037.92-1~deb13u1+rpt1`
   - rpi-chromium-mods: `20260211`
 
-Status: **PREPARED / installation requires one local sudo authentication**.
+Status: **PREPARED** before installation; installation subsequently completed successfully on the clean CM5.
 
 ## Installation
 
@@ -122,3 +122,27 @@ Stage D is not **VERIFIED** until all of the following are confirmed after one r
 5. `scripts/validate_cm5_stage_d_kiosk.sh` returns `STAGE_D_KIOSK=PASS`.
 
 Do not merge `setup/cm5-bootstrap` to production `main` as part of Stage D without explicit user approval.
+
+
+## Pre-reboot validation — 2026-10-06
+
+Result: **PASS**
+
+Observed after running the Stage D bootstrap:
+
+- `cage 0.3.1-1~bpo13+1+rpt2`
+- `chromium 1:154.0.8037.92-1~deb13u1+rpt1`
+- `rpi-chromium-mods 20260211`
+- `ecu-kiosk.service`: enabled + active
+- default target: `graphical.target`
+- active logind kiosk session: user `ecu`, `seat0`, `tty1`
+- Wayland socket: `/run/user/1000/wayland-0`
+- Chromium launched by Cage with `--ozone-platform=wayland --kiosk`
+- no XWayland process
+- HDMI connector `card1-HDMI-A-1`: connected
+- WaveShare USB HID input device enumerated as `WaveShare WaveShare`
+- Tailscale remained active at `100.92.219.91`
+- `desktop-commander-remote.service`: enabled + active
+- automated marker: `STAGE_D_KIOSK=PASS`
+
+Stage D remains **PENDING REBOOT / PHYSICAL TOUCH VALIDATION**. The final gate still requires proving automatic kiosk recovery after reboot and confirming touch interaction on the local display.
