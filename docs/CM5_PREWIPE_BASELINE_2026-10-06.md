@@ -78,21 +78,33 @@ Important legacy knowledge exists on remote branches, including:
 
 The Stage 10 branch contains extensive architecture, implementation and hardware-validation documentation under `docs/` and `docs/reports/`.
 
-## 5. Local evidence not yet present on GitHub
+## 5. Pre-wipe evidence archive
 
-These files are currently present only on the CM5 and must not be lost before wipe:
+The real CM5 validation evidence has been archived and stored on GitHub in the **private** legacy repository `autoklinika/ecu_platform` as release:
 
-- `/home/ecu/ecu_logs`: about 249 MB, 24 files
-- `/home/ecu/ecu_reports`: about 5.6 MB, 221 files
-- `/home/ecu/ecu_backup`: 2 small historical files
-- `/home/ecu/ecu_platform_backup_untracked`: 2 historical ECU_Factory files
+- tag: `prewipe-evidence-2026-10-06`
+- release title: `ECU Platform pre-wipe evidence 2026-10-06`
+- archive: `ecu-platform-prewipe-evidence-2026-10-06.tar.zst`
+- archive size: 12,711,331 bytes
+- archive SHA-256: `a2edd5394b9d09ffc2c98b98c558c22cfaa6e6dee399e673b278b691b0ea30de`
+- archived entries: 331
+- archive test: PASS
 
-Largest evidence file:
+The release also contains:
 
-- `/home/ecu/ecu_logs/sonceboz_egr_raw.log`: about 260 MB uncompressed
-- observed compressed size at zstd level 3: about 11.4 MB
+- `ecu-platform-prewipe-evidence-2026-10-06.manifest.sha256`
+- `ecu-platform-prewipe-evidence-2026-10-06.index.txt`
 
-GitHub code search did not find the raw Sonceboz log, timing snapshots, autotest JSON files or resolution-test JSON files.
+The archive contains the pre-wipe contents of:
+
+- `/home/ecu/ecu_logs`
+- `/home/ecu/ecu_reports`
+- `/home/ecu/ecu_backup`
+- `/home/ecu/ecu_platform_backup_untracked`
+
+The archive was copied from CM5 to AI Server over the private Tailscale network and verified there before GitHub upload. The SHA-256 calculated after transfer matched the SHA-256 calculated on CM5. A basic text scan found no password/token/private-key patterns in the archived evidence.
+
+The raw evidence is intentionally stored in the private legacy repository rather than the public V2 repository.
 
 ## 6. Local runtime settings to preserve as knowledge, not as secrets
 
@@ -114,15 +126,18 @@ Credentials, authentication tokens, Tailscale state and Remote Desktop Commander
 The clean rebuild after reinstall follows these rules:
 
 1. Install a minimal Linux without a desktop environment.
-2. Run the product in kiosk mode with only the graphics/input components required by the application.
-3. Build ECU Platform V2 from a new architecture and current requirements.
-4. Treat legacy `ecu_platform` as a read-only knowledge/reference source.
-5. Do not mechanically copy legacy directory structure or application control flow.
-6. Reuse protocol facts, validated constants, hardware behavior and selected implementation techniques only after review.
-7. Core must be independent from GUI, Linux-specific APIs and the current CM5 hardware.
-8. CAN/CAN-FD, DoIP and future transports must sit behind stable transport/platform interfaces.
-9. Qt/QML is a client/UI technology, not part of Core.
-10. Hardware evidence and regression fixtures should be preserved so the new implementation can be validated against known behavior.
+2. ECU Platform V2 uses **WebGUI as its user interface**.
+3. The local CM5 display runs a minimal kiosk browser/client that opens the locally served WebGUI; there is no separate Qt/QML application UI in the V2 baseline.
+4. The same WebGUI/application API model must support local kiosk use and authorized remote clients without duplicating control logic.
+5. Build ECU Platform V2 from a new architecture and current requirements.
+6. Treat legacy `ecu_platform` as a read-only knowledge/reference source.
+7. Do not mechanically copy legacy directory structure or application control flow.
+8. Reuse protocol facts, validated constants, hardware behavior and selected implementation techniques only after review.
+9. Core must be independent from WebGUI, Linux-specific APIs and the current CM5 hardware.
+10. CAN/CAN-FD, DoIP and future transports must sit behind stable transport/platform interfaces.
+11. WebGUI is a client of Core/API and cannot own hardware or diagnostic control logic.
+12. Qt/QML is not part of the V2 baseline UI architecture.
+13. Hardware evidence and regression fixtures should be preserved so the new implementation can be validated against known behavior.
 
 ## 8. Pre-wipe gate
 
@@ -131,7 +146,7 @@ The CM5 may be wiped only after all of the following are true:
 - [x] legacy source branches required as reference exist on GitHub
 - [x] stable v1.8 release exists on GitHub
 - [x] CM5 hardware/CAN/display/cooling baseline documented
-- [ ] raw EGR/Actuator evidence archived outside the CM5
-- [ ] evidence archive checksum recorded
-- [ ] evidence archive copied to its final GitHub-backed storage or another durable project archive
+- [x] raw EGR/Actuator evidence archived outside the CM5
+- [x] evidence archive checksum recorded
+- [x] evidence archive copied to private GitHub-backed storage
 - [ ] reinstall/runbook for the minimal kiosk image prepared and reviewed
