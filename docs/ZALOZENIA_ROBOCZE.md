@@ -55,6 +55,12 @@
 - **[USTALONE / NADRZĘDNE / INVARIANT]** Żaden moduł domenowy/Core nie może importować ani wywoływać bezpośrednio API specyficznego dla Raspberry Pi, Linux SocketCAN, systemd, GPIO, SPI, konkretnego filesystemu lub konkretnego sterownika sprzętowego. Takie zależności muszą kończyć się w adapterze/platform layer.
 - **[USTALONE / NADRZĘDNE / INVARIANT]** Każdy PR zmieniający Core lub warstwy transportowe musi być oceniany pod kątem przenośności OS/hardware. Brak tej separacji jest powodem do odrzucenia zmiany.
 - **[USTALONE / NADRZĘDNE / INVARIANT]** W dokumentacji, testach i CI będziemy utrzymywać to rozdzielenie jako jawny gate architektoniczny, tak aby przypadkowe związanie produktu z CM5/Linuxem było wykrywane wcześnie.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Ta sama zasada obowiązuje wszystkie peryferia i urządzenia pomocnicze. Kamera, ekran/touch, drukarka, moduły CAN/CAN-FD, LIN/K-Line, Automotive Ethernet/DoIP PHY, moduły I/O, przekaźniki, czujniki, termowizja, robotyka, storage, VCI i przyszłe urządzenia zewnętrzne muszą być projektowane jako **łatwo wymienne komponenty za stabilnym kontraktem urządzenia**.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Core i logika domenowa nie mogą zależeć od konkretnego producenta, modelu, VID/PID, ścieżki urządzenia, numeru GPIO, portu szeregowego ani specyficznego SDK peryferium. Te szczegóły należą wyłącznie do drivera/adaptora urządzenia.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Każda klasa peryferiów musi mieć abstrakcyjny kontrakt capability-oriented, np. `ICamera`, `IThermalCamera`, `IPrinter`, `IDigitalIO`, `IRobotArm`, `ICanInterface`, zamiast kodu pisanego pod jeden konkretny model.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Wymiana peryferium na inne urządzenie tej samej klasy powinna wymagać przede wszystkim nowego adaptera/drivera i konfiguracji capability, bez modyfikacji logiki Core ani WebGUI poza ewentualnym ujawnieniem nowych możliwości.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Konfiguracja sprzętu musi być deklaratywna i wykrywalna: platforma ma znać dostępne capabilities urządzenia, a nie zakładać na sztywno obecność konkretnego modelu.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Peryferia nie mogą bezpośrednio sterować logiką aplikacji ani WebGUI. Komunikacja przebiega przez warstwę device services/adapters oraz stabilne API/zdarzenia.
 
 - **[USTALONE]** Core jest źródłem prawdy o stanie systemu.
 - **[USTALONE]** GUI nie może być właścicielem logiki sterowania urządzeniem.
