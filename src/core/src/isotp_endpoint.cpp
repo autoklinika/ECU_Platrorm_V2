@@ -95,6 +95,8 @@ IsoTpStatus IsoTpEndpoint::poll() noexcept {
     return IsoTpStatus::timeout;
   }
 
+  IsoTpStatus deferred_status = IsoTpStatus::ok;
+
   for (std::size_t count = 0U; count < kMaxFramesPerPoll; ++count) {
     auto result = can_.try_receive();
 
@@ -110,7 +112,8 @@ IsoTpStatus IsoTpEndpoint::poll() noexcept {
     if (status != IsoTpStatus::ok &&
         status != IsoTpStatus::in_progress &&
         status != IsoTpStatus::idle) {
-      return status;
+      deferred_status = status;
+      break;
     }
   }
 
@@ -120,6 +123,10 @@ IsoTpStatus IsoTpEndpoint::poll() noexcept {
         status != IsoTpStatus::would_block) {
       return status;
     }
+  }
+
+  if (deferred_status != IsoTpStatus::ok) {
+    return deferred_status;
   }
 
   const auto tx_status = poll_tx(now);

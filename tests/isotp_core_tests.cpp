@@ -589,6 +589,40 @@ int main() {
 
   {
     FakeClock clock;
+    FakeCan can_b{clock};
+    auto config = classic_config();
+    IsoTpEndpoint b{can_b, clock, address_b(), config};
+
+    CanFrame extended_ff{};
+    extended_ff.identifier = 0x700U;
+    extended_ff.identifier_format =
+        CanIdentifierFormat::standard_11_bit;
+    extended_ff.format = CanFrameFormat::classic;
+    extended_ff.length = 8U;
+    extended_ff.payload[0] = std::byte{0x10};
+    extended_ff.payload[1] = std::byte{0x00};
+    extended_ff.payload[2] = std::byte{0x00};
+    extended_ff.payload[3] = std::byte{0x00};
+    extended_ff.payload[4] = std::byte{0x10};
+    extended_ff.payload[5] = std::byte{0x00};
+
+    can_b.inject(extended_ff);
+
+    failures += require(
+        b.poll() == IsoTpStatus::payload_too_large,
+        "extended FF length is rejected by Stage H limit");
+    failures += require(
+        can_b.sent().size() == 1U,
+        "overflow FC emitted for unsupported extended FF");
+    failures += require(
+        (std::to_integer<std::uint8_t>(
+             can_b.sent().front().frame.payload[0]) &
+         0x0FU) == 0x02U,
+        "overflow FC uses FS=Overflow");
+  }
+
+  {
+    FakeClock clock;
     FakeCan can_a{clock};
     auto config = classic_config();
     IsoTpEndpoint a{can_a, clock, address_a(), config};
