@@ -38,3 +38,23 @@ jobs:
 
       - name: Full Core hardening validation
         run: bash scripts/validate_core_hardening.sh
+
+      - name: Core V2 foundation validation
+        run: bash scripts/validate_core_v2_foundation.sh
+
+  core-v2-clang-linux:
+    name: Core V2 Linux Clang
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build clang
+      - name: Core V2 foundation validation
+        run: bash scripts/validate_core_v2_foundation.sh
