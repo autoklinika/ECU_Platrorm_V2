@@ -3,6 +3,7 @@ add_library(ecu_core STATIC
   src/can_types.cpp
   src/isotp_types.cpp
   src/isotp_endpoint.cpp
+  src/isotp_diagnostic_transport.cpp
   src/uds_types.cpp
   src/uds_services.cpp
   src/uds_client.cpp

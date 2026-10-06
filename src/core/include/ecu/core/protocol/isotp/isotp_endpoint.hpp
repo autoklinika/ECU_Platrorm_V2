@@ -30,6 +30,7 @@ class IsoTpEndpoint {
   [[nodiscard]] IsoTpStatus last_tx_status() const noexcept;
 
   [[nodiscard]] bool has_received() const noexcept;
+  [[nodiscard]] std::size_t peek_received_length() const noexcept;
   [[nodiscard]] IsoTpReceiveResult take_received() noexcept;
 
   void reset() noexcept;

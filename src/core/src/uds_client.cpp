@@ -22,7 +22,7 @@ time::MonotonicTime to_monotonic(
 }  // namespace
 
 UdsClient::UdsClient(
-    isotp::IsoTpEndpoint& transport,
+    transport::IDiagnosticTransport& transport,
     const time::IMonotonicClock& clock,
     const UdsTiming timing) noexcept
     : transport_(transport),
@@ -63,7 +63,7 @@ UdsStatus UdsClient::start_request(
   deadline_ = time::MonotonicTime{0};
 
   const auto status = transport_.start_send(payload, length);
-  if (status != isotp::IsoTpStatus::in_progress) {
+  if (status != transport::DiagnosticTransportStatus::in_progress) {
     return map_transport_status(status);
   }
 
@@ -92,10 +92,10 @@ UdsStatus UdsClient::poll() noexcept {
   }
 
   const auto transport_status = transport_.poll();
-  if (transport_status != isotp::IsoTpStatus::ok &&
-      transport_status != isotp::IsoTpStatus::idle &&
-      transport_status != isotp::IsoTpStatus::in_progress &&
-      transport_status != isotp::IsoTpStatus::would_block) {
+  if (transport_status != transport::DiagnosticTransportStatus::ok &&
+      transport_status != transport::DiagnosticTransportStatus::idle &&
+      transport_status != transport::DiagnosticTransportStatus::in_progress &&
+      transport_status != transport::DiagnosticTransportStatus::would_block) {
     const auto mapped = map_transport_status(transport_status);
     complete_with_status(mapped);
     return mapped;
@@ -106,7 +106,7 @@ UdsStatus UdsClient::poll() noexcept {
   if (state_ == State::sending &&
       !transport_.tx_busy()) {
     const auto tx_status = transport_.last_tx_status();
-    if (tx_status != isotp::IsoTpStatus::ok) {
+    if (tx_status != transport::DiagnosticTransportStatus::ok) {
       const auto mapped = map_transport_status(tx_status);
       complete_with_status(mapped);
       return mapped;
@@ -117,9 +117,29 @@ UdsStatus UdsClient::poll() noexcept {
   }
 
   if (transport_.has_received()) {
-    const auto received = transport_.take_received();
-    const auto status =
-        handle_transport_response(received, now);
+    const auto expected_size = transport_.received_size();
+    if (expected_size == 0U ||
+        expected_size > transport_rx_buffer_.size()) {
+      complete_with_status(UdsStatus::payload_too_large);
+      return UdsStatus::payload_too_large;
+    }
+
+    std::size_t received_length = 0U;
+    const auto receive_status = transport_.take_received(
+        transport_rx_buffer_.data(),
+        transport_rx_buffer_.size(),
+        received_length);
+
+    if (receive_status != transport::DiagnosticTransportStatus::ok) {
+      const auto mapped = map_transport_status(receive_status);
+      complete_with_status(mapped);
+      return mapped;
+    }
+
+    const auto status = handle_transport_response(
+        transport_rx_buffer_.data(),
+        received_length,
+        now);
     if (status != UdsStatus::in_progress) {
       return status;
     }
@@ -185,26 +205,27 @@ void UdsClient::reset() noexcept {
 }
 
 UdsStatus UdsClient::handle_transport_response(
-    const isotp::IsoTpReceiveResult& received,
+    const std::byte* payload,
+    const std::size_t length,
     const time::MonotonicTime now) noexcept {
   if ((state_ != State::waiting_p2 &&
        state_ != State::waiting_p2_star) ||
-      received.status != isotp::IsoTpStatus::ok ||
-      received.length == 0U) {
+      payload == nullptr ||
+      length == 0U) {
     complete_with_status(UdsStatus::protocol_error);
     return UdsStatus::protocol_error;
   }
 
-  const auto first = byte_value(received.payload[0]);
+  const auto first = byte_value(payload[0]);
 
   if (first == kNegativeResponseSid) {
-    if (received.length < 3U ||
-        byte_value(received.payload[1]) != request_sid_) {
+    if (length < 3U ||
+        byte_value(payload[1]) != request_sid_) {
       complete_with_status(UdsStatus::protocol_error);
       return UdsStatus::protocol_error;
     }
 
-    const auto nrc = byte_value(received.payload[2]);
+    const auto nrc = byte_value(payload[2]);
     if (nrc ==
         static_cast<std::uint8_t>(
             UdsNegativeResponseCode::response_pending)) {
@@ -218,11 +239,11 @@ UdsStatus UdsClient::handle_transport_response(
     response_.request_sid = request_sid_;
     response_.response_sid = kNegativeResponseSid;
     response_.negative_response_code = nrc;
-    response_.length = received.length;
+    response_.length = length;
     std::memcpy(
         response_.payload.data(),
-        received.payload.data(),
-        received.length);
+        payload,
+        length);
     response_ready_ = true;
     state_ = State::complete;
     return UdsStatus::negative_response;
@@ -240,11 +261,11 @@ UdsStatus UdsClient::handle_transport_response(
   response_.status = UdsStatus::ok;
   response_.request_sid = request_sid_;
   response_.response_sid = first;
-  response_.length = received.length;
+  response_.length = length;
   std::memcpy(
       response_.payload.data(),
-      received.payload.data(),
-      received.length);
+      payload,
+      length);
   response_ready_ = true;
   state_ = State::complete;
 
@@ -261,26 +282,24 @@ UdsStatus UdsClient::handle_transport_response(
 }
 
 UdsStatus UdsClient::map_transport_status(
-    const isotp::IsoTpStatus status) const noexcept {
+    const transport::DiagnosticTransportStatus status) const noexcept {
   switch (status) {
-    case isotp::IsoTpStatus::ok:
+    case transport::DiagnosticTransportStatus::ok:
       return UdsStatus::ok;
-    case isotp::IsoTpStatus::idle:
+    case transport::DiagnosticTransportStatus::idle:
       return UdsStatus::idle;
-    case isotp::IsoTpStatus::in_progress:
-    case isotp::IsoTpStatus::would_block:
+    case transport::DiagnosticTransportStatus::in_progress:
+    case transport::DiagnosticTransportStatus::would_block:
       return UdsStatus::in_progress;
-    case isotp::IsoTpStatus::invalid_argument:
+    case transport::DiagnosticTransportStatus::invalid_argument:
       return UdsStatus::invalid_argument;
-    case isotp::IsoTpStatus::payload_too_large:
+    case transport::DiagnosticTransportStatus::payload_too_large:
       return UdsStatus::payload_too_large;
-    case isotp::IsoTpStatus::timeout:
-    case isotp::IsoTpStatus::sequence_error:
-    case isotp::IsoTpStatus::flow_control_overflow:
-    case isotp::IsoTpStatus::protocol_error:
-    case isotp::IsoTpStatus::transport_error:
-    case isotp::IsoTpStatus::bus_off:
-    case isotp::IsoTpStatus::busy:
+    case transport::DiagnosticTransportStatus::busy:
+    case transport::DiagnosticTransportStatus::timeout:
+    case transport::DiagnosticTransportStatus::protocol_error:
+    case transport::DiagnosticTransportStatus::transport_error:
+    case transport::DiagnosticTransportStatus::bus_off:
       return UdsStatus::transport_error;
   }
 

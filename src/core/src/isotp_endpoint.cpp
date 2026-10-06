@@ -156,6 +156,10 @@ bool IsoTpEndpoint::has_received() const noexcept {
   return rx_complete_;
 }
 
+std::size_t IsoTpEndpoint::peek_received_length() const noexcept {
+  return rx_complete_ ? rx_length_ : 0U;
+}
+
 IsoTpReceiveResult IsoTpEndpoint::take_received() noexcept {
   IsoTpReceiveResult result{};
 

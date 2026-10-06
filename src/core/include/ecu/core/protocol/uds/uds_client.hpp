@@ -1,9 +1,10 @@
 #pragma once
 
-#include "ecu/core/protocol/isotp/isotp_endpoint.hpp"
 #include "ecu/core/protocol/uds/uds_types.hpp"
 #include "ecu/core/time/monotonic_clock.hpp"
+#include "ecu/core/transport/diagnostic_transport.hpp"
 
+#include <array>
 #include <cstddef>
 
 namespace ecu::core::protocol::uds {
@@ -11,7 +12,7 @@ namespace ecu::core::protocol::uds {
 class UdsClient {
  public:
   UdsClient(
-      isotp::IsoTpEndpoint& transport,
+      transport::IDiagnosticTransport& transport,
       const time::IMonotonicClock& clock,
       UdsTiming timing) noexcept;
 
@@ -44,7 +45,7 @@ class UdsClient {
     complete,
   };
 
-  isotp::IsoTpEndpoint& transport_;
+  transport::IDiagnosticTransport& transport_;
   const time::IMonotonicClock& clock_;
   UdsTiming timing_;
   bool valid_{false};
@@ -54,13 +55,15 @@ class UdsClient {
   time::MonotonicTime deadline_{0};
   UdsResponse response_{};
   bool response_ready_{false};
+  std::array<std::byte, kMaxUdsPayloadSize> transport_rx_buffer_{};
 
   [[nodiscard]] UdsStatus handle_transport_response(
-      const isotp::IsoTpReceiveResult& received,
+      const std::byte* payload,
+      std::size_t length,
       time::MonotonicTime now) noexcept;
 
   [[nodiscard]] UdsStatus map_transport_status(
-      isotp::IsoTpStatus status) const noexcept;
+      transport::DiagnosticTransportStatus status) const noexcept;
 
   void complete_with_status(UdsStatus status) noexcept;
 };
