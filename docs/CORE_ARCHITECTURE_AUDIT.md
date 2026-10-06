@@ -115,22 +115,73 @@ The hardening gate blocks:
 - wall-clock use in Core protocol/runtime logic,
 - filesystem implementation inside Core.
 
-## Still open after v1 foundation
+## Core Hardening v2 additions
+
+### Command dispatch and policy boundary
+
+Core now owns an API-neutral command dispatcher with:
+
+- unique command-type registration,
+- correlation metadata,
+- policy evaluation before handler execution,
+- explicit deny / confirmation-required outcomes.
+
+This keeps authorization and safety decisions inside Core rather than the WebGUI.
+
+### Authoritative state registry and Core facade
+
+Core now provides:
+
+- typed state-provider registration,
+- revisioned state snapshots,
+- `CoreFacade::submit()`,
+- `CoreFacade::snapshot()`.
+
+The future HTTP/WebSocket backend can therefore remain a transport adapter over
+Core semantics instead of owning application logic.
+
+### Module registry
+
+`ModuleRegistry` provides stable module identity, capability metadata and
+lifecycle ownership without selecting a static-plugin or dynamic-plugin loading
+mechanism.
+
+### Device registry
+
+`DeviceRegistry` provides logical device identity, class and capability masks.
+No vendor, VID/PID, device path or OS-specific detail is part of the contract.
+
+### Actuator and safety foundations
+
+Core now requires actuators to expose `safe_stop()` and provides a monotonic
+`SafetyWatchdog` primitive for fail-safe timing.
+
+No actuator-specific control algorithm is embedded in generic Core.
+
+### Networking contracts for future DoIP
+
+Core now defines platform-neutral stream/datagram channel contracts and IP
+endpoint types. They do not expose Linux file descriptors or BSD socket APIs.
+
+### Security extension points
+
+Core now defines opaque device identity/attestation and authorization contracts
+without selecting TPM, Secure Element, key algorithm, PKI or licensing policy.
+
+## Still open after v2 foundation
 
 The following are still mandatory Core work, not optional feature backlog:
 
-1. Full diagnostic networking / DoIP transport and networking abstraction.
+1. Full DoIP protocol implementation over the new networking contracts.
 2. J1939 TP/ETP and Address Claiming strategy.
-3. Generic ECU/module registration contract.
-4. Core command dispatcher and authoritative state aggregation.
-5. Safety/fail-safe policy primitives.
-6. Generic actuator runtime contract for deterministic time-critical control.
-7. Concrete trace/replay implementation and CAN/DoIP simulation.
-8. Persistent configuration implementation behind `IKeyValueStore`.
-9. Device identity / attestation / licensing security contracts.
-10. Core API contract presented to WebGUI/remote clients.
-11. Multi-platform CI beyond source scanning.
-12. Release/update/integrity lifecycle.
+3. Concrete trace/replay implementation and CAN/DoIP simulation.
+4. Persistent configuration implementation behind `IKeyValueStore`.
+5. Product security design: Root of Trust, attestation format, licensing and key lifecycle.
+6. Generic deterministic actuator scheduler/interlock policy beyond the base contract.
+7. Core event sequencing/subscription implementation for API clients.
+8. Multi-platform CI beyond source scanning.
+9. Release/update/integrity lifecycle.
+10. Final process topology and deployment lifecycle.
 
 These items must be resolved before Core is declared production-architecture complete.
 

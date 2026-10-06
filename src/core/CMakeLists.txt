@@ -3,6 +3,12 @@ add_library(ecu_core STATIC
   src/can_types.cpp
   src/lifecycle.cpp
   src/resource_manager.cpp
+  src/command_dispatcher.cpp
+  src/state_registry.cpp
+  src/module_registry.cpp
+  src/core_facade.cpp
+  src/device_registry.cpp
+  src/safety_watchdog.cpp
   src/j1939_identifier.cpp
   src/isotp_types.cpp
   src/isotp_endpoint.cpp

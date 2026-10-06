@@ -114,6 +114,35 @@ add_test(
   NAME ecu.protocol.j1939.identifier
   COMMAND ecu_j1939_core_tests
 )
+add_executable(ecu_core_runtime_registry_tests
+  core_runtime_registry_tests.cpp
+)
+
+target_link_libraries(
+  ecu_core_runtime_registry_tests
+  PRIVATE ECU::core
+)
+
+set_target_properties(ecu_core_runtime_registry_tests PROPERTIES
+  CXX_EXTENSIONS OFF
+)
+
+if(MSVC)
+  target_compile_options(
+    ecu_core_runtime_registry_tests
+    PRIVATE /W4 /WX
+  )
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(
+    ecu_core_runtime_registry_tests
+    PRIVATE -Wall -Wextra -Wpedantic -Werror
+  )
+endif()
+
+add_test(
+  NAME ecu.core.runtime_registry
+  COMMAND ecu_core_runtime_registry_tests
+)
 add_executable(ecu_sac_module_tests
   sac_module_tests.cpp
 )

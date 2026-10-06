@@ -51,9 +51,10 @@ echo "=== Sanitizers ==="
 rm -rf "$SANITIZE_DIR"
 cmake   -S "$ROOT_DIR"   -B "$SANITIZE_DIR"   -G Ninja   -DCMAKE_BUILD_TYPE=Debug   -DECU_BUILD_TESTS=ON   -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
 
-cmake --build "$SANITIZE_DIR" --target   ecu_core_foundation_tests   ecu_j1939_core_tests   ecu_uds_core_tests
+cmake --build "$SANITIZE_DIR" --target   ecu_core_foundation_tests   ecu_core_runtime_registry_tests   ecu_j1939_core_tests   ecu_uds_core_tests
 
 ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1   "$SANITIZE_DIR/tests/ecu_core_foundation_tests"
+ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1   "$SANITIZE_DIR/tests/ecu_core_runtime_registry_tests"
 ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1   "$SANITIZE_DIR/tests/ecu_j1939_core_tests"
 ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1   "$SANITIZE_DIR/tests/ecu_uds_core_tests"
 
