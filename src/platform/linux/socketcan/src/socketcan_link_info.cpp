@@ -27,7 +27,8 @@ bool parse_can_data(
   for (auto* attr = data;
        RTA_OK(attr, data_length);
        attr = RTA_NEXT(attr, data_length)) {
-    switch (attr->rta_type) {
+    const auto type = attr->rta_type & NLA_TYPE_MASK;
+    switch (type) {
       case IFLA_CAN_BITTIMING:
         if (RTA_PAYLOAD(attr) >= sizeof(can_bittiming)) {
           const auto* value =
@@ -76,7 +77,8 @@ bool parse_can_data(
         auto* nested = static_cast<rtattr*>(RTA_DATA(attr));
         for (; RTA_OK(nested, nested_length);
              nested = RTA_NEXT(nested, nested_length)) {
-          if (nested->rta_type == IFLA_CAN_CTRLMODE_SUPPORTED &&
+          const auto nested_type = nested->rta_type & NLA_TYPE_MASK;
+          if (nested_type == IFLA_CAN_CTRLMODE_SUPPORTED &&
               RTA_PAYLOAD(nested) >= sizeof(std::uint32_t)) {
             std::uint32_t supported = 0U;
             std::memcpy(&supported, RTA_DATA(nested), sizeof(supported));
@@ -116,10 +118,11 @@ bool parse_link_info(
   for (auto* attr = link_info;
        RTA_OK(attr, link_info_length);
        attr = RTA_NEXT(attr, link_info_length)) {
-    if (attr->rta_type == IFLA_INFO_KIND) {
+    const auto type = attr->rta_type & NLA_TYPE_MASK;
+    if (type == IFLA_INFO_KIND) {
       const auto* kind = static_cast<const char*>(RTA_DATA(attr));
       is_can = std::strcmp(kind, "can") == 0;
-    } else if (attr->rta_type == IFLA_INFO_DATA) {
+    } else if (type == IFLA_INFO_DATA) {
       can_data = static_cast<rtattr*>(RTA_DATA(attr));
       can_data_length = RTA_PAYLOAD(attr);
     }
@@ -154,7 +157,8 @@ LinkQueryResult parse_link_message(
   auto* attr = IFLA_RTA(ifinfo);
 
   for (; RTA_OK(attr, length); attr = RTA_NEXT(attr, length)) {
-    if (attr->rta_type == IFLA_LINKINFO) {
+    const auto type = attr->rta_type & NLA_TYPE_MASK;
+    if (type == IFLA_LINKINFO) {
       int nested_length = RTA_PAYLOAD(attr);
       auto* nested = static_cast<rtattr*>(RTA_DATA(attr));
       if (parse_link_info(nested, nested_length, result.info)) {
