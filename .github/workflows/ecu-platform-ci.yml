@@ -58,3 +58,52 @@ jobs:
           sudo apt-get install -y --no-install-recommends cmake ninja-build clang
       - name: Core V2 foundation validation
         run: bash scripts/validate_core_v2_foundation.sh
+
+  core-v2-windows-msvc:
+    name: Core V2 Windows MSVC (${{ matrix.arch }} / ${{ matrix.config }})
+    runs-on: windows-2022
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x64
+          - Win32
+        config:
+          - Debug
+          - Release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Architecture gate
+        shell: pwsh
+        run: python scripts/check_core_v2_architecture.py src/core_v2
+
+      - name: Configure Core V2 only
+        shell: pwsh
+        run: >
+          cmake -S . -B "build/core-v2-msvc-${{ matrix.arch }}-${{ matrix.config }}"
+          -G "Visual Studio 17 2022"
+          -A "${{ matrix.arch }}"
+          -DECU_BUILD_TESTS=ON
+          -DECU_BUILD_LEGACY_CORE=OFF
+          -DECU_BUILD_SAC_MODULE=OFF
+          -DECU_BUILD_LINUX_SOCKETCAN=OFF
+          -DECU_BUILD_CORE_V2=ON
+
+      - name: Build
+        shell: pwsh
+        run: >
+          cmake --build "build/core-v2-msvc-${{ matrix.arch }}-${{ matrix.config }}"
+          --config "${{ matrix.config }}"
+          --target ecu_core_v2_foundation_tests
+
+      - name: Test
+        shell: pwsh
+        run: >
+          ctest --test-dir "build/core-v2-msvc-${{ matrix.arch }}-${{ matrix.config }}"
+          -C "${{ matrix.config }}"
+          -R "^ecu\.core_v2\."
+          --output-on-failure
+          --no-tests=error
