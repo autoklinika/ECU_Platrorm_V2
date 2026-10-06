@@ -146,3 +146,26 @@ Physical validation confirmed KAmod CAN-FD / MCP251xFD on the clean CM5:
 - kernel mode `<FD,TDC-AUTO>`
 - error counters `tx 0 / rx 0`
 - no traffic transmitted during the capability probe
+
+
+## 11. Stage C preparation — remote maintenance
+
+Status: **PLANNED / scripts ready**
+
+Prepared artifacts:
+
+- `scripts/bootstrap_cm5_stage_c_remote.sh`
+- `scripts/finalize_cm5_stage_c_remote.sh`
+- `scripts/validate_cm5_stage_c_remote.sh`
+- `docs/CM5_STAGE_C_REMOTE.md`
+
+Target components:
+
+- Tailscale — official Linux installer
+- Node.js 22 LTS+ — NodeSource repository
+- Remote Desktop Commander — npm package `@wonderwhy-er/desktop-commander`
+- persistent `systemd --user` service
+- Tailscale operator permission for user `ecu`
+- user linger enabled for reboot-safe MCP service
+
+Stage C remains unverified until both Tailscale and Remote Desktop Commander reconnect after reboot without a manually open terminal.
