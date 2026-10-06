@@ -51,6 +51,10 @@
 - **[USTALONE / NADRZĘDNE]** Zmiana z CM5/Raspberry Pi OS na inną platformę, np. AM62P, i.MX, STM32MP2, x86/Linux lub Windows + inteligentny VCI, powinna wymagać przede wszystkim dostarczenia nowych adapterów platformowych/transportowych, a nie tworzenia nowej wersji ECU Platform od zera.
 - **[USTALONE / NADRZĘDNE]** Nie gwarantujemy przenośności na dowolnie ograniczony mikrokontroler bare-metal. Celem jest przenośność w obrębie klasy platform zdolnych uruchomić Core i jego usługi.
 - **[USTALONE / NADRZĘDNE]** Każda nowa zależność dodawana do Core musi przejść pytanie kontrolne: „czy ta zależność wiąże logikę domenową z konkretnym OS lub hardware?”. Jeśli tak, musi zostać przeniesiona do adaptera warstwy platformowej.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** To wymaganie jest **niezbywalnym invariantem architektury ECU Platform V2**. Naruszenie go traktujemy jako błąd architektoniczny blokujący merge/release, a nie jako akceptowalny dług techniczny.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Żaden moduł domenowy/Core nie może importować ani wywoływać bezpośrednio API specyficznego dla Raspberry Pi, Linux SocketCAN, systemd, GPIO, SPI, konkretnego filesystemu lub konkretnego sterownika sprzętowego. Takie zależności muszą kończyć się w adapterze/platform layer.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Każdy PR zmieniający Core lub warstwy transportowe musi być oceniany pod kątem przenośności OS/hardware. Brak tej separacji jest powodem do odrzucenia zmiany.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** W dokumentacji, testach i CI będziemy utrzymywać to rozdzielenie jako jawny gate architektoniczny, tak aby przypadkowe związanie produktu z CM5/Linuxem było wykrywane wcześnie.
 
 - **[USTALONE]** Core jest źródłem prawdy o stanie systemu.
 - **[USTALONE]** GUI nie może być właścicielem logiki sterowania urządzeniem.
