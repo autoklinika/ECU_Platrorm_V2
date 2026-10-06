@@ -79,12 +79,15 @@ Tailscale and Remote Desktop Commander are **development/maintenance tooling for
 
 ## 6. WebGUI kiosk baseline
 
-| Component | Purpose | Status |
-|---|---|---|
-| `cage` | Minimal Wayland kiosk compositor | PLANNED |
-| `chromium` | Local WebGUI kiosk client | PLANNED |
+| Component | Version / source | Purpose | Status |
+|---|---|---|---|
+| DRM/KMS / `vc4-kms-v3d` | kernel + Raspberry Pi boot configuration | Prototype A local display backend | VERIFIED |
+| `cage` | candidate `0.3.1-1~bpo13+1+rpt2` | Minimal Wayland kiosk compositor | PLANNED |
+| `chromium` | candidate `1:154.0.8037.92-1~deb13u1+rpt1` | Local WebGUI kiosk client using native Wayland/Ozone | PLANNED |
+| `rpi-chromium-mods` | candidate `20260211` | Raspberry Pi-specific Chromium runtime settings; Prototype A only | PLANNED |
+| `ecu-kiosk.service` | project-managed systemd unit | Boot-time Cage/Chromium session on tty1 | PLANNED |
 
-No desktop environment, display manager, panel or file manager is part of the V2 baseline.
+No desktop environment, display manager, panel, file manager, XWayland or separate seat daemon is part of the Stage D baseline.
 
 Target local UI chain:
 
@@ -110,7 +113,6 @@ DRM/KMS -> Wayland -> Cage -> Chromium kiosk -> ECU Platform WebGUI
 4. Do not copy legacy runtime configuration blindly.
 5. Do not merge this setup branch to production `main` without explicit user approval.
 
-
 ## 9. Stage A verification — 2026-10-06
 
 Result: **PASS**
@@ -130,7 +132,6 @@ Observed on clean CM5:
 
 Note: the bootstrap's `candump --help` probe emitted `candump: invalid option -- '-'`. This is a bootstrap-script probe issue only; package `can-utils 2023.03-1+b2` installed successfully. CAN/CAN-FD functionality is intentionally not marked VERIFIED until Stage B hardware validation.
 
-
 ## 10. Stage B verification — 2026-10-06
 
 Result: **PASS**
@@ -146,7 +147,6 @@ Physical validation confirmed KAmod CAN-FD / MCP251xFD on the clean CM5:
 - kernel mode `<FD,TDC-AUTO>`
 - error counters `tx 0 / rx 0`
 - no traffic transmitted during the capability probe
-
 
 ## 11. Stage C preparation — remote maintenance
 
@@ -170,7 +170,6 @@ Target components:
 
 Stage C remains unverified until both Tailscale and Remote Desktop Commander reconnect after reboot without a manually open terminal.
 
-
 ## 12. Stage C pre-reboot verification — 2026-10-06
 
 Result: **PASS (pre-reboot)**
@@ -190,7 +189,6 @@ Independent verification through the new CM5 MCP endpoint confirmed:
 
 Final Stage C status remains **PENDING REBOOT VALIDATION**. After one controlled CM5 reboot, Tailscale and Remote Desktop Commander must reconnect automatically without a manually open terminal.
 
-
 ## 13. Stage C final reboot validation — 2026-10-06
 
 Result: **VERIFIED / PASS**
@@ -206,3 +204,24 @@ Controlled reboot validation confirmed automatic recovery without manually start
 - fresh CM5 MCP endpoint became reachable automatically from ChatGPT
 
 Stage C is complete.
+
+## 14. Stage D preflight — minimal kiosk
+
+Status: **PREPARED / not installed yet**
+
+Preflight on the clean CM5 confirmed:
+
+- `vc4-kms-v3d` already configured
+- DRM nodes `card0`, `card1`, `renderD128` present
+- `systemd-logind` active
+- user `ecu` already has `video`, `render` and `input` groups
+- Cage, Chromium and Raspberry Pi Chromium modifiers are available from the configured Trixie repositories
+- the current remote MCP session does not have passwordless sudo; the root-gated installation therefore requires one local administrator authentication
+
+Prepared artifacts:
+
+- `scripts/bootstrap_cm5_stage_d_kiosk.sh`
+- `scripts/validate_cm5_stage_d_kiosk.sh`
+- `docs/CM5_STAGE_D_KIOSK.md`
+
+No Stage D component is marked INSTALLED or VERIFIED until the bootstrap and validation have actually run.
