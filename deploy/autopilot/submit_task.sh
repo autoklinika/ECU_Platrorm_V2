@@ -36,16 +36,14 @@ codex login status >/dev/null 2>&1 || {
 }
 
 ENV_FILE="$HOME/.config/ecu-platform/autopilot.env"
-[[ -f "$ENV_FILE" ]] || {
-  echo "FAIL: Telegram autopilot env missing: $ENV_FILE" >&2
-  exit 6
-}
-
 NOTIFY="$REPO_ROOT/deploy/autopilot/notify_telegram.py"
-python3 "$NOTIFY" INFO "bootstrap" "ECU Platform autopilot notification channel test: PASS." >/dev/null || {
-  echo "FAIL: Telegram notification test failed" >&2
-  exit 6
-}
+if [[ -f "$ENV_FILE" ]]; then
+  if ! ECU_AUTOPILOT_ENV="$ENV_FILE" python3 "$NOTIFY" INFO "bootstrap" "ECU Platform autopilot notification channel test: PASS." >/dev/null; then
+    echo "WARN: Telegram notification test failed; continuing without Telegram." >&2
+  fi
+else
+  echo "INFO: Telegram notifier is not configured; task will run without notifications." >&2
+fi
 
 git -C "$REPO_ROOT" ls-remote --exit-code origin "refs/heads/$BASE_BRANCH" >/dev/null || {
   echo "FAIL: remote base branch does not exist: $BASE_BRANCH" >&2

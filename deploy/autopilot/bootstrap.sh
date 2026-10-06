@@ -40,10 +40,10 @@ if [[ -f "$ENV_FILE" ]]; then
   if ECU_AUTOPILOT_ENV="$ENV_FILE" python3 "$REPO_ROOT/deploy/autopilot/notify_telegram.py" INFO bootstrap "ECU Platform autopilot readiness check." >/dev/null 2>&1; then
     echo "TELEGRAM_NOTIFY=PASS"
   else
-    echo "TELEGRAM_NOTIFY=FAIL"
+    echo "TELEGRAM_NOTIFY=FAIL_OPTIONAL"
   fi
 else
-  echo "TELEGRAM_NOTIFY=REQUIRED"
+  echo "TELEGRAM_NOTIFY=DISABLED_OPTIONAL"
   cat <<EOF
 
 Create $ENV_FILE with mode 600:
@@ -61,10 +61,7 @@ if ((missing)); then
   exit 3
 fi
 
-if gh auth status >/dev/null 2>&1 \
-  && codex login status >/dev/null 2>&1 \
-  && [[ -f "$ENV_FILE" ]] \
-  && ECU_AUTOPILOT_ENV="$ENV_FILE" python3 "$REPO_ROOT/deploy/autopilot/notify_telegram.py" INFO bootstrap "ECU Platform autopilot is ready." >/dev/null 2>&1; then
+if gh auth status >/dev/null 2>&1   && codex login status >/dev/null 2>&1; then
   echo "ECU_AUTOPILOT_READY=YES"
 else
   echo "ECU_AUTOPILOT_READY=NO"
