@@ -35,7 +35,7 @@ ninja --version
 g++ --version | head -1
 ip -V
 ssh -V 2>&1 | head -1 || true
-candump --help 2>&1 | head -1 || true
+command -v candump && dpkg-query -W -f='can-utils ${Version}\n' can-utils || true
 
 echo
 echo "[ECU V2] Services"
