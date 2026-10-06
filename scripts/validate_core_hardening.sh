@@ -1,3 +1,5 @@
+[Reading 66 lines from start (total: 66 lines, 0 remaining)]
+
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -12,6 +14,10 @@ echo
 echo "=== Repository ==="
 git -C "$ROOT_DIR" rev-parse --abbrev-ref HEAD
 git -C "$ROOT_DIR" status --short
+
+echo
+echo "=== Standards baseline gate ==="
+"$ROOT_DIR/scripts/check_core_standards.sh"
 
 echo
 echo "=== Architecture gate ==="
@@ -60,3 +66,5 @@ ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1   "$SANITIZE_DIR/tests
 
 echo
 echo "CORE_HARDENING_V1=PASS"
+
+[executed on device: ecu (4a17dcf9-64bf-4337-8a46-7d88ad637c0f)]
