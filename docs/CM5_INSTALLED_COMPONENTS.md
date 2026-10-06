@@ -292,3 +292,32 @@ WaveShare HID -> Linux input -> Cage/Wayland -> Chromium DOM
 ```
 
 **Stage D is complete.**
+
+
+## 18. Stage E portable Core bootstrap — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Stage E is a source/build architecture stage and installed **no additional operating-system packages**.
+
+Added project components:
+
+- root CMake build
+- `ecu_core` static C++ target
+- Core smoke test
+- Core portability source gate
+- portability-gate self-test
+- Stage E validation script
+
+Validation on the physical CM5:
+
+- GNU C++ `14.2.0`
+- Debug build: PASS
+- Release build: PASS
+- CTest: `1/1` PASS
+- `ECU_CORE_SMOKE=PASS`
+- `CORE_PORTABILITY_GATE=PASS`
+- `CORE_PORTABILITY_SELFTEST=PASS`
+- `STAGE_E_CORE_BOOTSTRAP=PASS`
+
+No Linux/Raspberry Pi implementation dependency was introduced into Core. The exact platform/transport contracts remain intentionally open for the next design stage.

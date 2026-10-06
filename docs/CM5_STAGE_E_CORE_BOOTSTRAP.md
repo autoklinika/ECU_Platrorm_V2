@@ -2,7 +2,7 @@
 
 ## Status
 
-Initial scope: **portable Core build skeleton + architectural portability gate**.
+Status: **VERIFIED / PASS**\n\nScope: **portable Core build skeleton + architectural portability gate**.
 
 Stage E intentionally does **not** freeze the still-open platform contracts or API technology choices.
 
@@ -27,7 +27,7 @@ Stage E adds:
 2. standalone `ecu_core` C++ library,
 3. minimal smoke test,
 4. explicit source-level portability gate,
-5. one validation script that configures, builds and tests the Core.
+5. a portability-gate self-test,\n6. one validation script that configures, builds and tests the Core.
 
 No new operating-system package is required on Prototype A because Stage A already installed CMake, Ninja and G++.
 
@@ -126,3 +126,36 @@ Stage E is VERIFIED only when:
 ## Next architectural gate
 
 After Stage E, the next design discussion should define the **minimum formal platform/transport contracts** before adding SocketCAN or real ECU protocol logic. That is a project-level decision and is not silently made by this stage.
+
+
+## Verification evidence — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Validated directly on Prototype A:
+
+- compiler: GNU C++ `14.2.0`
+- generator: Ninja
+- Debug configure/build: PASS
+- Release configure/build: PASS
+- warnings-as-errors build: PASS
+- CTest: `1/1` PASS in Debug
+- CTest: `1/1` PASS in Release
+- direct smoke: `ECU_CORE_SMOKE=PASS`
+- real Core portability scan: `CORE_PORTABILITY_GATE=PASS`
+- portability guard self-test:
+  - portable fixture: accepted
+  - fixture containing `#include <linux/can.h>`: rejected
+  - final marker: `CORE_PORTABILITY_SELFTEST=PASS`
+- final validator: `STAGE_E_CORE_BOOTSTRAP=PASS`
+- repository working tree remained clean after validation
+- no new OS packages were installed
+- production `main` remained unchanged
+
+The first compiled Core target therefore exists without importing Linux, Raspberry Pi, SocketCAN, systemd, GPIO, SPI or filesystem-device implementation details.
+
+### Stage E closure
+
+**Stage E is complete.**
+
+The next stage must not add a real Linux/SocketCAN implementation until the minimum platform/transport contracts have been explicitly designed and accepted.
