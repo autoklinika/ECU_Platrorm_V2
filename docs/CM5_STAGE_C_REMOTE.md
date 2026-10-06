@@ -89,3 +89,21 @@ The stage is VERIFIED only when Tailscale and Desktop Commander both survive reb
 - Tailscale identity/state remains local device state.
 - Neither credential set is committed to Git.
 - Core must not depend on Tailscale, Node.js, npm or Remote Desktop Commander.
+
+
+## Pre-reboot physical validation — 2026-10-06
+
+Status: **PASS**
+
+Observed:
+
+- Tailscale: enabled + active
+- Tailscale IP: `100.92.219.91`
+- Node.js: `v22.23.3`
+- npm: `10.9.9`
+- Remote Desktop Commander: `0.2.52`
+- persistent user service: enabled + active
+- `Linger=yes`
+- fresh MCP endpoint visible from ChatGPT
+
+Final gate: one reboot must prove that both remote-access paths recover automatically.
