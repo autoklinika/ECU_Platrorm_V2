@@ -1,100 +1,7 @@
-add_executable(ecu_core_smoke
-  core_smoke.cpp
-)
+function(ecu_strict_test target)
+  target_link_libraries(${target} PRIVATE ECU::core)
+  set_target_properties(${target} PROPERTIES CXX_EXTENSIONS OFF)
 
-target_link_libraries(ecu_core_smoke PRIVATE ECU::core)
-
-set_target_properties(ecu_core_smoke PROPERTIES
-  CXX_EXTENSIONS OFF
-)
-
-add_executable(ecu_can_contract_tests
-  can_contract_tests.cpp
-)
-
-target_link_libraries(ecu_can_contract_tests PRIVATE ECU::core)
-
-set_target_properties(ecu_can_contract_tests PROPERTIES
-  CXX_EXTENSIONS OFF
-)
-
-foreach(target ecu_core_smoke ecu_can_contract_tests)
-  if(MSVC)
-    target_compile_options(${target} PRIVATE /W4 /WX)
-  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
-  endif()
-endforeach()
-
-add_executable(ecu_isotp_core_tests
-  isotp_core_tests.cpp
-)
-
-target_link_libraries(ecu_isotp_core_tests PRIVATE ECU::core)
-
-set_target_properties(ecu_isotp_core_tests PROPERTIES
-  CXX_EXTENSIONS OFF
-)
-
-if(MSVC)
-  target_compile_options(ecu_isotp_core_tests PRIVATE /W4 /WX)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(
-    ecu_isotp_core_tests
-    PRIVATE -Wall -Wextra -Wpedantic -Werror
-  )
-endif()
-
-add_test(NAME ecu.core.smoke COMMAND ecu_core_smoke)
-add_test(NAME ecu.contract.can COMMAND ecu_can_contract_tests)
-add_test(NAME ecu.protocol.isotp COMMAND ecu_isotp_core_tests)
-add_executable(ecu_uds_core_tests
-  uds_core_tests.cpp
-)
-
-target_link_libraries(ecu_uds_core_tests PRIVATE ECU::core)
-
-set_target_properties(ecu_uds_core_tests PROPERTIES
-  CXX_EXTENSIONS OFF
-)
-
-if(MSVC)
-  target_compile_options(ecu_uds_core_tests PRIVATE /W4 /WX)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(
-    ecu_uds_core_tests
-    PRIVATE -Wall -Wextra -Wpedantic -Werror
-  )
-endif()
-
-add_test(NAME ecu.protocol.uds COMMAND ecu_uds_core_tests)
-add_executable(ecu_core_foundation_tests
-  core_foundation_tests.cpp
-)
-
-target_link_libraries(
-  ecu_core_foundation_tests
-  PRIVATE ECU::core
-)
-
-set_target_properties(ecu_core_foundation_tests PROPERTIES
-  CXX_EXTENSIONS OFF
-)
-
-add_executable(ecu_j1939_core_tests
-  j1939_core_tests.cpp
-)
-
-target_link_libraries(
-  ecu_j1939_core_tests
-  PRIVATE ECU::core
-)
-
-set_target_properties(ecu_j1939_core_tests PROPERTIES
-  CXX_EXTENSIONS OFF
-)
-
-foreach(target ecu_core_foundation_tests ecu_j1939_core_tests)
   if(MSVC)
     target_compile_options(${target} PRIVATE /W4 /WX)
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -103,130 +10,87 @@ foreach(target ecu_core_foundation_tests ecu_j1939_core_tests)
       PRIVATE -Wall -Wextra -Wpedantic -Werror
     )
   endif()
-endforeach()
+endfunction()
 
-add_test(
-  NAME ecu.core.foundation
-  COMMAND ecu_core_foundation_tests
-)
+add_executable(ecu_core_smoke core_smoke.cpp)
+ecu_strict_test(ecu_core_smoke)
+add_test(NAME ecu.core.smoke COMMAND ecu_core_smoke)
 
+add_executable(ecu_can_contract_tests can_contract_tests.cpp)
+ecu_strict_test(ecu_can_contract_tests)
+add_test(NAME ecu.contract.can COMMAND ecu_can_contract_tests)
+
+add_executable(ecu_isotp_core_tests isotp_core_tests.cpp)
+ecu_strict_test(ecu_isotp_core_tests)
+add_test(NAME ecu.protocol.isotp COMMAND ecu_isotp_core_tests)
+
+add_executable(ecu_uds_core_tests uds_core_tests.cpp)
+ecu_strict_test(ecu_uds_core_tests)
+add_test(NAME ecu.protocol.uds COMMAND ecu_uds_core_tests)
+
+add_executable(ecu_core_foundation_tests core_foundation_tests.cpp)
+ecu_strict_test(ecu_core_foundation_tests)
+add_test(NAME ecu.core.foundation COMMAND ecu_core_foundation_tests)
+
+add_executable(ecu_j1939_core_tests j1939_core_tests.cpp)
+ecu_strict_test(ecu_j1939_core_tests)
 add_test(
   NAME ecu.protocol.j1939.identifier
   COMMAND ecu_j1939_core_tests
 )
-add_executable(ecu_core_runtime_registry_tests
+
+add_executable(
+  ecu_core_runtime_registry_tests
   core_runtime_registry_tests.cpp
 )
-
-target_link_libraries(
-  ecu_core_runtime_registry_tests
-  PRIVATE ECU::core
-)
-
-set_target_properties(ecu_core_runtime_registry_tests PROPERTIES
-  CXX_EXTENSIONS OFF
-)
-
-if(MSVC)
-  target_compile_options(
-    ecu_core_runtime_registry_tests
-    PRIVATE /W4 /WX
-  )
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(
-    ecu_core_runtime_registry_tests
-    PRIVATE -Wall -Wextra -Wpedantic -Werror
-  )
-endif()
-
+ecu_strict_test(ecu_core_runtime_registry_tests)
 add_test(
   NAME ecu.core.runtime_registry
   COMMAND ecu_core_runtime_registry_tests
 )
-add_executable(ecu_sac_module_tests
-  sac_module_tests.cpp
+
+add_executable(
+  ecu_core_observability_simulation_tests
+  core_observability_simulation_tests.cpp
 )
-
-target_link_libraries(
-  ecu_sac_module_tests
-  PRIVATE ECU::sac ECU::core
-)
-
-set_target_properties(ecu_sac_module_tests PROPERTIES
-  CXX_EXTENSIONS OFF
-)
-
-if(MSVC)
-  target_compile_options(ecu_sac_module_tests PRIVATE /W4 /WX)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(
-    ecu_sac_module_tests
-    PRIVATE -Wall -Wextra -Wpedantic -Werror
-  )
-endif()
-
-add_test(NAME ecu.sac.module COMMAND ecu_sac_module_tests)
-add_executable(ecu_sac_read_services_tests
-  sac_read_services_tests.cpp
-)
-
-target_link_libraries(
-  ecu_sac_read_services_tests
-  PRIVATE ECU::sac ECU::core
-)
-
-set_target_properties(ecu_sac_read_services_tests PROPERTIES
-  CXX_EXTENSIONS OFF
-)
-
-if(MSVC)
-  target_compile_options(
-    ecu_sac_read_services_tests
-    PRIVATE /W4 /WX
-  )
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(
-    ecu_sac_read_services_tests
-    PRIVATE -Wall -Wextra -Wpedantic -Werror
-  )
-endif()
-
+ecu_strict_test(ecu_core_observability_simulation_tests)
 add_test(
-  NAME ecu.sac.read_services
-  COMMAND ecu_sac_read_services_tests
-)
-add_executable(ecu_sac_controller_tests
-  sac_controller_tests.cpp
+  NAME ecu.core.observability_simulation
+  COMMAND ecu_core_observability_simulation_tests
 )
 
-target_link_libraries(
-  ecu_sac_controller_tests
-  PRIVATE ECU::sac ECU::core
-)
+if(TARGET ECU::sac)
+  add_executable(ecu_sac_module_tests sac_module_tests.cpp)
+  ecu_strict_test(ecu_sac_module_tests)
+  target_link_libraries(ecu_sac_module_tests PRIVATE ECU::sac)
+  add_test(NAME ecu.sac.module COMMAND ecu_sac_module_tests)
 
-set_target_properties(ecu_sac_controller_tests PROPERTIES
-  CXX_EXTENSIONS OFF
-)
-
-if(MSVC)
-  target_compile_options(
-    ecu_sac_controller_tests
-    PRIVATE /W4 /WX
+  add_executable(
+    ecu_sac_read_services_tests
+    sac_read_services_tests.cpp
   )
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(
+  ecu_strict_test(ecu_sac_read_services_tests)
+  target_link_libraries(ecu_sac_read_services_tests PRIVATE ECU::sac)
+  add_test(
+    NAME ecu.sac.read_services
+    COMMAND ecu_sac_read_services_tests
+  )
+
+  add_executable(
     ecu_sac_controller_tests
-    PRIVATE -Wall -Wextra -Wpedantic -Werror
+    sac_controller_tests.cpp
+  )
+  ecu_strict_test(ecu_sac_controller_tests)
+  target_link_libraries(ecu_sac_controller_tests PRIVATE ECU::sac)
+  add_test(
+    NAME ecu.sac.controller
+    COMMAND ecu_sac_controller_tests
   )
 endif()
-
-add_test(
-  NAME ecu.sac.controller
-  COMMAND ecu_sac_controller_tests
-)
 
 if(TARGET ECU::platform_linux_socketcan)
-  add_executable(ecu_socketcan_codec_tests
+  add_executable(
+    ecu_socketcan_codec_tests
     socketcan_codec_tests.cpp
   )
   target_link_libraries(
@@ -238,7 +102,8 @@ if(TARGET ECU::platform_linux_socketcan)
     PROPERTIES CXX_EXTENSIONS OFF
   )
 
-  add_executable(ecu_socketcan_link_probe
+  add_executable(
+    ecu_socketcan_link_probe
     socketcan_link_probe.cpp
   )
   target_link_libraries(
@@ -250,7 +115,8 @@ if(TARGET ECU::platform_linux_socketcan)
     PROPERTIES CXX_EXTENSIONS OFF
   )
 
-  add_executable(ecu_socketcan_adapter_probe
+  add_executable(
+    ecu_socketcan_adapter_probe
     socketcan_adapter_probe.cpp
   )
   target_link_libraries(
@@ -263,10 +129,10 @@ if(TARGET ECU::platform_linux_socketcan)
   )
 
   foreach(
-      target
-      ecu_socketcan_codec_tests
-      ecu_socketcan_link_probe
-      ecu_socketcan_adapter_probe
+    target
+    ecu_socketcan_codec_tests
+    ecu_socketcan_link_probe
+    ecu_socketcan_adapter_probe
   )
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
       target_compile_options(
@@ -276,27 +142,32 @@ if(TARGET ECU::platform_linux_socketcan)
     endif()
   endforeach()
 
-  add_executable(ecu_sac_uds_read_probe
-    sac_uds_read_probe.cpp
-  )
-  target_link_libraries(
-    ecu_sac_uds_read_probe
-    PRIVATE ECU::platform_linux_socketcan ECU::core
-  )
-  set_target_properties(
-    ecu_sac_uds_read_probe
-    PROPERTIES CXX_EXTENSIONS OFF
-  )
-
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(
-      ecu_sac_uds_read_probe
-      PRIVATE -Wall -Wextra -Wpedantic -Werror
-    )
-  endif()
-
   add_test(
     NAME ecu.platform.linux.socketcan.codec
     COMMAND ecu_socketcan_codec_tests
   )
+
+  if(TARGET ECU::sac)
+    add_executable(
+      ecu_sac_uds_read_probe
+      sac_uds_read_probe.cpp
+    )
+    target_link_libraries(
+      ecu_sac_uds_read_probe
+      PRIVATE
+        ECU::platform_linux_socketcan
+        ECU::core
+    )
+    set_target_properties(
+      ecu_sac_uds_read_probe
+      PROPERTIES CXX_EXTENSIONS OFF
+    )
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+      target_compile_options(
+        ecu_sac_uds_read_probe
+        PRIVATE -Wall -Wextra -Wpedantic -Werror
+      )
+    endif()
+  endif()
 endif()

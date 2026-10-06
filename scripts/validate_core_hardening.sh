@@ -4,9 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEBUG_DIR="$ROOT_DIR/build/core-hardening-debug"
 RELEASE_DIR="$ROOT_DIR/build/core-hardening-release"
+CORE_ONLY_DIR="$ROOT_DIR/build/core-hardening-core-only"
 SANITIZE_DIR="$ROOT_DIR/build/core-hardening-sanitize"
 
-echo "[ECU V2] Core Hardening v1 validation"
+echo "[ECU V2] Core Hardening validation"
 
 echo
 echo "=== Repository ==="
@@ -32,11 +33,12 @@ echo "=== Core portability gate ==="
 build_and_test() {
   local build_type="$1"
   local build_dir="$2"
+  shift 2
 
   echo
   echo "=== Configure: $build_type ==="
   rm -rf "$build_dir"
-  cmake     -S "$ROOT_DIR"     -B "$build_dir"     -G Ninja     -DCMAKE_BUILD_TYPE="$build_type"     -DECU_BUILD_TESTS=ON
+  cmake     -S "$ROOT_DIR"     -B "$build_dir"     -G Ninja     -DCMAKE_BUILD_TYPE="$build_type"     -DECU_BUILD_TESTS=ON     "$@"
 
   echo
   echo "=== Build: $build_type ==="
@@ -51,15 +53,32 @@ build_and_test Debug "$DEBUG_DIR"
 build_and_test Release "$RELEASE_DIR"
 
 echo
-echo "=== Sanitizers ==="
-rm -rf "$SANITIZE_DIR"
-cmake   -S "$ROOT_DIR"   -B "$SANITIZE_DIR"   -G Ninja   -DCMAKE_BUILD_TYPE=Debug   -DECU_BUILD_TESTS=ON   -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
+echo "=== Core-only graph ==="
+build_and_test   Debug   "$CORE_ONLY_DIR"   -DECU_BUILD_SAC_MODULE=OFF   -DECU_BUILD_LINUX_SOCKETCAN=OFF
 
-cmake --build "$SANITIZE_DIR" --target   ecu_core_foundation_tests   ecu_j1939_core_tests   ecu_uds_core_tests
+if [[ -d "$CORE_ONLY_DIR/src/ecu/sac" ]]; then
+  echo "CORE_ONLY_GRAPH=FAIL SAC target present"
+  exit 1
+fi
 
-ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1   "$SANITIZE_DIR/tests/ecu_core_foundation_tests"
-ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1   "$SANITIZE_DIR/tests/ecu_j1939_core_tests"
-ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1   "$SANITIZE_DIR/tests/ecu_uds_core_tests"
+if [[ -d "$CORE_ONLY_DIR/src/platform/linux/socketcan" ]]; then
+  echo "CORE_ONLY_GRAPH=FAIL SocketCAN target present"
+  exit 1
+fi
+
+echo "CORE_ONLY_GRAPH=PASS"
 
 echo
-echo "CORE_HARDENING_V1=PASS"
+echo "=== Sanitizers ==="
+rm -rf "$SANITIZE_DIR"
+cmake   -S "$ROOT_DIR"   -B "$SANITIZE_DIR"   -G Ninja   -DCMAKE_BUILD_TYPE=Debug   -DECU_BUILD_TESTS=ON   -DECU_BUILD_SAC_MODULE=OFF   -DECU_BUILD_LINUX_SOCKETCAN=OFF   -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
+
+cmake --build "$SANITIZE_DIR" --target   ecu_core_foundation_tests   ecu_core_runtime_registry_tests   ecu_core_observability_simulation_tests   ecu_j1939_core_tests   ecu_uds_core_tests
+
+for test in   ecu_core_foundation_tests   ecu_core_runtime_registry_tests   ecu_core_observability_simulation_tests   ecu_j1939_core_tests   ecu_uds_core_tests
+do
+  ASAN_OPTIONS=detect_leaks=1   UBSAN_OPTIONS=halt_on_error=1     "$SANITIZE_DIR/tests/$test"
+done
+
+echo
+echo "CORE_HARDENING=PASS"

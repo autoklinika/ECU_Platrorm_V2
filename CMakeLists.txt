@@ -7,11 +7,23 @@ project(
 )
 
 option(ECU_BUILD_TESTS "Build ECU Platform V2 tests" ON)
+option(ECU_BUILD_SAC_MODULE "Build SAC ECU module" ON)
+option(
+  ECU_BUILD_LINUX_SOCKETCAN
+  "Build Linux SocketCAN platform adapter"
+  ON
+)
 
 add_subdirectory(src/core)
-add_subdirectory(src/ecu/sac)
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if(ECU_BUILD_SAC_MODULE)
+  add_subdirectory(src/ecu/sac)
+endif()
+
+if(
+  ECU_BUILD_LINUX_SOCKETCAN
+  AND CMAKE_SYSTEM_NAME STREQUAL "Linux"
+)
   add_subdirectory(src/platform/linux/socketcan)
 endif()
 

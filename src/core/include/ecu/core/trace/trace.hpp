@@ -8,6 +8,8 @@
 
 namespace ecu::core::trace {
 
+using TraceSequence = std::uint64_t;
+
 enum class TraceCategory : std::uint8_t {
   core,
   lifecycle,
@@ -38,12 +40,14 @@ enum class TraceSeverity : std::uint8_t {
 };
 
 struct TraceRecordHeader {
+  TraceSequence sequence{0U};
   time::MonotonicTime timestamp{0};
   TraceCategory category{TraceCategory::core};
   TraceDirection direction{TraceDirection::none};
   TraceSeverity severity{TraceSeverity::info};
   std::uint32_t subject_id{0U};
   runtime::CorrelationId correlation_id{0U};
+  bool truncated{false};
 };
 
 struct TraceRecordView {

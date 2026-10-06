@@ -168,20 +168,57 @@ endpoint types. They do not expose Linux file descriptors or BSD socket APIs.
 Core now defines opaque device identity/attestation and authorization contracts
 without selecting TPM, Secure Element, key algorithm, PKI or licensing policy.
 
-## Still open after v2 foundation
+## Core Hardening v3 additions
+
+### Event bus
+
+Core now has a bounded subscription model with monotonic timestamps and
+Core-assigned event sequence numbers. Event sinks are invoked without holding
+the registry lock.
+
+### Flight recorder / replay
+
+Core now includes a bounded, fixed-capacity in-memory flight recorder that:
+
+- assigns trace sequence numbers,
+- records truncation explicitly,
+- supports deterministic replay snapshots,
+- performs no heap allocation,
+- has no filesystem or database dependency.
+
+Persistent export remains an adapter responsibility.
+
+### Simulated CAN
+
+`SimulatedCanInterface` implements the frozen `ICanInterface` contract with
+bounded RX/TX queues. It supports integration testing without Linux, SocketCAN or
+physical hardware.
+
+### Core-only build graph
+
+CMake can now explicitly build and test:
+
+```text
+ECU_BUILD_SAC_MODULE=OFF
+ECU_BUILD_LINUX_SOCKETCAN=OFF
+```
+
+The validation gate verifies that neither product ECU modules nor Linux platform
+targets are present in this graph.
+
+## Still open after v3 foundation
 
 The following are still mandatory Core work, not optional feature backlog:
 
 1. Full DoIP protocol implementation over the new networking contracts.
 2. J1939 TP/ETP and Address Claiming strategy.
-3. Concrete trace/replay implementation and CAN/DoIP simulation.
-4. Persistent configuration implementation behind `IKeyValueStore`.
-5. Product security design: Root of Trust, attestation format, licensing and key lifecycle.
-6. Generic deterministic actuator scheduler/interlock policy beyond the base contract.
-7. Core event sequencing/subscription implementation for API clients.
-8. Multi-platform CI beyond source scanning.
-9. Release/update/integrity lifecycle.
-10. Final process topology and deployment lifecycle.
+3. Persistent configuration implementation behind `IKeyValueStore`.
+4. Product security design: Root of Trust, attestation format, licensing and key lifecycle.
+5. Generic deterministic actuator scheduler/interlock policy beyond the base contract.
+6. Persistent trace export and DoIP replay adapters.
+7. Multi-platform CI beyond the current core-only graph/source gates.
+8. Release/update/integrity lifecycle.
+9. Final process topology and deployment lifecycle.
 
 These items must be resolved before Core is declared production-architecture complete.
 

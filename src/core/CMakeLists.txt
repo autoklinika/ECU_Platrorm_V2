@@ -9,6 +9,8 @@ add_library(ecu_core STATIC
   src/core_facade.cpp
   src/device_registry.cpp
   src/safety_watchdog.cpp
+  src/event_bus.cpp
+  src/simulated_can.cpp
   src/j1939_identifier.cpp
   src/isotp_types.cpp
   src/isotp_endpoint.cpp
