@@ -1,5 +1,3 @@
-[Reading 67 lines from start (total: 67 lines, 0 remaining)]
-
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -67,5 +65,3 @@ if [[ "$REQUIRE_CONFORMANCE" -eq 1 ]]; then
   echo "Formal standards conformance is not closed." >&2
   exit 1
 fi
-
-[executed on device: ecu (4a17dcf9-64bf-4337-8a46-7d88ad637c0f)]
