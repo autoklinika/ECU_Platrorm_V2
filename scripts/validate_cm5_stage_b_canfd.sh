@@ -29,8 +29,20 @@ sudo ip link set can0 up
 DETAILS="$(ip -details link show can0)"
 printf '%s\n' "$DETAILS"
 
-if ! grep -q 'fd on' <<<"$DETAILS"; then
-  echo "FAIL: CAN-FD mode not reported as enabled"
+if ! grep -q 'can <FD' <<<"$DETAILS"; then
+  echo "FAIL: kernel does not report CAN-FD capability as active"
+  sudo ip link set can0 down || true
+  exit 1
+fi
+
+if ! grep -q 'dbitrate 2000000' <<<"$DETAILS"; then
+  echo "FAIL: expected CAN-FD data bitrate is not active"
+  sudo ip link set can0 down || true
+  exit 1
+fi
+
+if ! grep -q 'mtu 72' <<<"$DETAILS"; then
+  echo "FAIL: interface MTU is not CAN-FD MTU 72"
   sudo ip link set can0 down || true
   exit 1
 fi
