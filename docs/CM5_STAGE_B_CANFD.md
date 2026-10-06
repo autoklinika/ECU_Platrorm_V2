@@ -55,3 +55,26 @@ STAGE_B_CANFD=PASS
 ## Gate
 
 Stage B is VERIFIED only after the physical CM5 produces the PASS marker.
+
+
+## Physical validation — 2026-10-06
+
+Result: **PASS**
+
+Observed on clean CM5 after reboot:
+
+- kernel module: `mcp251xfd`
+- `can0` present on `spi0.0`
+- controller clock: `40000000`
+- classic CAN timing capability exposed
+- CAN-FD data-phase timing capability exposed
+- temporary capability profile accepted:
+  - arbitration bitrate: `500000`
+  - data bitrate: `2000000`
+- interface MTU changed from `16` to `72`
+- kernel reported: `can <FD,TDC-AUTO>`
+- state after enabling: `ERROR-ACTIVE`
+- TX/RX bus error counters: `0 / 0`
+- no CAN frames transmitted by the validation procedure
+
+The first validator revision incorrectly searched for the literal text `fd on`. On Debian 13 / iproute2 6.15 the active mode is rendered as `can <FD,TDC-AUTO>`. The validator was corrected to check the actual kernel/iproute2 representation plus `dbitrate` and MTU 72.
