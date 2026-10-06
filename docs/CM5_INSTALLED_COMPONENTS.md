@@ -53,9 +53,9 @@
 
 | Component | Purpose | Status |
 |---|---|---|
-| `can-utils` | CAN/CAN-FD diagnostics and smoke tests — `2023.03-1+b2` | INSTALLED |
-| kernel `mcp251xfd` driver | KAmod CAN-FD / MCP251xFD | PLANNED |
-| Device Tree overlay | SPI0.0, 40 MHz oscillator, IRQ GPIO25 | PLANNED |
+| `can-utils` | CAN/CAN-FD diagnostics and smoke tests — `2023.03-1+b2` | VERIFIED |
+| kernel `mcp251xfd` driver | KAmod CAN-FD / MCP251xFD; SPI0.0, 40 MHz | VERIFIED |
+| Device Tree overlay | SPI0.0, 40 MHz oscillator, IRQ GPIO25 | VERIFIED |
 
 Required overlay:
 
@@ -129,3 +129,20 @@ Observed on clean CM5:
 - NetworkManager service: enabled + active
 
 Note: the bootstrap's `candump --help` probe emitted `candump: invalid option -- '-'`. This is a bootstrap-script probe issue only; package `can-utils 2023.03-1+b2` installed successfully. CAN/CAN-FD functionality is intentionally not marked VERIFIED until Stage B hardware validation.
+
+
+## 10. Stage B verification — 2026-10-06
+
+Result: **PASS**
+
+Physical validation confirmed KAmod CAN-FD / MCP251xFD on the clean CM5:
+
+- driver `mcp251xfd`
+- parent `spi0.0`
+- clock `40 MHz`
+- `can0` present
+- CAN-FD MTU `72`
+- temporary profile `500 kbit/s / 2 Mbit/s` accepted
+- kernel mode `<FD,TDC-AUTO>`
+- error counters `tx 0 / rx 0`
+- no traffic transmitted during the capability probe
