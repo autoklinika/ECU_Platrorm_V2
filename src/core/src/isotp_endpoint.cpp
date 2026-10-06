@@ -248,7 +248,9 @@ IsoTpStatus IsoTpEndpoint::process_flow_control(
     tx_block_sent_ = 0U;
     tx_wait_frames_ = 0U;
     tx_stmin_ = stmin;
-    tx_next_send_ = now;
+    if (tx_next_send_ < now) {
+      tx_next_send_ = now;
+    }
     tx_state_ = TxState::sending_consecutive;
     last_tx_status_ = IsoTpStatus::in_progress;
     return IsoTpStatus::in_progress;
@@ -581,6 +583,7 @@ IsoTpStatus IsoTpEndpoint::poll_tx(
   tx_sequence_ =
       static_cast<std::uint8_t>((tx_sequence_ + 1U) & 0x0FU);
   ++tx_block_sent_;
+  tx_next_send_ = now + tx_stmin_;
 
   if (tx_offset_ >= tx_length_) {
     tx_state_ = TxState::idle;
@@ -598,7 +601,6 @@ IsoTpStatus IsoTpEndpoint::poll_tx(
     return IsoTpStatus::in_progress;
   }
 
-  tx_next_send_ = now + tx_stmin_;
   return IsoTpStatus::in_progress;
 }
 
