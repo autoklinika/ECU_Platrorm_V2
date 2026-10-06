@@ -2,7 +2,7 @@
 
 ## Status
 
-**IMPLEMENTATION / VALIDATION IN PROGRESS**
+**CORE VERIFIED / PHYSICAL SAC GATE PENDING BITRATE DECISION**
 
 Branch:
 
@@ -181,3 +181,63 @@ STAGE_I_UDS=PASS
 ## Merge boundary
 
 Stage I work does not authorize merge to production `main`.
+
+## Core validation evidence — 2026-10-06
+
+Result: **VERIFIED / PASS**
+
+Validated directly on Prototype A:
+
+- compiler: GNU C++ 14.2.0
+- Core portability self-test: PASS
+- real Core portability scan: PASS
+- Debug build: PASS
+- Debug CTest: 5/5 PASS
+- Release build: PASS
+- Release CTest: 5/5 PASS
+- direct UDS suite: UDS_CORE_TESTS=PASS
+- final validator: STAGE_I_UDS=PASS
+- AddressSanitizer: PASS
+- UndefinedBehaviorSanitizer: PASS
+- guarded physical SAC probe executable: builds in Debug and Release
+- no physical UDS request to SAC has been sent yet
+
+The first failed Stage I run was a test-harness ordering defect only: a correctly generated protocol_error response was treated by the helper as a fatal harness failure before checking that the client had completed. The helper was corrected; no UDS Core behavior change was required.
+
+## Trusted external protocol cross-check
+
+Only trusted automotive sources were used for external protocol verification:
+
+- AUTOSAR R24-11 Diagnostics / Diagnostic Communication Manager
+- Vector UDS material
+
+AUTOSAR was used to confirm that P2/P2* are UDS session-layer parameters and are updated as part of successful DiagnosticSessionControl processing.
+
+No forum/community source is normative input for Stage I.
+
+## Physical SAC gate status
+
+Legacy same-project evidence from branch mcm-from-stable-sac confirms:
+
+    request ID  = 0x18DA30F9
+    response ID = 0x18DAF930
+    29-bit addressing
+
+    F190 = VIN
+    F188 = software identification
+    F192 = hardware identification
+
+Legacy also confirms two SAC bitrates:
+
+    250 kbit/s primary
+    500 kbit/s secondary
+
+and the old GUI attempted 250 kbit/s first, then 500 kbit/s.
+
+That evidence is insufficient to prove which bitrate belongs to the currently connected physical SAC. Therefore active Stage I probing is intentionally blocked until the bitrate is confirmed or an explicitly approved discovery procedure is used.
+
+The prepared physical probe is limited to one read-only request:
+
+    22 F1 90
+
+It does not change diagnostic session and does not issue reset, clear-DTC, security, write, routine, output-control or flash services.

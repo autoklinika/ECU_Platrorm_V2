@@ -351,3 +351,31 @@ Validation:
 - Core portability gate: PASS
 
 No Linux/SocketCAN dependency was added to ISO-TP Core.
+
+## 20. Stage I UDS Core — 2026-10-06
+
+Result: **CORE VERIFIED / PHYSICAL SAC GATE PENDING**
+
+Portable Core additions:
+
+- UDS client state machine
+- positive/negative response validation
+- NRC preservation
+- NRC 0x78 ResponsePending
+- P2 / P2* handling
+- 0x10 / 0x22 / 0x3E request builders
+- DiagnosticSessionControl timing parser
+- one-outstanding-request conversation model
+
+Validation:
+
+- Debug CTest: 5/5 PASS
+- Release CTest: 5/5 PASS
+- UDS_CORE_TESTS=PASS
+- STAGE_I_UDS=PASS
+- ASan/UBSan: PASS
+- Core portability gate: PASS
+
+No new OS packages were installed.
+
+Physical SAC read-only validation is prepared but not executed because the currently connected SAC bitrate has not yet been conclusively identified between legacy-supported 250 kbit/s and 500 kbit/s profiles.
