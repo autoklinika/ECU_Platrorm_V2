@@ -9,6 +9,7 @@ project(
 option(ECU_BUILD_TESTS "Build ECU Platform V2 tests" ON)
 
 add_subdirectory(src/core)
+add_subdirectory(src/ecu/sac)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_subdirectory(src/platform/linux/socketcan)
