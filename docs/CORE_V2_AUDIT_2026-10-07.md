@@ -225,8 +225,36 @@ proprietary cyclic raw-CAN actuator on one authoritative `CanBusRuntime`.
 All TX paths use centralized runtime TX and mixed RX is dispatched only through
 registered filters. Actuator safe-stop does not disturb protocol state.
 
-The local runtime-foundation engineering gate is PASS. Cross-platform CI remains
-required before the layer and Core freeze gate are closed.
+The runtime-foundation engineering gate is PASS. Cross-platform CI run
+`37622968497` passed all six Linux/MSVC jobs.
+
+### A-21 — final DUT-neutral Core V2 freeze audit
+
+Resolution: reran the complete Core V2 validation after the DUT model, cyclic
+actuator runtime, L6 runtime foundation, cancellation semantics and shared-bus
+proof were all present.
+
+Evidence:
+
+- Debug 20/20 PASS,
+- Release 20/20 PASS,
+- Generic non-Linux 20/20 PASS,
+- ASAN/UBSAN 20/20 PASS,
+- architecture, portability, standards/conformance, negative gates, external
+  symbol and dynamic-static-initialization gates PASS,
+- cross-platform CI 6/6 PASS,
+- no Linux/Qt/SocketCAN dependencies in `src/core_v2`,
+- no thread/mutex/sleep primitives,
+- no dynamic STL containers/heap ownership in the Core V2 foundation,
+- no protocol/actuation/runtime/domain/safety direct access to `ICanDriver`.
+
+No remaining engineering blocker was found for the generic laboratory
+foundation. Core V2 is therefore frozen at engineering-foundation level on the
+working branch. Normative protocol audits, product safety/security gates and
+production promotion remain separate.
+
+Detailed freeze record:
+`docs/CORE_V2_ENGINEERING_FREEZE_2026-10-07.md`.
 
 ## Open items that are not engineering defects
 
@@ -234,12 +262,13 @@ The repository does not contain licensed full SAE/ISO normative texts. Consequen
 
 ## Next engineering priorities
 
-1. Complete cross-platform CI and the final DUT-neutral Core V2 freeze audit.
-2. Freeze the Core V2 foundation contracts only after the audit confirms no remaining laboratory blocker.
-3. Build Bench Session above frozen Core for the default topology of one physical DUT, with optional minimal environment emulation requested by a profile.
-4. Build the common DUT Profile contract and prove it with the retained MAN Sonceboz EGR knowledge plus one ECU-class profile.
-5. Continue deeper ISO 11783, ISO 11992/WWH-OBD, DoIP and other protocol work only when a real DUT/use case requires it.
-6. Keep normative clause mapping and external interoperability evidence as separate module conformance gates.
+1. Build Bench Session above frozen Core for the default topology of one physical DUT, with optional minimal environment emulation requested by a profile.
+2. Build the common DUT Profile contract and prove it with the retained MAN Sonceboz EGR knowledge plus one ECU-class profile.
+3. Add power/ignition/wake orchestration behind platform adapters, not generic Core.
+4. Continue deeper ISO 11783, ISO 11992/WWH-OBD, DoIP and other protocol work only when a real DUT/use case requires it.
+5. Keep normative clause mapping, product safety/security and external interoperability evidence as separate gates.
+6. Do not change frozen Core contracts for a profile-specific convenience; require an explicit Core revision and full re-gate.
 
 CORE_V2_ENGINEERING_AUDIT=PASS
+CORE_V2_ENGINEERING_FOUNDATION_FREEZE=PASS
 CORE_V2_NORMATIVE_CLAUSE_AUDITS=OPEN

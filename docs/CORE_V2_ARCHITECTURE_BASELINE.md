@@ -426,10 +426,12 @@ A Core V2 foundation gate requires at minimum:
 - machine-readable foundation conformance manifest validates requirement-to-code,
   requirement-to-test and responsibility-boundary evidence for TRUCK/AGRI/OHV.
 
-The current Core V2 foundation has a scoped conformance PASS. No later protocol
-module inherits that PASS: each protocol receives a standards PASS only after
-its own declared normative scope has requirement-to-code, requirement-to-test
-and interoperability evidence.
+The current Core V2 foundation has a scoped conformance PASS and an engineering
+foundation freeze PASS recorded in
+`docs/CORE_V2_ENGINEERING_FREEZE_2026-10-07.md`. No later protocol module
+inherits that PASS: each protocol receives a standards PASS only after its own
+declared normative scope has requirement-to-code, requirement-to-test and
+interoperability evidence.
 
 Driver `open()` is transactional: every non-ok return leaves the driver closed
 and releases partial resources within the adapter. There is no externally visible

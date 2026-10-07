@@ -2,7 +2,7 @@
 
 Date: 2026-10-07
 Scope: DUT-neutral Core V2 runtime foundation
-Status: **ENGINEERING FOUNDATION PASS / FINAL CI PENDING**
+Status: **ENGINEERING FOUNDATION PASS / CROSS-PLATFORM CI PASS**
 
 ## Purpose
 
@@ -109,7 +109,7 @@ Local validation must pass:
 - external-runtime-symbol gate,
 - dynamic-static-initialization gate.
 
-Cross-platform GitHub CI remains the final gate before this layer is marked closed.
+Cross-platform GitHub CI run `37622968497` passed all six Linux/MSVC jobs. This layer is closed at engineering-foundation level.
 
 CORE_V2_RUNTIME_FOUNDATION_ENGINEERING=PASS
 CORE_V2_RUNTIME_TOPOLOGY=FROZEN_AFTER_CONFIGURATION
