@@ -48,7 +48,7 @@ Those capabilities require separate module gates and, for state-changing operati
 
 ## Architecture
 
-The diagnostic layer consumes either one validated Classical J1939 CAN frame or one already reassembled TpMessage. DM2 and other on-request reads can use the shared J1939 Request codec, so diagnostics does not duplicate PGN 59904 framing. It does not own the CAN driver, TP state machine, thread, timer, filesystem or heap storage. The DTC decoder is stateless and bounded.
+The diagnostic layer consumes either one validated Classical J1939 CAN frame or one already reassembled TpMessage. DM2 and other on-request reads can use the shared J1939 Request codec, while PGN 59392 responses can be interpreted through the read-only Acknowledgment parser, so diagnostics does not duplicate request/response framing. It does not own the CAN driver, TP state machine, thread, timer, filesystem or heap storage. The DTC decoder is stateless and bounded.
 
 ## Verification
 

@@ -71,6 +71,10 @@ Resolution: added read-only J1939-73 DM1/DM2 parsing for single-frame and Classi
 
 Resolution: introduced one generic strict PGN 59904 Request codec with canonical requested-PGN validation. Address Claim now consumes that codec and DM2/on-request diagnostics can use the same boundary.
 
+### A-10 — diagnostic request failures had no shared Acknowledgment parser
+
+Resolution: added a read-only PGN 59392 Acknowledgment decoder covering ACK, NACK, Access Denied and Cannot Respond with strict DLC, reserved-field, address and requested-PGN validation. No automatic response transmission was added.
+
 ## Open items that are not engineering defects
 
 The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939/81, SAE J1939-73 or ISO 11783-6. Independent interoperability evidence is also required before formal protocol-conformance PASS.

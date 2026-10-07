@@ -7,6 +7,7 @@ add_library(ecu_core_v2 STATIC
   src/address_claim.cpp
   src/network_manager.cpp
   src/request.cpp
+  src/acknowledgment.cpp
   src/diagnostics.cpp
   src/transport_protocol.cpp
   src/extended_transport.cpp
