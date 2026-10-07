@@ -2,7 +2,7 @@
 
 Date: 2026-10-07
 Branch: `dut-profile/foundation`
-Status: **STAGE 3 FOUNDATION IN DEVELOPMENT**
+Status: **STAGE 3.0 FOUNDATION ENGINEERING PASS**
 
 ## 1. Entry boundary
 
@@ -211,7 +211,7 @@ the proof cases after the common contract is accepted.
 - DUT-registry identity matching,
 - diagnostic-style and actuator-style synthetic proof tests.
 
-**Implementation in progress on this branch.**
+**Accepted on this branch. Local full gate PASS and GitHub CI 37643059182 = 18/18 PASS.**
 
 ### 3.1 — Runtime profile contract
 
@@ -255,4 +255,5 @@ DUT_PROFILE_STAGE3_CORE_REVISION_REQUIRED=NO
 DUT_PROFILE_STAGE3_BENCH_REVISION_REQUIRED=NO
 DUT_PROFILE_STAGE3_PHYSICAL_DRIVER_ACCESS=NO
 DUT_PROFILE_STAGE3_CONCRETE_DUT=NO
-DUT_PROFILE_STAGE3_FOUNDATION=IN_DEVELOPMENT
+DUT_PROFILE_STAGE3_FOUNDATION=ENGINEERING_PASS
+DUT_PROFILE_STAGE3_0_CI=37643059182_18_OF_18_PASS
