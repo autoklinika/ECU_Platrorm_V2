@@ -150,6 +150,7 @@ IsoTpStatus IsoTpEndpoint::start_send(
   tx_stmin_ = time::MonotonicDuration{0};
   tx_next_send_ = time::MonotonicTime{0};
   tx_deadline_ = time::MonotonicTime{0};
+  tx_completion_timestamp_ = {};
   last_tx_status_ = IsoTpStatus::in_progress;
 
   tx_state_ =
@@ -249,6 +250,11 @@ IsoTpStatus IsoTpEndpoint::last_tx_status() const noexcept {
   return last_tx_status_;
 }
 
+time::MonotonicClockReading
+IsoTpEndpoint::tx_completion_timestamp() const noexcept {
+  return tx_completion_timestamp_;
+}
+
 IsoTpStatus IsoTpEndpoint::last_rx_status() const noexcept {
   return last_rx_status_;
 }
@@ -269,6 +275,7 @@ IsoTpReceiveResult IsoTpEndpoint::take_received() noexcept {
 
   result.status = IsoTpStatus::ok;
   result.length = rx_length_;
+  result.completion_timestamp = rx_completion_timestamp_;
   copy_bytes(
       result.payload.data(),
       rx_payload_.data(),
@@ -277,6 +284,7 @@ IsoTpReceiveResult IsoTpEndpoint::take_received() noexcept {
   rx_complete_ = false;
   rx_length_ = 0U;
   rx_offset_ = 0U;
+  rx_completion_timestamp_ = {};
   if (last_rx_status_ == IsoTpStatus::ok) {
     last_rx_status_ = IsoTpStatus::idle;
   }
@@ -301,6 +309,7 @@ void IsoTpEndpoint::reset() noexcept {
   tx_stmin_ = time::MonotonicDuration{0};
   tx_next_send_ = time::MonotonicTime{0};
   tx_deadline_ = time::MonotonicTime{0};
+  tx_completion_timestamp_ = {};
 
   rx_complete_ = false;
   last_rx_status_ = IsoTpStatus::idle;
@@ -340,7 +349,7 @@ IsoTpStatus IsoTpEndpoint::process_incoming(
   const auto pci = byte_value(frame.payload[0U]);
   switch (pci & 0xF0U) {
     case kSingleFrame:
-      return process_single_frame(frame);
+      return process_single_frame(frame, received.timestamp);
     case kFirstFrame:
       return process_first_frame(frame, received.timestamp);
     case kConsecutiveFrame:
@@ -418,7 +427,8 @@ IsoTpStatus IsoTpEndpoint::process_flow_control(
 }
 
 IsoTpStatus IsoTpEndpoint::process_single_frame(
-    const transport::CanFrame& frame) noexcept {
+    const transport::CanFrame& frame,
+    const time::MonotonicClockReading& timestamp) noexcept {
   if (rx_active_ || rx_complete_) {
     last_rx_status_ = IsoTpStatus::busy;
     return IsoTpStatus::busy;
@@ -458,6 +468,7 @@ IsoTpStatus IsoTpEndpoint::process_single_frame(
       length);
   rx_length_ = length;
   rx_offset_ = length;
+  rx_completion_timestamp_ = timestamp;
   rx_complete_ = true;
   last_rx_status_ = IsoTpStatus::ok;
   return IsoTpStatus::ok;
@@ -599,6 +610,7 @@ IsoTpStatus IsoTpEndpoint::process_consecutive_frame(
 
   if (rx_offset_ >= rx_length_) {
     rx_active_ = false;
+    rx_completion_timestamp_ = timestamp;
     rx_complete_ = true;
     last_rx_status_ = IsoTpStatus::ok;
     return IsoTpStatus::ok;
@@ -679,6 +691,7 @@ IsoTpStatus IsoTpEndpoint::service_tx(
     }
 
     tx_state_ = TxState::idle;
+    tx_completion_timestamp_ = now;
     last_tx_status_ = IsoTpStatus::ok;
     return IsoTpStatus::ok;
   }
@@ -775,6 +788,7 @@ IsoTpStatus IsoTpEndpoint::service_tx(
 
   if (tx_offset_ >= tx_length_) {
     tx_state_ = TxState::idle;
+    tx_completion_timestamp_ = now;
     last_tx_status_ = IsoTpStatus::ok;
     return IsoTpStatus::ok;
   }
@@ -1000,6 +1014,7 @@ void IsoTpEndpoint::fail_tx(const IsoTpStatus status) noexcept {
   tx_stmin_ = time::MonotonicDuration{0};
   tx_next_send_ = time::MonotonicTime{0};
   tx_deadline_ = time::MonotonicTime{0};
+  tx_completion_timestamp_ = {};
 }
 
 void IsoTpEndpoint::reset_rx_transfer() noexcept {
@@ -1009,6 +1024,7 @@ void IsoTpEndpoint::reset_rx_transfer() noexcept {
   rx_expected_sequence_ = 1U;
   rx_block_received_ = 0U;
   rx_deadline_ = time::MonotonicTime{0};
+  rx_completion_timestamp_ = {};
 }
 
 void IsoTpEndpoint::latch_clock_fault() noexcept {

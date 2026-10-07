@@ -134,18 +134,27 @@ Before normative ISO-TP module conformance PASS:
 - independent interoperability vectors.
 
 ### UDS
-Legacy/reference implementation exists under the previous Core:
-- transport-independent UDS client,
+Core V2 now has a transport-neutral engineering foundation:
+- generic request/response client above `IDiagnosticTransport`,
+- positive-response SID and strict negative-response validation,
+- P2 and P2* state machine,
+- NRC 0x78 ResponsePending handling,
+- transport-completion timestamp based deadline accounting,
+- fail-closed monotonic clock-domain/uncertainty checks,
+- ISO-TP adapter and multi-frame end-to-end regression coverage,
 - selected service builders/parsers.
 
-It is not promoted into the Core V2 foundation and does not inherit foundation
-conformance.
+Detailed engineering evidence is recorded in:
+`docs/CORE_V2_UDS_STATUS.md`.
 
-Before UDS module PASS:
+This is an engineering PASS, not a normative ISO 14229 conformance claim.
+
+Before normative UDS module PASS:
 - ISO 14229-1:2026 service/NRC matrix,
 - ISO 14229-2:2021 session/timing matrix,
 - ISO 14229-3:2022 UDSonCAN profile matrix,
-- explicit supported/unsupported service declaration.
+- explicit supported/unsupported service declaration,
+- independent interoperability vectors.
 
 AUTOSAR may be used as an implementation cross-check but never replaces ISO.
 

@@ -93,18 +93,33 @@ The engineering gate is PASS. Normative ISO 15765-2:2024 clause conformance,
 extended/mixed addressing, 32-bit FF_DL beyond 4095 bytes and independent
 interoperability evidence remain explicitly open.
 
+### A-12 — UDS existed only in the legacy Core
+
+Resolution: promoted a transport-neutral UDS foundation into Core V2 above a
+new `IDiagnosticTransport` boundary. The implementation includes positive and
+negative response validation, P2/P2* deadlines, NRC 0x78 ResponsePending,
+transport failure classification, fail-closed monotonic clock checks and
+selected diagnostic service builders/parsers. ISO-TP binding is isolated in a
+separate adapter. P2/P2* use transport TX/RX completion timestamps rather than
+host polling time. A dedicated multi-frame UDS-over-ISO-TP end-to-end test is
+part of the Core V2 matrix.
+
+The UDS engineering gate is PASS. Formal ISO 14229-1/-2/-3 clause conformance,
+full service coverage, suppressPositiveResponse transaction semantics and
+independent interoperability evidence remain explicitly open.
+
 ## Open items that are not engineering defects
 
-The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939/81, SAE J1939-73, ISO 11783-6 or ISO 15765-2:2024. Independent interoperability evidence is also required before formal protocol-conformance PASS.
+The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939/81, SAE J1939-73, ISO 11783-6, ISO 15765-2:2024 or ISO 14229-1/-2/-3. Independent interoperability evidence is also required before formal protocol-conformance PASS.
 
 ## Next protocol priorities
 
 1. SAE J1939-22 CAN FD adaptation — FEFF/no-assurance C-PG subset implemented after this audit; FBFF, FD.TP and assurance profiles remain open.
-2. UDS transport-neutral promotion/revalidation on the new Core V2 ISO-TP boundary.
-3. Broader J1939-73 read-only diagnostics.
-4. ISO 11783 network/application profiles needed by AGRI.
-5. ISO 11992 / WWH-OBD where required by heavy-truck modules.
-6. ISO-TP normative clause mapping and external interoperability evidence.
+2. Broader J1939-73 read-only diagnostics.
+3. ISO 11783 network/application profiles needed by AGRI.
+4. ISO 11992 / WWH-OBD where required by heavy-truck modules.
+5. UDS service/profile expansion after the transport-neutral foundation.
+6. ISO-TP/UDS normative clause mapping and external interoperability evidence.
 
 CORE_V2_ENGINEERING_AUDIT=PASS
 CORE_V2_NORMATIVE_CLAUSE_AUDITS=OPEN

@@ -55,6 +55,7 @@ struct IsoTpConfig {
 struct IsoTpReceiveResult {
   IsoTpStatus status{IsoTpStatus::idle};
   std::size_t length{0U};
+  time::MonotonicClockReading completion_timestamp{};
   std::array<std::byte, kMaxPayloadSize> payload{};
 };
 
@@ -93,6 +94,8 @@ class IsoTpEndpoint final {
 
   [[nodiscard]] bool tx_busy() const noexcept;
   [[nodiscard]] IsoTpStatus last_tx_status() const noexcept;
+  [[nodiscard]] time::MonotonicClockReading
+  tx_completion_timestamp() const noexcept;
   [[nodiscard]] IsoTpStatus last_rx_status() const noexcept;
 
   [[nodiscard]] bool has_received() const noexcept;
@@ -117,7 +120,8 @@ class IsoTpEndpoint final {
       const transport::CanFrame& frame,
       const time::MonotonicClockReading& timestamp) noexcept;
   [[nodiscard]] IsoTpStatus process_single_frame(
-      const transport::CanFrame& frame) noexcept;
+      const transport::CanFrame& frame,
+      const time::MonotonicClockReading& timestamp) noexcept;
   [[nodiscard]] IsoTpStatus process_first_frame(
       const transport::CanFrame& frame,
       const time::MonotonicClockReading& timestamp) noexcept;
@@ -176,6 +180,7 @@ class IsoTpEndpoint final {
   time::MonotonicDuration tx_stmin_{0};
   time::MonotonicTime tx_next_send_{0};
   time::MonotonicTime tx_deadline_{0};
+  time::MonotonicClockReading tx_completion_timestamp_{};
 
   bool rx_active_{false};
   bool rx_complete_{false};
@@ -186,6 +191,7 @@ class IsoTpEndpoint final {
   std::uint8_t rx_expected_sequence_{1U};
   std::uint8_t rx_block_received_{0U};
   time::MonotonicTime rx_deadline_{0};
+  time::MonotonicClockReading rx_completion_timestamp_{};
 
   bool pending_control_{false};
   transport::CanFrame control_frame_{};
