@@ -67,7 +67,7 @@ Status levels:
 | DoIP wired interface | ISO 13400-3:2016 | NOT_IMPLEMENTED |
 | UDS on IP | ISO 14229-5:2022 | NOT_IMPLEMENTED |
 | J1939 Classical data link / transport | SAE J1939/21_202205 | TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
-| J1939 CAN FD | SAE J1939-22_202209 | FEFF_CPG_NO_ASSURANCE_TECHNICAL_PASS / FD_TP_FBFF_ASSURANCE_NOT_IMPLEMENTED / CLAUSE_AUDIT_REQUIRED |
+| J1939 CAN FD | SAE J1939-22_202209 | FBFF_FEFF_CPG_AND_FD_TP_NO_ASSURANCE_ENGINEERING_PASS / ASSURANCE_NOT_IMPLEMENTED / CLAUSE_AUDIT_REQUIRED |
 | J1939 network management | SAE J1939/81_202504 | ADDRESS_CLAIM_COMMANDED_ADDRESS_TECHNICAL_PASS / CLAUSE_AUDIT_REQUIRED |
 | J1939 diagnostics | SAE J1939-73_202609 | DM1_DM2_DM4_DM5_DM6_DM12_READ_ONLY_TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
 | J1939 top-level heavy-duty network | SAE J1939_202603 | BASELINE_VERIFIED |
@@ -175,21 +175,22 @@ Core V2 now has a technical-gate implementation of:
 - opt-in Commanded Address handling after TP reassembly,
 - Classical TP BAM and RTS/CTS receive/transmit state machines,
 - read-only J1939-73 DM1/DM2/DM4/DM5/DM6/DM12 diagnostic decoding,
-- narrow J1939-22 FEFF Multi-PG / no-assurance C-PG encode/decode.
+- J1939-22 FBFF/FEFF Multi-PG no-assurance C-PG and no-assurance FD.TP foundation.
 
 Detailed evidence is recorded in:
 - `docs/CORE_V2_J1939_NETWORK_TP_STATUS.md`,
-- `docs/CORE_V2_J1939_DIAGNOSTICS_STATUS.md`.
+- `docs/CORE_V2_J1939_DIAGNOSTICS_STATUS.md`,
+- `docs/CORE_V2_J1939_22_CPG_STATUS.md`.
 
 This is a technical PASS only. Remaining network-management behavior,
-broader J1939-22 CAN FD services and diagnostic/application services are
-separately gated. The narrow J1939-22 FEFF/no-assurance C-PG subset and ISO
+J1939-22 assurance profiles and diagnostic/application services are
+separately gated. The J1939-22 FBFF/FEFF no-assurance C-PG/FD.TP foundation and ISO
 11783 ETP each have their own technical gates.
 
 Before J1939 module standards PASS:
 - clause audit against SAE J1939/21_202205,
 - interoperability evidence for implemented Classical TP,
-- remaining CAN FD rules per SAE J1939-22_202209 beyond the declared FEFF/no-assurance C-PG subset,
+- remaining CAN FD rules per SAE J1939-22_202209 beyond the declared FBFF/FEFF no-assurance C-PG/FD.TP foundation,
 - Address Claiming/network management per SAE J1939/81_202504,
 - diagnostics per SAE J1939-73_202609 for the declared read-only DM1/DM2/DM4/DM5/DM6/DM12 subset.
 

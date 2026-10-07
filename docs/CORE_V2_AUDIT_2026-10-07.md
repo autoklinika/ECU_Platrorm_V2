@@ -124,17 +124,32 @@ The expanded read-only technical gate is PASS. Full SAE J1939-73 clause mapping,
 remaining diagnostic messages and external interoperability evidence remain
 open.
 
+### A-14 — J1939-22 was limited to FEFF no-assurance C-PG
+
+Resolution: expanded the CAN FD data-link foundation with FBFF Global Multi-PG,
+deterministic legal-DLC padding validation and a streaming no-assurance FD.TP
+implementation. FD.TP now includes 12-byte CM and 60-byte DT segmentation,
+BAM, destination-specific RTS/CTS, CTS hold, EOMS/EOMA, Abort, 24-bit
+message/segment fields and bounded parallel session pools. The 0xFFFFFF-byte
+peer-transfer range is supported through source/sink streaming rather than a
+large Core message allocation. DTFI and assurance-data profiles outside the
+no-assurance profile fail closed.
+
+The J1939-22 engineering foundation gate is PASS. Assurance profiles, full
+clause-level timing/profile mapping and independent interoperability evidence
+remain explicitly open.
+
 ## Open items that are not engineering defects
 
-The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939/81, SAE J1939-73, ISO 11783-6, ISO 15765-2:2024 or ISO 14229-1/-2/-3. Independent interoperability evidence is also required before formal protocol-conformance PASS.
+The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939-22, SAE J1939/81, SAE J1939-73, ISO 11783-6, ISO 15765-2:2024 or ISO 14229-1/-2/-3. Independent interoperability evidence is also required before formal protocol-conformance PASS.
 
 ## Next protocol priorities
 
-1. SAE J1939-22 CAN FD adaptation — FEFF/no-assurance C-PG subset implemented after this audit; FBFF, FD.TP and assurance profiles remain open.
-2. ISO 11783 network/application profiles needed by AGRI.
-3. ISO 11992 / WWH-OBD where required by heavy-truck modules.
-4. UDS service/profile expansion after the transport-neutral foundation.
-5. Further read-only J1939-73 services selected from actual TRUCK/AGRI/OHV workshop needs.
+1. ISO 11783 network/application profiles needed by AGRI.
+2. ISO 11992 / WWH-OBD where required by heavy-truck modules.
+3. UDS service/profile expansion after the transport-neutral foundation.
+4. Further read-only J1939-73 services selected from actual TRUCK/AGRI/OHV workshop needs.
+5. J1939-22 assurance profiles only when the required safety/cybersecurity profile is explicitly selected.
 6. ISO-TP/UDS/J1939 normative clause mapping and external interoperability evidence.
 
 CORE_V2_ENGINEERING_AUDIT=PASS

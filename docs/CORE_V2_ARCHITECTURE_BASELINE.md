@@ -369,7 +369,7 @@ Implementation priority after foundation:
 5. ISO 11783 / ISOBUS extended transport — **DONE / ETP technical gate PASS**;
    remaining network/application profiles stay module-gated,
 6. J1939 diagnostics — **DM1/DM2/DM4/DM5/DM6/DM12 read-only subset DONE / technical gate PASS**,
-7. J1939-22 CAN FD — **FEFF/no-assurance C-PG subset DONE / technical gate PASS**; FBFF, FD.TP and assurance profiles remain gated,
+7. J1939-22 CAN FD — **FBFF/FEFF no-assurance C-PG + no-assurance FD.TP DONE / engineering gate PASS**; assurance profiles remain gated,
 8. ISO-TP revalidation on shared-bus ports — **DONE / engineering gate PASS; normative clause audit open**,
 9. UDS transport-neutral foundation over ISO-TP adapter — **DONE / engineering gate PASS; normative clause audit open**,
 10. DoIP,

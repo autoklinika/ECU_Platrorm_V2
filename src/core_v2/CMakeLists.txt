@@ -9,6 +9,7 @@ add_library(ecu_core_v2 STATIC
   src/request.cpp
   src/acknowledgment.cpp
   src/fd_contained_pg.cpp
+  src/fd_transport_protocol.cpp
   src/isotp_endpoint.cpp
   src/uds_types.cpp
   src/uds_services.cpp

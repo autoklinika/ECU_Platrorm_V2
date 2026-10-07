@@ -38,17 +38,47 @@ namespace {
   return 0U;
 }
 
-[[nodiscard]] bool zero_padding_from(
+// This is the deterministic padding profile emitted by the public J1939-22
+// reference implementation used for the engineering cross-check: the padding
+// service starts with up to three zero bytes and any remaining DLC fill bytes
+// are 0xAA. The first zero byte carries TOS=0 (padding).
+[[nodiscard]] bool supported_padding_from(
     const transport::CanFrame& frame,
     const std::size_t offset) noexcept {
-  for (std::size_t i = offset;
-       i < static_cast<std::size_t>(frame.length);
-       ++i) {
-    if (frame.payload[i] != std::byte{0U}) {
+  const auto length =
+      static_cast<std::size_t>(frame.length);
+  if (offset >= length) {
+    return false;
+  }
+
+  std::size_t relative = 0U;
+  for (std::size_t index = offset;
+       index < length;
+       ++index, ++relative) {
+    const auto expected =
+        relative < 3U
+            ? std::byte{0U}
+            : std::byte{0xAAU};
+    if (frame.payload[index] != expected) {
       return false;
     }
   }
   return true;
+}
+
+void write_supported_padding(
+    transport::CanFrame& frame,
+    const std::size_t used,
+    const std::size_t encoded_length) noexcept {
+  std::size_t relative = 0U;
+  for (std::size_t index = used;
+       index < encoded_length;
+       ++index, ++relative) {
+    frame.payload[index] =
+        relative < 3U
+            ? std::byte{0U}
+            : std::byte{0xAAU};
+  }
 }
 
 }  // namespace
@@ -65,9 +95,12 @@ bool encode_no_assurance_contained_pg_header(
   header[0U] = static_cast<std::byte>(
       (kContainedPgTosSaeNoAssurance << 5U) |
       ((pgn >> 16U) & 0x03U));
-  header[1U] = static_cast<std::byte>((pgn >> 8U) & 0xFFU);
-  header[2U] = static_cast<std::byte>(pgn & 0xFFU);
-  header[3U] = static_cast<std::byte>(payload_length);
+  header[1U] =
+      static_cast<std::byte>((pgn >> 8U) & 0xFFU);
+  header[2U] =
+      static_cast<std::byte>(pgn & 0xFFU);
+  header[3U] =
+      static_cast<std::byte>(payload_length);
   return true;
 }
 
@@ -77,9 +110,11 @@ ContainedPgDecodeStatus decode_no_assurance_contained_pg_header(
   const auto byte0 =
       std::to_integer<std::uint8_t>(header[0U]);
   const auto tos =
-      static_cast<std::uint8_t>((byte0 >> 5U) & 0x07U);
+      static_cast<std::uint8_t>(
+          (byte0 >> 5U) & 0x07U);
   const auto trailer =
-      static_cast<std::uint8_t>((byte0 >> 2U) & 0x07U);
+      static_cast<std::uint8_t>(
+          (byte0 >> 2U) & 0x07U);
 
   if (tos == kContainedPgTosPadding) {
     return ContainedPgDecodeStatus::padding;
@@ -90,14 +125,19 @@ ContainedPgDecodeStatus decode_no_assurance_contained_pg_header(
   }
 
   const auto pgn =
-      (static_cast<std::uint32_t>(byte0 & 0x03U) << 16U) |
       (static_cast<std::uint32_t>(
-           std::to_integer<std::uint8_t>(header[1U]))
+           byte0 & 0x03U)
+       << 16U) |
+      (static_cast<std::uint32_t>(
+           std::to_integer<std::uint8_t>(
+               header[1U]))
        << 8U) |
       static_cast<std::uint32_t>(
-          std::to_integer<std::uint8_t>(header[2U]));
+          std::to_integer<std::uint8_t>(
+              header[2U]));
   const auto payload_length =
-      std::to_integer<std::uint8_t>(header[3U]);
+      std::to_integer<std::uint8_t>(
+          header[3U]);
 
   if (!is_canonical_pgn(pgn) ||
       payload_length > kContainedPgMaxPayloadBytes) {
@@ -111,15 +151,42 @@ ContainedPgDecodeStatus decode_no_assurance_contained_pg_header(
   return ContainedPgDecodeStatus::ok;
 }
 
-bool decode_extended_multi_pg_envelope(
+bool decode_multi_pg_envelope(
     const transport::CanFrame& frame,
-    ExtendedMultiPgEnvelope& envelope) noexcept {
+    MultiPgEnvelope& envelope) noexcept {
   if (!transport::is_valid_can_frame(frame) ||
-      frame.identifier_format !=
-          transport::CanIdentifierFormat::extended_29_bit ||
       frame.format != transport::CanFrameFormat::fd ||
       frame.type != transport::CanFrameType::data ||
       !frame.bit_rate_switch) {
+    return false;
+  }
+
+  if (frame.identifier_format ==
+      transport::CanIdentifierFormat::standard_11_bit) {
+    // FBFF Global Multi-PG: AppPI occupies the high three identifier bits and
+    // is 000 for the currently supported J1939 application profile. The low
+    // eight bits are the J1939 source address.
+    if (frame.identifier > 0xFFU) {
+      return false;
+    }
+
+    const auto source =
+        static_cast<std::uint8_t>(
+            frame.identifier & 0xFFU);
+    if (!is_claimable_address(source)) {
+      return false;
+    }
+
+    envelope = {};
+    envelope.format = MultiPgOuterFormat::fbff;
+    envelope.priority = kFbffApplicationPriority;
+    envelope.source_address = source;
+    envelope.destination_address = kGlobalAddress;
+    return true;
+  }
+
+  if (frame.identifier_format !=
+      transport::CanIdentifierFormat::extended_29_bit) {
     return false;
   }
 
@@ -136,9 +203,23 @@ bool decode_extended_multi_pg_envelope(
     return false;
   }
 
+  envelope = {};
+  envelope.format = MultiPgOuterFormat::feff;
   envelope.priority = fields.priority;
   envelope.source_address = fields.source_address;
   envelope.destination_address = destination;
+  return true;
+}
+
+bool decode_extended_multi_pg_envelope(
+    const transport::CanFrame& frame,
+    MultiPgEnvelope& envelope) noexcept {
+  MultiPgEnvelope decoded{};
+  if (!decode_multi_pg_envelope(frame, decoded) ||
+      decoded.format != MultiPgOuterFormat::feff) {
+    return false;
+  }
+  envelope = decoded;
   return true;
 }
 
@@ -147,16 +228,18 @@ ContainedPgDecodeStatus decode_contained_pg_at(
     const std::size_t offset,
     ContainedPgView& view,
     std::size_t& next_offset) noexcept {
-  ExtendedMultiPgEnvelope envelope{};
-  if (!decode_extended_multi_pg_envelope(frame, envelope) ||
-      offset >= static_cast<std::size_t>(frame.length)) {
+  MultiPgEnvelope envelope{};
+  if (!decode_multi_pg_envelope(frame, envelope) ||
+      offset >=
+          static_cast<std::size_t>(frame.length)) {
     return ContainedPgDecodeStatus::invalid_argument;
   }
 
   const auto remaining =
-      static_cast<std::size_t>(frame.length) - offset;
+      static_cast<std::size_t>(frame.length) -
+      offset;
   if (frame.payload[offset] == std::byte{0U}) {
-    return zero_padding_from(frame, offset)
+    return supported_padding_from(frame, offset)
                ? ContainedPgDecodeStatus::padding
                : ContainedPgDecodeStatus::invalid_argument;
   }
@@ -165,28 +248,36 @@ ContainedPgDecodeStatus decode_contained_pg_at(
     return ContainedPgDecodeStatus::invalid_argument;
   }
 
-  std::array<std::byte, kContainedPgHeaderBytes> header{};
-  for (std::size_t i = 0U; i < header.size(); ++i) {
-    header[i] = frame.payload[offset + i];
+  std::array<std::byte, kContainedPgHeaderBytes>
+      header{};
+  for (std::size_t index = 0U;
+       index < header.size();
+       ++index) {
+    header[index] =
+        frame.payload[offset + index];
   }
 
   ContainedPgHeader decoded{};
   const auto status =
-      decode_no_assurance_contained_pg_header(header, decoded);
+      decode_no_assurance_contained_pg_header(
+          header,
+          decoded);
   if (status != ContainedPgDecodeStatus::ok) {
     return status;
   }
 
   const auto required =
       kContainedPgHeaderBytes +
-      static_cast<std::size_t>(decoded.payload_length);
+      static_cast<std::size_t>(
+          decoded.payload_length);
   if (required > remaining) {
     return ContainedPgDecodeStatus::invalid_argument;
   }
 
   view.pgn = decoded.pgn;
   view.payload_length = decoded.payload_length;
-  view.payload_offset = offset + kContainedPgHeaderBytes;
+  view.payload_offset =
+      offset + kContainedPgHeaderBytes;
   next_offset = offset + required;
   return ContainedPgDecodeStatus::ok;
 }
@@ -197,7 +288,8 @@ bool ExtendedMultiPgBuilder::begin(
     const std::uint8_t destination_address) noexcept {
   std::uint32_t identifier = 0U;
   if (!is_claimable_address(source_address) ||
-      !is_supported_multi_pg_destination(destination_address) ||
+      !is_supported_multi_pg_destination(
+          destination_address) ||
       !encode_identifier(
           MessageAddress{
               priority,
@@ -216,6 +308,27 @@ bool ExtendedMultiPgBuilder::begin(
   frame_.type = transport::CanFrameType::data;
   frame_.bit_rate_switch = true;
   used_ = 0U;
+  outer_format_ = MultiPgOuterFormat::feff;
+  active_ = true;
+  return true;
+}
+
+bool ExtendedMultiPgBuilder::begin_fbff(
+    const std::uint8_t source_address) noexcept {
+  if (!is_claimable_address(source_address)) {
+    return false;
+  }
+
+  frame_ = {};
+  frame_.identifier =
+      static_cast<std::uint32_t>(source_address);
+  frame_.identifier_format =
+      transport::CanIdentifierFormat::standard_11_bit;
+  frame_.format = transport::CanFrameFormat::fd;
+  frame_.type = transport::CanFrameType::data;
+  frame_.bit_rate_switch = true;
+  used_ = 0U;
+  outer_format_ = MultiPgOuterFormat::fbff;
   active_ = true;
   return true;
 }
@@ -225,29 +338,42 @@ bool ExtendedMultiPgBuilder::append(
     const std::byte* const payload,
     const std::uint8_t payload_length) noexcept {
   if (!active_ ||
-      (payload_length != 0U && payload == nullptr)) {
+      (payload_length != 0U &&
+       payload == nullptr)) {
     return false;
   }
 
-  std::array<std::byte, kContainedPgHeaderBytes> header{};
+  std::array<std::byte, kContainedPgHeaderBytes>
+      header{};
   if (!encode_no_assurance_contained_pg_header(
-          pgn, payload_length, header)) {
+          pgn,
+          payload_length,
+          header)) {
     return false;
   }
 
   const auto required =
-      header.size() + static_cast<std::size_t>(payload_length);
-  if (used_ + required > frame_.payload.size()) {
+      header.size() +
+      static_cast<std::size_t>(payload_length);
+  if (used_ + required >
+      frame_.payload.size()) {
     return false;
   }
 
-  for (std::size_t i = 0U; i < header.size(); ++i) {
-    frame_.payload[used_ + i] = header[i];
+  for (std::size_t index = 0U;
+       index < header.size();
+       ++index) {
+    frame_.payload[used_ + index] =
+        header[index];
   }
-  for (std::size_t i = 0U;
-       i < static_cast<std::size_t>(payload_length);
-       ++i) {
-    frame_.payload[used_ + header.size() + i] = payload[i];
+  for (std::size_t index = 0U;
+       index <
+           static_cast<std::size_t>(
+               payload_length);
+       ++index) {
+    frame_.payload[
+        used_ + header.size() + index] =
+        payload[index];
   }
   used_ += required;
   return true;
@@ -259,16 +385,17 @@ bool ExtendedMultiPgBuilder::finalize(
     return false;
   }
 
-  const auto encoded_length = next_fd_length(used_);
+  const auto encoded_length =
+      next_fd_length(used_);
   if (encoded_length == 0U) {
     return false;
   }
 
-  for (std::size_t i = used_;
-       i < static_cast<std::size_t>(encoded_length);
-       ++i) {
-    frame_.payload[i] = std::byte{0U};
-  }
+  write_supported_padding(
+      frame_,
+      used_,
+      static_cast<std::size_t>(
+          encoded_length));
   frame_.length = encoded_length;
 
   if (!transport::is_valid_can_frame(frame_)) {
