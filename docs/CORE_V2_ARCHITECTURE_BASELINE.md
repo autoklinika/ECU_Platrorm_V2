@@ -357,11 +357,12 @@ Rules:
 
 Implementation priority after foundation:
 
-1. CAN/CAN-FD shared-bus runtime,
-2. J1939 identifier + address/PGN model revalidation,
-3. J1939 Address Claiming,
-4. J1939 TP/ETP,
-5. ISO 11783 / ISOBUS network/application foundations,
+1. CAN/CAN-FD shared-bus runtime — **DONE / foundation gate PASS**,
+2. J1939 identifier + address/PGN model revalidation — **DONE / technical gate PASS**,
+3. J1939 Address Claiming — **subset DONE / technical gate PASS**,
+4. J1939 Classical TP — **DONE / technical gate PASS**; ETP moves to the
+   ISO 11783/ISOBUS extended-transport layer,
+5. ISO 11783 / ISOBUS network/application foundations — **NEXT**,
 6. J1939 diagnostics,
 7. ISO-TP revalidation on shared-bus ports,
 8. UDS revalidation over transport-neutral interface,

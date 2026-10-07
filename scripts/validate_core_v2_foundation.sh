@@ -90,7 +90,7 @@ build_and_test() {
 
   configure_core_only "$type" "$dir" "$@"
   assert_isolated_graph "$dir"
-  cmake --build "$dir" --target ecu_core_v2_foundation_tests
+  cmake --build "$dir" --target ecu_core_v2_tests
   assert_runtime_independence "$dir"
   ctest --test-dir "$dir" -R '^ecu\.core_v2\.'     --output-on-failure --no-tests=error
 }
@@ -109,10 +109,13 @@ build_and_test Release "$GENERIC_DIR" -DCMAKE_SYSTEM_NAME=Generic
 
 echo
 echo "=== Sanitizers ==="
-configure_core_only Debug "$SAN_DIR"   -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
+configure_core_only Debug "$SAN_DIR"   -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-sanitize=vptr -fno-omit-frame-pointer'   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined -fno-sanitize=vptr'
 assert_isolated_graph "$SAN_DIR"
-cmake --build "$SAN_DIR" --target ecu_core_v2_foundation_tests
+cmake --build "$SAN_DIR" --target ecu_core_v2_tests
 # ASAN/UBSAN intentionally add runtime symbols and initialization hooks.
+# vptr sanitizer is excluded because deterministic Core is intentionally built
+# with -fno-rtti; vptr instrumentation requires RTTI/typeinfo and is therefore
+# not a valid sanitizer configuration for this ABI contract.
 # Runtime-independence inspection applies to non-instrumented artifacts above.
 ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=1}" UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1}"   ctest --test-dir "$SAN_DIR" -R '^ecu\.core_v2\.'     --output-on-failure --no-tests=error
 

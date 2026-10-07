@@ -2,6 +2,11 @@ add_library(ecu_core_v2 STATIC
   src/can_types.cpp
   src/can_bus_runtime.cpp
   src/deadline_watchdog.cpp
+  src/j1939_identifier.cpp
+  src/j1939_name.cpp
+  src/address_claim.cpp
+  src/network_manager.cpp
+  src/transport_protocol.cpp
 )
 
 add_library(ECU::core_v2 ALIAS ecu_core_v2)

@@ -66,9 +66,9 @@ Status levels:
 | DoIP transport/network | ISO 13400-2:2025 | NOT_IMPLEMENTED |
 | DoIP wired interface | ISO 13400-3:2016 | NOT_IMPLEMENTED |
 | UDS on IP | ISO 14229-5:2022 | NOT_IMPLEMENTED |
-| J1939 Classical data link / transport | SAE J1939/21_202205 | FOUNDATION_COMPATIBLE / MODULE_GATED |
+| J1939 Classical data link / transport | SAE J1939/21_202205 | TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
 | J1939 CAN FD | SAE J1939-22_202209 | NOT_IMPLEMENTED |
-| J1939 network management | SAE J1939/81_202504 | NOT_IMPLEMENTED |
+| J1939 network management | SAE J1939/81_202504 | ADDRESS_CLAIM_SUBSET_TECHNICAL_PASS / CLAUSE_AUDIT_REQUIRED |
 | J1939 diagnostics | SAE J1939-73_202609 | NOT_IMPLEMENTED |
 | J1939 top-level heavy-duty network | SAE J1939_202603 | BASELINE_VERIFIED |
 | J1939 vehicle application layer | SAE J1939/71_202502 | CLAUSE_AUDIT_REQUIRED |
@@ -145,15 +145,23 @@ Mandatory baseline:
 - ISO 14229-5:2022.
 
 ### J1939
-Legacy/reference implementation exists under the previous Core:
-- generic 29-bit identifier encode/decode and PGN semantics.
+Core V2 now has a technical-gate implementation of:
+- 29-bit identifier/PGN/address model,
+- complete 64-bit NAME representation,
+- Address Claim subset,
+- Classical TP BAM and RTS/CTS receive/transmit state machines.
 
-Core V2 currently claims only the 29-bit Classical CAN substrate compatibility
-boundary documented in the foundation manifest.
+Detailed evidence is recorded in:
+`docs/CORE_V2_J1939_NETWORK_TP_STATUS.md`.
 
-Before J1939 module PASS:
+This is a technical PASS only. Commanded Address, remaining network-management
+behavior, ETP/ISOBUS extensions and diagnostic/application layers are separately
+gated.
+
+Before J1939 module standards PASS:
 - clause audit against SAE J1939/21_202205,
-- TP/ETP,
+- interoperability evidence for implemented Classical TP,
+- ETP/ISOBUS extended transport as its separately scoped ISO 11783 layer,
 - CAN FD rules per SAE J1939-22_202209,
 - Address Claiming/network management per SAE J1939/81_202504,
 - diagnostics per SAE J1939-73_202609 when implemented.

@@ -25,13 +25,18 @@ struct CanSinkExecutionContract {
 
 class ICanFrameSink {
  public:
-  virtual ~ICanFrameSink() = default;
-
+  // Non-owning interface. CanBusRuntime never deletes a sink through this
+  // pointer; the concrete sink MUST outlive the runtime/subscription.
+  // A protected non-virtual destructor prevents accidental polymorphic delete
+  // and avoids a deleting-destructor dependency in deterministic Core.
   // The callback executes on the bus-owning executor. It never blocks, sleeps,
   // allocates dynamically, waits for external events or calls back into this
   // CanBusRuntime except stop(), which is deferred. It completes within the
   // bound declared at subscription time.
   virtual void on_can_frame(const ReceivedCanFrame& frame) noexcept = 0;
+
+ protected:
+  ~ICanFrameSink() = default;
 };
 
 struct CanSubscriptionHandle {
