@@ -350,14 +350,25 @@ as generic Core behavior.
 - resource availability/contention remains a start-time ownership check,
 - concrete OEM/profile schema remains Stage 3.
 
-**Implementation PASS locally; cross-platform CI is the remaining gate for this increment.**
+**Engineering PASS. Cross-platform CI run `37633720909`: 12/12 PASS.**
 
 ### 2.4 — Host/platform service contract
 
-- define how the host calls `service()`,
-- document required service cadence and failure handling,
-- provide test/fake adapters,
+- `BenchSessionHostRuntime` is a single-executor host orchestration layer,
+- it creates no worker thread and performs no sleep,
+- host cadence is expressed as an explicit `service_timeout`,
+- the accepted Core `DeadlineWatchdog` guards the interval between successful
+  service cycles,
+- timeout must contain the complete conservative Bench service execution path,
+- deadline miss or clock fault causes fail-closed `BenchSession::stop()`,
+- watchdog arm failure after DUT start immediately rolls the session back to a
+  safe stopped/ready state,
+- cancellation completion automatically disarms the host watchdog,
+- a completely stalled host still requires an independent platform/hardware
+  watchdog when the DUT safety case requires it,
 - still no concrete production power hardware.
+
+**Implementation PASS locally; cross-platform CI is the remaining gate for this increment.**
 
 ### 2.5 — Stage 2 acceptance gate
 
@@ -371,6 +382,28 @@ as generic Core behavior.
 
 After this gate, Stage 3 may introduce the common DUT Profile contract and the
 first real proof profiles.
+
+## 10.1 Host service ownership
+
+`BenchSessionHostRuntime` defines the host-facing service contract without
+becoming an OS scheduler. The application/platform executor is responsible for
+calling `service()` before the configured timeout; Bench Runtime only checks the
+contract and fails closed when a late call is finally observed.
+
+The host runtime arms its Core deadline watchdog only after `BenchSession`
+reaches `running`. A normal service cycle performs watchdog poll -> Bench
+service -> watchdog kick. If the deadline has already expired, if the monotonic
+clock becomes unhealthy, or if a kick cannot be completed safely, the host
+runtime invokes the Bench safe-stop path and disarms itself.
+
+The host timeout is rejected if it is too short for clock precision or for the
+conservative maximum service execution path. Exposed host execution budgets
+include the underlying Bench budgets plus clock reads and worst-case safe-stop
+cleanup.
+
+This design detects scheduling failure but cannot execute while the host CPU is
+completely stalled. Independent hardware/platform protection remains required
+for DUTs whose safety case cannot tolerate that failure mode.
 
 ## 11. Explicit non-goals for Stage 2 foundation
 

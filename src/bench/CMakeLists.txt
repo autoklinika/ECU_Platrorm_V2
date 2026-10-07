@@ -1,6 +1,7 @@
 add_library(ecu_bench STATIC
   src/session.cpp
   src/event_bus_publisher.cpp
+  src/host_service.cpp
 )
 
 add_library(ECU::bench ALIAS ecu_bench)

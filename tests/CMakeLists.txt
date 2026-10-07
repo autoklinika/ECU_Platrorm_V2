@@ -850,11 +850,41 @@ if(TARGET ECU::bench)
     COMMAND ecu_bench_config_validation_tests
   )
 
+  add_executable(
+    ecu_bench_host_service_tests
+    bench_host_service_tests.cpp
+  )
+  target_link_libraries(
+    ecu_bench_host_service_tests
+    PRIVATE ECU::bench
+  )
+  set_target_properties(
+    ecu_bench_host_service_tests
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(MSVC)
+    target_compile_options(
+      ecu_bench_host_service_tests
+      PRIVATE /W4 /WX
+    )
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_bench_host_service_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+
+  add_test(
+    NAME ecu.bench.host_service
+    COMMAND ecu_bench_host_service_tests
+  )
+
   add_custom_target(
     ecu_bench_tests
     DEPENDS
       ecu_bench_session_tests
       ecu_bench_observability_tests
       ecu_bench_config_validation_tests
+      ecu_bench_host_service_tests
   )
 endif()
