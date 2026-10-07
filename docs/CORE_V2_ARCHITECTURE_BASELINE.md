@@ -366,8 +366,7 @@ Implementation priority after foundation:
 3. J1939 Address Claiming + opt-in Commanded Address — **subset DONE / technical gate PASS**,
 4. J1939 Classical TP — **DONE / technical gate PASS**; ETP moves to the
    ISO 11783/ISOBUS extended-transport layer,
-5. ISO 11783 / ISOBUS extended transport — **DONE / ETP technical gate PASS**;
-   remaining network/application profiles stay module-gated,
+5. ISO 11783 / ISOBUS — **ETP DONE / technical gate PASS; Working Set Master/Member codec DONE / engineering gate PASS**; remaining network/application profiles stay module-gated,
 6. J1939 diagnostics — **DM1/DM2/DM4/DM5/DM6/DM12 read-only subset DONE / technical gate PASS**,
 7. J1939-22 CAN FD — **FBFF/FEFF no-assurance C-PG + no-assurance FD.TP DONE / engineering gate PASS**; assurance profiles remain gated,
 8. ISO-TP revalidation on shared-bus ports — **DONE / engineering gate PASS; normative clause audit open**,

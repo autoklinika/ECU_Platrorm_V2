@@ -77,6 +77,7 @@ Status levels:
 | WWH-OBD vehicle/tester connection | ISO 27145-4:2016 | NOT_IMPLEMENTED |
 | WWH-OBD external test equipment | ISO 27145-6:2023 | NOT_IMPLEMENTED |
 | AGRI/ISOBUS application, transport and network | ISO 11783-3:2026 | FOUNDATION_COMPATIBLE / MODULE_GATED |
+| AGRI/ISOBUS implement messages / working set | ISO 11783-7:2022 | WSMSTR_WSMEM_ENGINEERING_PASS / CLAUSE_AUDIT_REQUIRED |
 | AGRI/ISOBUS Virtual Terminal / extended transport | ISO 11783-6:2018 | ETP_TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
 | AGRI/ISOBUS diagnostic services | ISO 11783-12:2019 (Edition 4 FDIS under development in 2026) | MODULE_GATED |
 | AGRI safety-related controls | ISO 25119-1:2018 and applicable ISO 25119 series | PROCESS_BOUNDARY / PRODUCT-SAFETY CASE REQUIRED |
@@ -213,6 +214,21 @@ Detailed evidence is recorded in:
 
 The technical PASS does not imply complete ISOBUS Virtual Terminal, Task
 Controller, diagnostics or application-layer conformance.
+
+### ISO 11783 / ISOBUS working-set foundation
+
+Core V2 also contains a bounded Working Set Master / Working Set Member codec
+foundation for PGN 65037 and PGN 65036. It enforces exact eight-byte framing,
+default priority 7 on emitted frames, WSMSTR member-count range 1..250,
+reserved-byte validation, claimable master source addresses and reuse of the
+validated 64-bit J1939/ISO 11783 NAME codec. It deliberately does not implement
+a working-set registry, VT/TC behavior or machine actuation.
+
+Detailed evidence is recorded in:
+`docs/CORE_V2_ISOBUS_NETWORK_STATUS.md`.
+
+This is an engineering PASS only. ISO 11783-7:2022 clause mapping and
+independent ISOBUS interoperability evidence remain open.
 
 Before ISO 11783-6 module standards PASS:
 - clause-by-clause audit against ISO 11783-6:2018,

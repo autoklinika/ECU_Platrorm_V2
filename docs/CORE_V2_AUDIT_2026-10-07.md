@@ -139,13 +139,26 @@ The J1939-22 engineering foundation gate is PASS. Assurance profiles, full
 clause-level timing/profile mapping and independent interoperability evidence
 remain explicitly open.
 
+### A-15 — ISOBUS network foundation stopped at extended transport
+
+Resolution: added a strict, bounded Working Set Master / Working Set Member
+codec foundation for AGRI. PGN 65037 and PGN 65036 use exact eight-byte Classic
+CAN framing, emitted priority 7, member-count range 1..250, fail-closed reserved
+bytes and validated J1939/ISO 11783 NAME encoding. NULL/global source addresses
+are rejected. No working-set registry, VT/TC control, process-data actuation or
+other machine-control behavior was introduced.
+
+The ISOBUS working-set engineering foundation gate is PASS. ISO 11783-7:2022
+clause mapping, full working-set lifecycle semantics and independent ISOBUS
+interoperability evidence remain explicitly open.
+
 ## Open items that are not engineering defects
 
-The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939-22, SAE J1939/81, SAE J1939-73, ISO 11783-6, ISO 15765-2:2024 or ISO 14229-1/-2/-3. Independent interoperability evidence is also required before formal protocol-conformance PASS.
+The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939-22, SAE J1939/81, SAE J1939-73, ISO 11783-6, ISO 11783-7:2022, ISO 15765-2:2024 or ISO 14229-1/-2/-3. Independent interoperability evidence is also required before formal protocol-conformance PASS.
 
 ## Next protocol priorities
 
-1. ISO 11783 network/application profiles needed by AGRI.
+1. Continue ISO 11783 network/application profiles after the working-set codec foundation; keep VT/TC/control behavior separately gated.
 2. ISO 11992 / WWH-OBD where required by heavy-truck modules.
 3. UDS service/profile expansion after the transport-neutral foundation.
 4. Further read-only J1939-73 services selected from actual TRUCK/AGRI/OHV workshop needs.
