@@ -141,3 +141,30 @@ Nigdy nie twierdzimy, że agent został uruchomiony przed wynikiem
 Automatyczny cleanup zależy od działania systemu operacyjnego; nagłe
 odcięcie zasilania lub SIGKILL mogą uniemożliwić wykonanie kodu cleanup.
 To nie zastępuje fizycznego E-stop i prawidłowego stanowiska zasilania.
+
+## Poprawka bootstrapu agent service (2026-10-07)
+
+Pierwsza instalacja utworzyła i włączyła systemd unit, jednak nie
+powstało gniazdo: dziennik systemowy zgłosił `Operation not permitted`
+podczas próby zmiany grupy katalogu `/run/ecu-platform-v2-bench`.
+Pierwotny serwer wywoływał `chown`, chociaż zgodnie z zasadą najmniejszych
+uprawnień nie posiadał `CAP_CHOWN`. Usługa wchodziła w cykl restartów;
+żadne żądanie diagnostyczne nie zostało uruchomione. `can0` pozostał DOWN.
+
+Poprawka:
+- systemd `User=root` i `Group=ecu` ustawia właściciela katalogu
+  RuntimeDirectory (`root:ecu`, `0750`) bez `chown` wykonywanego przez
+  ograniczony proces;
+- gniazdo dziedziczy grupę `ecu`, ma tryb `0660`;
+  serwer weryfikuje typ, właściciela, grupę i uprawnienia obu obiektów;
+- `CapabilityBoundingSet` pozostaje bez `CAP_CHOWN`;
+- instalator przy aktualizacji najpierw zatrzymuje usługę, także gdy
+  jej stan to `activating (auto-restart)`;
+- dodano regresyjne testy dokładnego kontraktu własności i trybów
+  oraz walidację szablonu systemd.
+
+**Dla aktualnego CM5:** po publikacji poprawki należy jeszcze raz
+uruchomić lokalnie `sudo bash scripts/install_ecu_bench_agent.sh`.
+Zdalne narzędzie nie ma prawa wprowadzać tej zmiany za operatora.
+Dopiero pozytywny wynik `python3 scripts/ecu_bench.py status` na żywym
+systemie pozwala uznać stałego agenta za uruchomionego.

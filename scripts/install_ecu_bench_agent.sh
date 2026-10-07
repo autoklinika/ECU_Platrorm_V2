@@ -53,9 +53,10 @@ echo "Privileged agent/server and the executable probe are copied ROOT OWNED"
 echo "One sudo password is entered locally during this installation only."
 echo
 
-# If updating a previous trusted release, ensure the daemon is stopped
-# before replacing its installed code and binary (but only while CAN DOWN).
-if systemctl is-active --quiet ecu-platform-v2-bench-agent.service; then
+# Stop every prior installed unit, including a crashing/restarting one.
+# is-active alone would miss 'activating (auto-restart)'.
+# This happens only after we verified CAN is DOWN.
+if [[ -f "$UNIT" ]]; then
   systemctl stop ecu-platform-v2-bench-agent.service
 fi
 
@@ -75,6 +76,8 @@ systemctl daemon-reload
 systemctl enable --now ecu-platform-v2-bench-agent.service
 if ! systemctl is-active --quiet ecu-platform-v2-bench-agent.service; then
   echo "ERROR: permanent bench agent service did not start"
+  systemctl stop ecu-platform-v2-bench-agent.service || true
+  echo "Service stopped after failed startup; inspect journalctl -u ecu-platform-v2-bench-agent.service"
   exit 1
 fi
 for counter in 1 2 3 4 5 6 7 8 9 10; do
@@ -83,6 +86,8 @@ for counter in 1 2 3 4 5 6 7 8 9 10; do
 done
 if [[ ! -S /run/ecu-platform-v2-bench/request.sock ]]; then
   echo "ERROR: agent socket did not become ready"
+  systemctl stop ecu-platform-v2-bench-agent.service || true
+  echo "Service stopped after failed startup; inspect journalctl -u ecu-platform-v2-bench-agent.service"
   exit 1
 fi
 runuser -u "$OPERATOR" -- /usr/bin/python3 "$ROOT/scripts/ecu_bench.py" status

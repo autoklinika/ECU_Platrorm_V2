@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import stat
 import tempfile
 import types
 import unittest
@@ -22,6 +23,33 @@ OPERATOR = types.SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid())
 
 
 class BenchAgentTests(unittest.TestCase):
+
+    def test_systemd_owns_group_and_no_cap_chown_needed(self):
+        template = (ROOT / 'deploy/ecu_bench_agent/ecu-platform-v2-bench-agent.service.in').read_text()
+        self.assertIn('User=root', template)
+        self.assertIn('Group=@OPERATOR@', template)
+        self.assertIn('RuntimeDirectoryMode=0750', template)
+        self.assertIn('CapabilityBoundingSet=CAP_NET_ADMIN CAP_SETUID CAP_SETGID', template)
+        self.assertNotIn('CAP_CHOWN', template)
+        source = MODULE.read_text()
+        self.assertNotIn('os.chown(', source)
+
+    def test_systemd_runtime_directory_and_socket_permissions(self):
+        folder = types.SimpleNamespace(st_mode=stat.S_IFDIR | 0o750, st_uid=0, st_gid=1000)
+        self.assertTrue(agent.valid_runtime_directory(folder, 1000, 1000))
+        self.assertFalse(agent.valid_runtime_directory(folder, 0, 1000))
+        self.assertFalse(agent.valid_runtime_directory(folder, 1000, 0))
+        self.assertFalse(agent.valid_runtime_directory(
+            types.SimpleNamespace(st_mode=stat.S_IFDIR | 0o770, st_uid=0, st_gid=1000),
+            1000, 1000,
+        ))
+        sock = types.SimpleNamespace(st_mode=stat.S_IFSOCK | 0o660, st_uid=0, st_gid=1000)
+        self.assertTrue(agent.valid_server_socket(sock, 1000))
+        self.assertFalse(agent.valid_server_socket(sock, 2000))
+        self.assertFalse(agent.valid_server_socket(
+            types.SimpleNamespace(st_mode=stat.S_IFSOCK | 0o666, st_uid=0, st_gid=1000),
+            1000,
+        ))
 
     def test_allowlist_rejects_destructive_and_shell_operations(self):
         for name in (

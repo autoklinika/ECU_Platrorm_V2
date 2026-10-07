@@ -147,6 +147,20 @@ def read_message(conn: socket.socket) -> object:
     return json.loads(raw.decode("utf-8"))
 
 
+def valid_runtime_directory(info: os.stat_result, group_gid: int,
+                            effective_gid: int) -> bool:
+    return (stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and
+            info.st_gid == group_gid and
+            stat.S_IMODE(info.st_mode) == 0o750 and
+            effective_gid == group_gid)
+
+
+def valid_server_socket(info: os.stat_result, group_gid: int) -> bool:
+    return (stat.S_ISSOCK(info.st_mode) and info.st_uid == 0 and
+            info.st_gid == group_gid and
+            stat.S_IMODE(info.st_mode) == 0o660)
+
+
 def serve(operator_name: str) -> None:
     if os.geteuid() != 0:
         raise RuntimeError("Only root-owned systemd service may start agent")
@@ -155,10 +169,10 @@ def serve(operator_name: str) -> None:
         raise RuntimeError("Cannot expose bench service to root identity")
     runtime_dir = SOCKET_PATH.parent
     info = runtime_dir.lstat()
-    if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0:
-        raise RuntimeError("Unsafe systemd RuntimeDirectory")
-    os.chown(runtime_dir, 0, operator.pw_gid)
-    os.chmod(runtime_dir, 0o750)
+    # systemd creates root:ecu, 0750 using the unit User/Group fields.
+    # The agent only verifies ownership and never changes it.
+    if not valid_runtime_directory(info, operator.pw_gid, os.getegid()):
+        raise RuntimeError("Unsafe systemd RuntimeDirectory owner/group/mode")
     os.umask(0o077)
     # On systemd SIGTERM, unwind the active request through its finally
     # block (which attempts to return can0 DOWN before exiting).
@@ -175,8 +189,11 @@ def serve(operator_name: str) -> None:
 
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
         server.bind(str(SOCKET_PATH))
-        os.chown(SOCKET_PATH, 0, operator.pw_gid)
+        # Socket group comes from Group=ecu; only chmod is needed.
         os.chmod(SOCKET_PATH, 0o660)
+        socket_info = SOCKET_PATH.lstat()
+        if not valid_server_socket(socket_info, operator.pw_gid):
+            raise RuntimeError("Unexpected socket ownership or permissions")
         server.listen(4)
         logging.info("ECU bench agent serving %s for uid %d",
                      SOCKET_PATH, operator.pw_uid)

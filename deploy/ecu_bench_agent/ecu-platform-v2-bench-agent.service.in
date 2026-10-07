@@ -7,7 +7,8 @@ After=systemd-udevd.service
 [Service]
 Type=simple
 User=root
-Group=root
+# systemd sets group ownership of its RuntimeDirectory automatically.
+Group=@OPERATOR@
 ExecStart=/usr/bin/python3 -I -S /usr/local/libexec/ecu-platform-v2/agent_server.py --operator @OPERATOR@
 Restart=on-failure
 RestartSec=3s
