@@ -247,7 +247,7 @@ oraz Core V2 co już fizycznie sprawdzone odczyty:
 2. UDS `10 03` -> `19 02 FF`: ponowne odczytanie pełnej listy DTC,
    ich 24-bitowych kodów, statusów i maski dostępności.
 3. Trwały lokalny zapis listy PRZED kasowaniem w katalogu
-   `~/.local/state/ecu-platform/daf-sac/dtc-clear/`, z dostępem
+   `~/.ecu-platform-v2/daf-sac/dtc-clear/`, z dostępem
    tylko dla operatora (katalog `0700`, plik `0600`). Plik zapisany
    i zsynchronizowany przed wystawieniem możliwości kasowania.
    Jest to *kopia kodów/statusów*, a nie całej diagnostyki ECU
@@ -290,3 +290,20 @@ Nie zmieniono CORE V2, ogólnego Bench Runtime, API ani WebGUI.
 
 Fizyczna akceptacja procedury kasowania wymaga przyszłego
 świadomego uruchomienia przez operatora i obserwacji odpowiedzi ECU.
+
+### Korekta uprawnień archiwum DTC — 2026-10-07
+
+Pierwsze ręczne wywołanie opcji kasowania zakończyło się przed włączeniem
+CAN: `mkdir: cannot create directory /home/ecu/.local/state/ecu-platform/daf-sac: Permission denied`.
+Zdalny audyt wykazał, że istniejące `~/.local/state` oraz
+`~/.local/state/ecu-platform` mają właściciela `root:root` i tryb `0755`.
+To stan istniejącego katalogu innych funkcji systemu, którego nie zmieniamy.
+
+Poprawiony skrypt tworzy archiwum wyłącznie jako konto operatora w osobnym
+`~/.ecu-platform-v2/daf-sac/dtc-clear`, ustawiając `0700` wszystkim nowym
+katalogom. Odrzuca ścieżki będące symlinkami i sprawdza zapis przed
+konfiguracją CAN. Archiwum nadal powstaje z uprawnieniami `0600`
+i jest synchronizowane na dysk przed zaoferowaniem kasowania.
+
+Odmowa dostępu podczas pierwotnego przygotowania katalogu nastąpiła przed
+wszelką transmisją CAN — **nie skasowano żadnych błędów SAC**.

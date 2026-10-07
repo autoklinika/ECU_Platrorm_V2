@@ -25,7 +25,7 @@ PROBE="$ROOT_DIR/build/daf-sac-app-linux/tests/ecu_daf_sac_stage42_clear_probe"
 IFACE="can0"
 TARGET_USER="$SUDO_USER"
 
-for binary in ip runuser getent cut; do
+for binary in ip runuser getent cut install; do
   if ! command -v "$binary" >/dev/null 2>&1; then
     echo "ERROR: missing command: $binary"
     exit 1
@@ -41,9 +41,25 @@ if [[ -z "$HOME_DIR" || "$HOME_DIR" != /* ]]; then
   echo "ERROR: cannot determine operator's home directory"
   exit 1
 fi
-EVIDENCE_DIR="$HOME_DIR/.local/state/ecu-platform/daf-sac/dtc-clear"
-runuser -u "$TARGET_USER" -- mkdir -p -- "$EVIDENCE_DIR"
-runuser -u "$TARGET_USER" -- chmod 700 -- "$EVIDENCE_DIR"
+# Do not place DTC archives under ~/.local/state: on this host its
+# existing ancestors are root-owned. Never change ownership of another
+# application's data or grant world write access to those directories.
+EVIDENCE_ROOT="$HOME_DIR/.ecu-platform-v2"
+EVIDENCE_SAC="$EVIDENCE_ROOT/daf-sac"
+EVIDENCE_DIR="$EVIDENCE_SAC/dtc-clear"
+if [[ -L "$EVIDENCE_ROOT" || -L "$EVIDENCE_SAC" || -L "$EVIDENCE_DIR" ]]; then
+  echo "ERROR: DTC evidence path contains a symbolic link"
+  exit 1
+fi
+if ! runuser -u "$TARGET_USER" -- install -d -m 0700 -- \
+    "$EVIDENCE_ROOT" "$EVIDENCE_SAC" "$EVIDENCE_DIR"; then
+  echo "ERROR: cannot create private DTC evidence directory as $TARGET_USER"
+  exit 1
+fi
+if ! runuser -u "$TARGET_USER" -- test -w "$EVIDENCE_DIR"; then
+  echo "ERROR: DTC evidence directory is not writable by $TARGET_USER"
+  exit 1
+fi
 
 if ! ip link show "$IFACE" >/dev/null 2>&1; then
   echo "ERROR: missing CAN interface $IFACE"
