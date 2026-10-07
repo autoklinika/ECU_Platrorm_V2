@@ -196,3 +196,32 @@ Powyższa konfiguracja wymaga jeszcze autoryzowanej reinstalacji przez
 operatora; statyczne testy same w sobie nie potwierdzają fizycznego
 uruchomienia. Nie jest nadawany `CAP_SETUID` całemu kontu `ecu`,
 nie ma reguły `NOPASSWD` dla dowolnych programów.
+
+## Akceptacja fizyczna stałego agenta — 2026-10-07
+
+Operator przeprowadził ponowną instalację root-owned agenta systemd
+po korektach grupy katalogu i `CAP_SETUID`. Instalator zwrócił
+`ECU_BENCH_AGENT_INSTALLED=PASS`,
+`ECU_BENCH_AGENT_BOOT_PERSISTENCE=ENABLED` oraz `STATUS=READY`.
+
+Następnie operator uruchomił **bez sudo**
+`python3 scripts/ecu_bench.py sac-dtc`. Wynik rzeczywistego SAC:
+
+- `ECU_BENCH_AGENT_STATUS=PASS`, `SAC_READ_MODE=dtc`;
+- `SAC_DTC_COUNT=12`, `SAC_DTC_AVAILABILITY_MASK=0x8B`;
+- `SAC_STAGE42_READ_PHYSICAL=PASS`, `PROBE_EXIT_CODE=0`;
+- `SAC_BENCH_RESOURCE_LEASES=0`, `CAN0_CLEANUP=DOWN`.
+
+Oddzielna zdalna kontrola systemu potwierdziła:
+`systemctl is-active ecu-platform-v2-bench-agent.service` = `active`,
+`ip link show can0` = `DOWN`.
+
+Wynik potwierdza **fizyczne działanie stałej delegacji odczytu DTC**
+przez osobną usługę systemową, bez wpisywania hasła przez operatora
+przy każdym wywołaniu. Nie stanowi testu resetu systemu ani dowodu
+działania po ponownym uruchomieniu OS; `systemd enable` jest
+skonfigurowane, ale reboot-gate pozostaje osobny.
+
+Nie wykonywano kasowania DTC `0x14`, programowania, aktuatora ani
+włączenia innych uprawnień. Interpretacja DTC i porównanie z archiwum
+w `DAF_SAC_STAGE42_SERVICES.md`.

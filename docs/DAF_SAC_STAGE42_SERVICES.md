@@ -339,3 +339,45 @@ Dopiero po porównaniu aktualnej listy z wcześniej archiwizowaną
 podejmujemy odrębną decyzję o ewentualnej nowej próbie. Taka lista
 nie pozwala jednoznacznie odróżnić „nie skasowano” od „skasowano,
 ale usterki natychmiast powróciły”. Nie kasować archiwum.
+
+## DTC re-read after uncertain ClearDiagnosticInformation — 2026-10-07
+
+Źródło: wynik operatora z fizycznego SAC przez **stały agent**
+(`python3 scripts/ecu_bench.py sac-dtc`), bez sudo i bez `0x14`.
+`ECU_BENCH_AGENT_STATUS=PASS`,
+`SAC_STAGE42_READ_PHYSICAL=PASS`,
+`SAC_BENCH_RESOURCE_LEASES=0`,
+`CAN0_CLEANUP=DOWN`. Ilość rekordów: **12 przed i 12 po**.
+
+Porównano z prywatnym archiwum
+`~/.ecu-platform-v2/daf-sac/dtc-clear/sac-dtc-1791405524-408769.txt`.
+Archiwum zachowuje `CLEAR_OUTCOME=UNKNOWN`. **Nie wolno utożsamiać
+odczytu następczego z potwierdzeniem wykonanego kasowania** — brak
+pozytywnej odpowiedzi `0x54` w poprzedniej sesji.
+
+| DTC (hex, 24-bit) | Status przed | Status po |
+|---|---|---|
+| `3A0002` | `0A` | `02` |
+| `DFF7E9` | `8B` | `8B` |
+| `DCF7E9` | `8B` | `8B` |
+| `DEF7E9` | `8B` | `8B` |
+| `D9F7E9` | `8B` | `8B` |
+| `DBF7E9` | `8B` | `8B` |
+| `DAF7E9` | `8B` | `8B` |
+| `DDF7E9` | `8B` | `8B` |
+| `77F9E5` | `8B` | `8B` |
+| `74F9E3` | `8B` | `8B` |
+| `08F9E2` | `8B` | `8B` |
+| `09F9E2` | `89` | `89` |
+
+W `3A0002` zmienił się `0x0A -> 0x02` (wyzerowany bit 3
+`confirmedDTC`); bit 1 `testFailedThisOperationCycle` pozostaje
+ustawiony. Pozostałe 11 kodów i ich statusów są identyczne.
+To nie dowodzi ani powodzenia, ani niepowodzenia wcześniejszego
+`0x14`; możliwa jest ponowna rejestracja trwających usterek.
+
+**Bramka następnego etapu:** wstrzymać kolejne kasowanie.
+Dalsza analiza: interpretacja kodów OEM, źródłowe warunki SAC
+i ewentualna pasywna obserwacja odpowiedzi na osobnej, autoryzowanej
+próbie w przyszłości. Nie zmieniono Core V2, Bench Runtime ani
+operacyjnego zakresu agenta.
