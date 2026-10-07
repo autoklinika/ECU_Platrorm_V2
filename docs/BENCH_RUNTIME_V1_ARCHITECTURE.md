@@ -368,7 +368,7 @@ as generic Core behavior.
   watchdog when the DUT safety case requires it,
 - still no concrete production power hardware.
 
-**Implementation PASS locally; cross-platform CI is the remaining gate for this increment.**
+**Engineering PASS. Cross-platform CI run 37634511394: 12/12 PASS.**
 
 ### 2.5 — Stage 2 acceptance gate
 
