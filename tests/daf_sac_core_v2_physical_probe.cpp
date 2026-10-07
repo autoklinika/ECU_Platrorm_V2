@@ -304,7 +304,11 @@ int main(int argc, char** argv) {
         profile_endpoint.service();
     if (service == bench::BenchComponentStatus::fault) {
       std::cerr
-          << "SAC_PROFILE_SERVICE=FAIL nrc=0x"
+          << "SAC_PROFILE_SERVICE=FAIL uds_status="
+          << static_cast<unsigned int>(program.last_uds_status())
+          << " transport_failure="
+          << static_cast<unsigned int>(program.last_transport_failure())
+          << " nrc=0x"
           << std::hex
           << static_cast<unsigned int>(program.last_nrc())
           << std::dec

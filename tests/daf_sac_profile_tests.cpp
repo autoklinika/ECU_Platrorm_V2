@@ -160,6 +160,10 @@ class ScriptedDiagnosticTransport final
     rejected_nrc_ = nrc;
   }
 
+  void drop_did(const std::uint16_t did) noexcept {
+    dropped_did_ = did;
+  }
+
  private:
   static std::uint8_t byte_value(const std::byte value) noexcept {
     return std::to_integer<std::uint8_t>(value);
@@ -198,6 +202,10 @@ class ScriptedDiagnosticTransport final
          << 8U) |
         byte_value(request_[2U]));
 
+    if (did == dropped_did_) {
+      return;
+    }
+
     if (did == rejected_did_) {
       response_ = {};
       response_[0U] = std::byte{0x7FU};
@@ -230,6 +238,7 @@ class ScriptedDiagnosticTransport final
   core::time::MonotonicClockReading response_completion_{};
   std::uint16_t rejected_did_{0U};
   std::uint8_t rejected_nrc_{0U};
+  std::uint16_t dropped_did_{0U};
 };
 
 [[nodiscard]] uds::UdsClientConfig uds_config() noexcept {
@@ -434,6 +443,47 @@ int main() {
         endpoint.safe_stop() == bench::BenchComponentStatus::ok &&
             endpoint.stop() == bench::BenchComponentStatus::ok,
         "faulted SAC proof still follows common cleanup path");
+  }
+
+  {
+    TestClock clock;
+    ScriptedDiagnosticTransport diagnostic_transport{};
+    diagnostic_transport.drop_did(daf::kDidVin);
+    uds::UdsClient client{diagnostic_transport, uds_config()};
+    daf::IdentificationProgram program{
+        daf::CanBitrateProfile::k500k,
+        client,
+        clock,
+        execution_contract()};
+    dp::DutProfileSessionEndpoint endpoint{fixture.plan, program};
+
+    failures += require(
+        endpoint.prepare() == bench::BenchComponentStatus::ok &&
+            endpoint.activate() == bench::BenchComponentStatus::ok,
+        "timeout fixture starts");
+
+    bool faulted = false;
+    for (std::size_t iteration = 0U;
+         iteration < 120U && !faulted;
+         ++iteration) {
+      faulted =
+          endpoint.service() == bench::BenchComponentStatus::fault;
+      clock.advance(std::chrono::milliseconds{1});
+    }
+
+    failures += require(
+        faulted &&
+            program.status() == daf::IdentificationProgramStatus::fault &&
+            program.last_nrc() == 0U &&
+            program.last_uds_status() == uds::UdsStatus::timeout_p2 &&
+            program.last_transport_failure() ==
+                uds::UdsTransportFailure::none &&
+            endpoint.snapshot().state == dp::DutProfileEndpointState::faulted,
+        "SAC P2 timeout is preserved separately from NRC");
+    failures += require(
+        endpoint.safe_stop() == bench::BenchComponentStatus::ok &&
+            endpoint.stop() == bench::BenchComponentStatus::ok,
+        "timed-out SAC proof still follows common cleanup path");
   }
 
   if (failures != 0) {

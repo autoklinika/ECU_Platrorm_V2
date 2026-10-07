@@ -2,7 +2,7 @@
 
 Date: 2026-10-07
 Branch: `dut-profile/proof-profiles`
-Status: **LOCAL SOFTWARE + PLATFORM PREP PASS / PHYSICAL TX NOT YET EXECUTED**
+Status: **SOFTWARE + CI PASS / FIRST 500 KBIT/S PHYSICAL READ ATTEMPT NO RESPONSE / PASSIVE BITRATE DISCOVERY NEXT**
 
 ## Scope
 
@@ -113,6 +113,54 @@ The script:
 5. always returns `can0` to DOWN through an EXIT trap.
 
 The application itself does not receive `CAP_NET_ADMIN`.
+
+## First physical attempt — 500 kbit/s
+
+The first active read-only attempt was executed on 2026-10-07.
+
+Preflight confirmed:
+
+- `can0` UP,
+- Classic CAN,
+- normal mode,
+- nominal bitrate 500000 bit/s,
+- controller state ERROR-ACTIVE.
+
+Before the UDS request the controller already reported:
+
+- TX error counter: 0,
+- RX error counter: 42,
+- valid RX packets: 0.
+
+The Core V2 stack started the read-only identification request but received no
+valid UDS response. The profile failed with NRC `0x00`, which exposed a
+diagnostic-observability gap: transport/UDS timeout status was not retained
+separately from a negative-response NRC.
+
+The DUT Profile has therefore been updated to preserve:
+
+- last UDS status,
+- last UDS transport failure,
+- NRC independently.
+
+No Core V2 change was required.
+
+The combination of a non-zero RX error counter and zero valid RX frames at
+500 kbit/s is consistent with a bitrate mismatch or physical-layer receive
+errors. It is not treated as proof by itself.
+
+Legacy evidence defines:
+
+- 250 kbit/s as primary,
+- 500 kbit/s as secondary,
+- legacy connection order: 250 kbit/s then 500 kbit/s.
+
+The next hardware step is therefore passive bitrate discovery in LISTEN-ONLY
+mode at both evidence-backed rates before another diagnostic request is sent.
+
+The passive gate is `scripts/run_stage3_3a_daf_sac_passive_bitrate_gate.sh`.
+It requires administrative link configuration, sends no diagnostic or CAN
+data frames, and returns `can0` to DOWN on exit.
 
 ## Gate decision
 

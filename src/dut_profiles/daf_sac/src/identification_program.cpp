@@ -61,6 +61,10 @@ ecu::bench::BenchComponentStatus IdentificationProgram::prepare(
   uds_.reset();
   result_ = {};
   last_nrc_ = 0U;
+  last_uds_status_ =
+      ecu::core::v2::protocol::uds::UdsStatus::idle;
+  last_transport_failure_ =
+      ecu::core::v2::protocol::uds::UdsTransportFailure::none;
   step_ = Step::idle;
   status_ = IdentificationProgramStatus::prepared;
   return ecu::bench::BenchComponentStatus::ok;
@@ -75,6 +79,10 @@ ecu::bench::BenchComponentStatus IdentificationProgram::activate(
 
   result_ = {};
   last_nrc_ = 0U;
+  last_uds_status_ =
+      ecu::core::v2::protocol::uds::UdsStatus::idle;
+  last_transport_failure_ =
+      ecu::core::v2::protocol::uds::UdsTransportFailure::none;
   step_ = Step::request_vin;
   status_ = IdentificationProgramStatus::running;
   return ecu::bench::BenchComponentStatus::ok;
@@ -183,6 +191,16 @@ std::uint8_t IdentificationProgram::last_nrc() const noexcept {
   return last_nrc_;
 }
 
+ecu::core::v2::protocol::uds::UdsStatus
+IdentificationProgram::last_uds_status() const noexcept {
+  return last_uds_status_;
+}
+
+ecu::core::v2::protocol::uds::UdsTransportFailure
+IdentificationProgram::last_transport_failure() const noexcept {
+  return last_transport_failure_;
+}
+
 bool IdentificationProgram::plan_matches(
     const ecu::dut_profile::ResolvedDutSessionPlan& plan) const noexcept {
   namespace dp = ecu::dut_profile;
@@ -241,6 +259,9 @@ ecu::bench::BenchComponentStatus IdentificationProgram::start_did(
   const auto request =
       ecu::core::v2::protocol::uds::make_read_data_by_identifier(did);
   const auto started = uds_.start_request(request);
+  last_uds_status_ = started;
+  last_transport_failure_ =
+      ecu::core::v2::protocol::uds::UdsTransportFailure::none;
   if (started !=
       ecu::core::v2::protocol::uds::UdsStatus::in_progress) {
     return fail();
@@ -259,9 +280,15 @@ ecu::bench::BenchComponentStatus IdentificationProgram::service_wait(
 
   if (uds_.has_response()) {
     const auto response = uds_.take_response();
+    last_uds_status_ = response.status;
+    last_transport_failure_ = response.transport_failure;
     if (response.status ==
         ecu::core::v2::protocol::uds::UdsStatus::negative_response) {
       return fail(response.negative_response_code);
+    }
+    if (response.status !=
+        ecu::core::v2::protocol::uds::UdsStatus::ok) {
+      return fail();
     }
     if (!parse_text_did(response, expected_did, target)) {
       return fail();
@@ -276,6 +303,7 @@ ecu::bench::BenchComponentStatus IdentificationProgram::service_wait(
     return ecu::bench::BenchComponentStatus::ok;
   }
 
+  last_uds_status_ = service_status;
   if (!active_uds_status(service_status)) {
     return fail();
   }
@@ -341,6 +369,10 @@ void IdentificationProgram::reset_state() noexcept {
   status_ = IdentificationProgramStatus::idle;
   result_ = {};
   last_nrc_ = 0U;
+  last_uds_status_ =
+      ecu::core::v2::protocol::uds::UdsStatus::idle;
+  last_transport_failure_ =
+      ecu::core::v2::protocol::uds::UdsTransportFailure::none;
 }
 
 }  // namespace ecu::dut_profiles::daf_sac

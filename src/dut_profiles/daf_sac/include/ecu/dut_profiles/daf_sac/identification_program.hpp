@@ -66,6 +66,10 @@ class IdentificationProgram final
   [[nodiscard]] IdentificationProgramStatus status() const noexcept;
   [[nodiscard]] const IdentificationResult& result() const noexcept;
   [[nodiscard]] std::uint8_t last_nrc() const noexcept;
+  [[nodiscard]] ecu::core::v2::protocol::uds::UdsStatus
+  last_uds_status() const noexcept;
+  [[nodiscard]] ecu::core::v2::protocol::uds::UdsTransportFailure
+  last_transport_failure() const noexcept;
 
   ~IdentificationProgram() = default;
 
@@ -109,6 +113,11 @@ class IdentificationProgram final
   IdentificationProgramStatus status_{IdentificationProgramStatus::idle};
   IdentificationResult result_{};
   std::uint8_t last_nrc_{0U};
+  ecu::core::v2::protocol::uds::UdsStatus last_uds_status_{
+      ecu::core::v2::protocol::uds::UdsStatus::idle};
+  ecu::core::v2::protocol::uds::UdsTransportFailure
+      last_transport_failure_{
+          ecu::core::v2::protocol::uds::UdsTransportFailure::none};
 };
 
 }  // namespace ecu::dut_profiles::daf_sac
