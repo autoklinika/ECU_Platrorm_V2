@@ -2,6 +2,7 @@ add_library(ecu_core_v2 STATIC
   src/can_types.cpp
   src/can_bus_runtime.cpp
   src/deadline_watchdog.cpp
+  src/cyclic_can_actuator_runtime.cpp
   src/j1939_identifier.cpp
   src/j1939_name.cpp
   src/address_claim.cpp

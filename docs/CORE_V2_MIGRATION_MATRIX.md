@@ -22,11 +22,11 @@ Policy values:
 | J1939 identifier/PGN helpers | REVALIDATE | High-value heavy-duty primitive; expand toward Address Claiming and TP only after clause audit. |
 | Resource manager | REBUILD | Keep generation-safe ownership concept; align with frozen runtime graph and domain-aware resources. |
 | Command/state/event runtime | REBUILD | Current proof is useful, but lifetime/versioning/executor semantics must be explicit. |
-| DUT identity/class/capability contract | REBUILD | Generic Core must model ECU, actuator, sensor, gateway and other automotive DUT classes without making diagnostics mandatory. |
+| DUT identity/class/capability contract | ENGINEERING PASS | Core V2 models ECU, actuator, sensor, gateway and other automotive DUT classes without making diagnostics mandatory; raw/cyclic CAN are first-class capabilities. |
 | Module/device registries | REBUILD | Configuration-time stable handles; no unsafe runtime removal. DUT registry semantics must remain separate from bench peripherals. |
 | Device classes camera/printer/robot | EXCLUDE from generic Core | Bench/UI peripherals belong to device services/adapters, not TRUCK/AGRI/OHV DUT domain foundation. |
-| Actuator contract | REBUILD | Keep safe-stop principle; add deterministic cyclic raw-CAN scheduler/interlock ownership model. EGR/VGT are primary proof cases, not exceptions. |
-| Safety watchdog | REBUILD | Late kick must fail closed; expiry cannot be revived implicitly. |
+| Actuator contract | REVALIDATE / ENGINEERING PASS | Core V2 now has deterministic cyclic raw-CAN execution with bounded profile rendering, cadence/lateness enforcement, command/feedback freshness, interlock ownership and safe-stop. Real MAN EGR/VGT profiles remain proof-case work outside generic Core. |
+| Safety watchdog | ENGINEERING PASS | Core V2 monotonic DeadlineWatchdog fails closed on late kick, clock faults and expiry; expired state cannot be revived implicitly. |
 | Trace/replay concepts | REVALIDATE | Keep bounded flight-recorder idea; move to V2 event/frame identities. |
 | Simulated CAN | REBUILD around V2 driver | Keep testability concept and useful test vectors. |
 | Network stream/datagram contracts | REVALIDATE/REBUILD | Reassess against DoIP needs and explicit connection/lifetime state. |

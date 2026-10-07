@@ -42,6 +42,34 @@ if(TARGET ECU::core_v2)
   )
 
   add_executable(
+    ecu_core_v2_cyclic_can_actuator_runtime_tests
+    core_v2_cyclic_can_actuator_runtime_tests.cpp
+  )
+  target_link_libraries(
+    ecu_core_v2_cyclic_can_actuator_runtime_tests
+    PRIVATE ECU::core_v2
+  )
+  set_target_properties(
+    ecu_core_v2_cyclic_can_actuator_runtime_tests
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(MSVC)
+    target_compile_options(
+      ecu_core_v2_cyclic_can_actuator_runtime_tests
+      PRIVATE /W4 /WX
+    )
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_core_v2_cyclic_can_actuator_runtime_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+  add_test(
+    NAME ecu.core_v2.actuation.cyclic_can
+    COMMAND ecu_core_v2_cyclic_can_actuator_runtime_tests
+  )
+
+  add_executable(
     ecu_core_v2_j1939_network_tests
     core_v2_j1939_network_tests.cpp
   )
@@ -493,6 +521,7 @@ if(TARGET ECU::core_v2)
     ecu_core_v2_tests
     DEPENDS
       ecu_core_v2_foundation_tests
+      ecu_core_v2_cyclic_can_actuator_runtime_tests
       ecu_core_v2_j1939_network_tests
       ecu_core_v2_j1939_fd_cpg_tests
       ecu_core_v2_j1939_fd_tp_tests

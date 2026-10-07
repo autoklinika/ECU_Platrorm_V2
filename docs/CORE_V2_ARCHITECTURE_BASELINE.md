@@ -197,8 +197,9 @@ Responsibilities:
 This layer must support proprietary cyclic raw-CAN actuators as a primary use
 case, not only diagnostic actuator tests routed through UDS/J1939.
 
-A generic watchdog is only a primitive. Safety claims require domain-specific
-analysis and evidence.
+Core V2 now includes a bounded cyclic raw-CAN actuator runtime implementing this contract at engineering-foundation level. Detailed evidence is in `docs/CORE_V2_CYCLIC_ACTUATOR_RUNTIME_STATUS.md`.
+
+A generic watchdog and cyclic runtime are engineering primitives. Product safety claims still require domain-specific analysis, hardware/platform guarantees and evidence.
 
 ### L8 — API facade
 

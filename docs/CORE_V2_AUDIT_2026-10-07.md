@@ -200,9 +200,17 @@ control is a primary product path. The legacy MAN Sonceboz EGR evidence remains
 a proof-case source, but its concrete protocol must stay in a DUT profile rather
 than generic Core.
 
-This closes the ECU-centric type-model defect. Core freeze remains blocked on
-the deterministic cyclic actuator runtime/interlock contract required to execute
-such profiles safely.
+This closes the ECU-centric type-model defect.
+
+### A-19 — deterministic cyclic actuator runtime was missing
+
+Resolution: added a platform-neutral single-executor cyclic CAN actuator runtime. The DUT profile supplies bounded active/safe-stop frame rendering, including any OEM counters/checksums/E2E. Generic Core owns cadence, maximum lateness, command freshness, optional feedback freshness, interlock enforcement, authoritative `CanBusRuntime` TX, safe-stop, fault latching and declared execution budgets.
+
+The runtime starts interlocked, never catch-up bursts, rejects an active render that exceeds its declared frame bound, rejects configurations whose normal WCET cannot fit the requested period, and fails closed on timing, clock, profile or transport faults. Safe-stop may be an explicit bounded neutral frame sequence or silence when the DUT profile defines stopping TX as safe.
+
+Hard real-time independence from a completely stalled host remains a platform/hardware responsibility; Core exposes deadlines and bounded execution but cannot execute while its CPU is not scheduled.
+
+The cyclic actuator runtime engineering gate is PASS. Core freeze now moves to the final DUT-neutral proof/audit gate rather than deeper protocol expansion.
 
 ## Open items that are not engineering defects
 
