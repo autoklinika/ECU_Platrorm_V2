@@ -35,7 +35,9 @@ It does not broaden product scope to passenger-car-specific behavior.
 ### Address Claim subset
 
 - PGN 60928 Address Claimed / Cannot Claim,
-- PGN 59904 Request for Address Claimed,
+- PGN 59904 Request for Address Claimed with exact 3-byte requested-PGN payload,
+- PGN 65240 Commanded Address after Classical TP reassembly, opt-in by policy,
+- Commanded Address targeting by 64-bit NAME with a 9-byte NAME + new-SA payload,
 - preferred address,
 - bounded alternative address list for arbitrary-address-capable ECUs,
 - 250 ms stabilization window for addresses 128..247,
@@ -44,10 +46,13 @@ It does not broaden product scope to passenger-car-specific behavior.
 - Cannot Claim with NULL address 0xFE,
 - duplicate-NAME fail-closed behavior,
 - injected bounded delay for Cannot Claim response,
-- monotonic time-domain and uncertainty checks.
+- monotonic time-domain and uncertainty checks,
+- global address 0xFF rejected as a source address,
+- explicit conflict accounting for both local-win and local-loss arbitration.
 
-Commanded Address and the remaining J1939/81 network-management behaviors are not
-claimed by this checkpoint.
+Commanded Address acceptance is disabled by default and must be enabled by the
+owning product/module policy. The remaining J1939/81 network-management
+behaviors outside this declared subset are not claimed by this checkpoint.
 
 ### Classical J1939 Transport Protocol
 
@@ -86,6 +91,11 @@ Protocol callbacks never call `CanBusRuntime::send()` reentrantly. Control/data
 frames are queued in fixed-capacity deferred-TX queues and must be drained by
 the owning executor after `CanBusRuntime::poll()` returns.
 
+The authoritative protocol RX path must not receive an echo of a frame accepted
+for TX by the same driver instance. Core RX records intentionally have no
+local/remote-origin bit; admitting own-TX echo would make Address Claimed
+arbitration unable to distinguish the local ECU from a remote ECU.
+
 `ICanFrameSink` is explicitly non-owning. Its destructor is protected and
 non-virtual because the runtime never deletes a sink through the interface;
 concrete sinks must outlive their subscription. This also removes C++ deleting
@@ -105,11 +115,11 @@ executables are built before CTest on every supported toolchain.
 
 Local acceptance evidence on 2026-10-07:
 
-- Debug: 5/5 Core V2 tests PASS,
-- Release: 5/5 Core V2 tests PASS,
-- Generic non-Linux CMake system: 5/5 PASS,
+- Debug: aggregate Core V2 protocol matrix PASS,
+- Release: aggregate Core V2 protocol matrix PASS,
+- Generic non-Linux CMake system: aggregate matrix PASS,
 - ASAN + UBSAN (excluding vptr because Core is intentionally `-fno-rtti`):
-  5/5 PASS,
+  aggregate matrix PASS,
 - external runtime-symbol gate: PASS,
 - dynamic-static-initialization gate: PASS,
 - architecture/portability negative gates: PASS.
@@ -128,15 +138,16 @@ Therefore this checkpoint does **not** claim formal SAE J1939 conformance.
 A clause-by-clause audit and independent interoperability evidence remain
 mandatory before module-level standards PASS.
 
-## Next layer
+## Adjacent layers
 
-ETP is deliberately excluded from this checkpoint. Current Linux J1939
-documentation identifies ETP as the ISO 11783/ISOBUS extended transport path for
-payloads above 1785 bytes, with destination-specific transfer and DPO-based
-packet offsets. It will be implemented as a streaming source/sink layer so Core
-does not reserve up to 111 MiB of RAM.
+ISO 11783 / ISOBUS ETP is now implemented as a separate streaming transport
+module and has its own technical gate in `CORE_V2_ISOBUS_ETP_STATUS.md`.
+
+J1939-73 diagnostics now has a separate read-only DM1/DM2 foundation and its
+own module gate in `CORE_V2_J1939_DIAGNOSTICS_STATUS.md`.
 
 J1939_NETWORK_TECHNICAL_GATE=PASS
+J1939_COMMANDED_ADDRESS_TECHNICAL_GATE=PASS
 J1939_TP_TECHNICAL_GATE=PASS
 J1939_STANDARDS_CONFORMANCE=CLAUSE_AUDIT_REQUIRED
-J1939_ETP_STATUS=NEXT_LAYER_ISO11783
+J1939_ETP_STATUS=TECHNICAL_PASS_SEPARATE_ISOBUS_MODULE

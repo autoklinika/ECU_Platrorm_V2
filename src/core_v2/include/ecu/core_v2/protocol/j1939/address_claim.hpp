@@ -45,6 +45,7 @@ struct AddressClaimConfig {
   time::MonotonicClockDomainId timestamp_domain{};
   time::MonotonicDuration max_timestamp_uncertainty{0};
   time::MonotonicDuration cannot_claim_response_delay{0};
+  bool accept_commanded_address{false};
 };
 
 struct AddressClaimStep {
@@ -54,6 +55,7 @@ struct AddressClaimStep {
   bool address_changed{false};
   bool became_claimed{false};
   bool address_lost{false};
+  bool conflict_observed{false};
 };
 
 class AddressClaimEngine {
@@ -73,6 +75,11 @@ class AddressClaimEngine {
       const transport::ReceivedCanFrame& frame) noexcept;
 
   [[nodiscard]] AddressClaimStep poll(
+      const time::MonotonicClockReading& now) noexcept;
+
+  [[nodiscard]] AddressClaimStep command_address(
+      std::uint64_t target_name,
+      std::uint8_t commanded_address,
       const time::MonotonicClockReading& now) noexcept;
 
   [[nodiscard]] AddressClaimState state() const noexcept;

@@ -73,6 +73,14 @@ class ICanDriver {
   // a healthy timestamp in the configured timestamp clock domain, captured at
   // the earliest stable adapter/hardware RX boundary. Native device ticks must
   // be converted by the adapter before entering Core.
+  //
+  // Protocol ingress MUST NOT contain an echo of a frame accepted by this same
+  // driver instance through try_send(). Core RX records intentionally carry no
+  // local/remote-origin tag, so an own-TX echo would be indistinguishable from
+  // another ECU and can corrupt arbitration protocols such as J1939 Address
+  // Claiming. A platform that supports local loopback may expose analyzer/trace
+  // copies outside the authoritative protocol ingress, but it must suppress
+  // own-message echo from try_receive().
   [[nodiscard]] virtual CanReceiveResult try_receive() noexcept = 0;
 };
 

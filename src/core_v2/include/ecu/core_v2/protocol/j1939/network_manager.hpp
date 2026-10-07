@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ecu/core_v2/protocol/j1939/address_claim.hpp"
+#include "ecu/core_v2/protocol/j1939/transport_protocol.hpp"
 #include "ecu/core_v2/transport/can_bus_runtime.hpp"
 
 #include <array>
@@ -17,11 +18,23 @@ enum class NetworkManagerStatus : std::uint8_t {
   protocol_fault,
 };
 
+struct CommandedAddressMessage {
+  std::uint64_t target_name{0U};
+  std::uint8_t new_address{kNullAddress};
+  std::uint8_t source_address{kNullAddress};
+};
+
+[[nodiscard]] bool decode_commanded_address_message(
+    const TpMessage& message,
+    CommandedAddressMessage& value) noexcept;
+
 struct NetworkManagerCounters {
   std::uint32_t frames_seen{0U};
   std::uint32_t malformed_management_frames{0U};
   std::uint32_t address_conflicts{0U};
   std::uint32_t address_losses{0U};
+  std::uint32_t commanded_address_messages{0U};
+  std::uint32_t commanded_address_applied{0U};
   std::uint32_t tx_enqueued{0U};
   std::uint32_t tx_queue_overflows{0U};
 };
@@ -41,6 +54,10 @@ class NetworkManager final : public transport::ICanFrameSink {
 
   void on_can_frame(
       const transport::ReceivedCanFrame& frame) noexcept override;
+
+  [[nodiscard]] NetworkManagerStatus on_transport_message(
+      const TpMessage& message,
+      const time::MonotonicClockReading& now) noexcept;
 
   [[nodiscard]] bool try_take_tx(
       transport::CanFrame& frame) noexcept;

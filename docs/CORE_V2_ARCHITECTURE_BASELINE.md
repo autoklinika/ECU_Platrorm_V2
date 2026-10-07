@@ -268,6 +268,10 @@ uncertainty.
 - `close()` cancels/discards pending TX and clears RX/TX session queues before
   returning; old frames cannot appear after restart.
 - RX loss is observable through an explicit dropped-frame count.
+- `try_receive()` does not return an own-message echo of a frame accepted by
+  the same driver instance. Analyzer/trace loopback may exist outside the
+  authoritative protocol ingress, but protocol state machines receive only
+  externally observed bus traffic.
 - normal `stop()` closes the current adapter session but retains the
   physical-channel lease, allowing deterministic restart by the same runtime.
 - driver-to-runtime reentrancy is forbidden; a reentrant stop observed while an
@@ -359,12 +363,12 @@ Implementation priority after foundation:
 
 1. CAN/CAN-FD shared-bus runtime — **DONE / foundation gate PASS**,
 2. J1939 identifier + address/PGN model revalidation — **DONE / technical gate PASS**,
-3. J1939 Address Claiming — **subset DONE / technical gate PASS**,
+3. J1939 Address Claiming + opt-in Commanded Address — **subset DONE / technical gate PASS**,
 4. J1939 Classical TP — **DONE / technical gate PASS**; ETP moves to the
    ISO 11783/ISOBUS extended-transport layer,
 5. ISO 11783 / ISOBUS extended transport — **DONE / ETP technical gate PASS**;
    remaining network/application profiles stay module-gated,
-6. J1939 diagnostics,
+6. J1939 diagnostics — **DM1/DM2 read-only subset DONE / technical gate PASS**,
 7. ISO-TP revalidation on shared-bus ports,
 8. UDS revalidation over transport-neutral interface,
 9. DoIP,

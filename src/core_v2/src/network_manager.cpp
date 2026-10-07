@@ -14,7 +14,44 @@ void saturating_increment(std::uint32_t& value) noexcept {
   }
 }
 
+bool valid_command_source(const std::uint8_t address) noexcept {
+  return is_claimable_address(address);
+}
+
 }  // namespace
+
+bool decode_commanded_address_message(
+    const TpMessage& message,
+    CommandedAddressMessage& value) noexcept {
+  if (message.pgn != kCommandedAddressPgn ||
+      message.size != 9U ||
+      !message.broadcast ||
+      message.destination_address != kGlobalAddress ||
+      !valid_command_source(message.source_address)) {
+    return false;
+  }
+
+  std::array<std::byte, 8U> name_payload{};
+  for (std::size_t i = 0U; i < name_payload.size(); ++i) {
+    name_payload[i] = message.data[i];
+  }
+
+  const auto raw_name = decode_name_payload(name_payload);
+  if (!is_valid_name(decode_name(raw_name))) {
+    return false;
+  }
+
+  const auto new_address =
+      std::to_integer<std::uint8_t>(message.data[8U]);
+  if (!is_claimable_address(new_address)) {
+    return false;
+  }
+
+  value.target_name = raw_name;
+  value.new_address = new_address;
+  value.source_address = message.source_address;
+  return true;
+}
 
 bool NetworkManager::configure(
     const AddressClaimConfig& config) noexcept {
@@ -54,11 +91,17 @@ NetworkManagerStatus NetworkManager::service_time(
   }
 
   const auto before = tx_count_;
-  handle_step(address_claim_.poll(now));
+  const auto step = address_claim_.poll(now);
+  handle_step(step);
   if (status_ != NetworkManagerStatus::ok) {
     return status_;
   }
-  return tx_count_ != before
+
+  const bool state_changed =
+      step.became_claimed ||
+      step.address_changed ||
+      step.address_lost;
+  return tx_count_ != before || state_changed
              ? NetworkManagerStatus::ok
              : NetworkManagerStatus::no_action;
 }
@@ -73,6 +116,43 @@ void NetworkManager::on_can_frame(
 
   saturating_increment(counters_.frames_seen);
   handle_step(address_claim_.on_frame(frame));
+}
+
+NetworkManagerStatus NetworkManager::on_transport_message(
+    const TpMessage& message,
+    const time::MonotonicClockReading& now) noexcept {
+  if (!configured_) {
+    return NetworkManagerStatus::invalid_state;
+  }
+  if (status_ == NetworkManagerStatus::protocol_fault ||
+      status_ == NetworkManagerStatus::queue_overflow) {
+    return status_;
+  }
+  if (message.pgn != kCommandedAddressPgn) {
+    return NetworkManagerStatus::no_action;
+  }
+
+  saturating_increment(counters_.commanded_address_messages);
+  CommandedAddressMessage commanded{};
+  if (!decode_commanded_address_message(message, commanded)) {
+    saturating_increment(counters_.malformed_management_frames);
+    return NetworkManagerStatus::no_action;
+  }
+
+  const auto step = address_claim_.command_address(
+      commanded.target_name,
+      commanded.new_address,
+      now);
+  handle_step(step);
+  if (status_ != NetworkManagerStatus::ok) {
+    return status_;
+  }
+  if (step.status == AddressClaimStatus::no_action) {
+    return NetworkManagerStatus::no_action;
+  }
+
+  saturating_increment(counters_.commanded_address_applied);
+  return NetworkManagerStatus::ok;
 }
 
 bool NetworkManager::try_take_tx(
@@ -118,13 +198,11 @@ transport::CanFilter NetworkManager::rx_filter() noexcept {
 
 void NetworkManager::handle_step(
     const AddressClaimStep& step) noexcept {
+  if (step.conflict_observed) {
+    saturating_increment(counters_.address_conflicts);
+  }
   if (step.address_lost) {
     saturating_increment(counters_.address_losses);
-    saturating_increment(counters_.address_conflicts);
-  } else if (step.tx_kind ==
-                 AddressClaimTxKind::address_claim &&
-             step.address_changed) {
-    saturating_increment(counters_.address_conflicts);
   }
 
   switch (step.status) {

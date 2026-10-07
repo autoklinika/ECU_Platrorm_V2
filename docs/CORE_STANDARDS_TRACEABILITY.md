@@ -68,8 +68,8 @@ Status levels:
 | UDS on IP | ISO 14229-5:2022 | NOT_IMPLEMENTED |
 | J1939 Classical data link / transport | SAE J1939/21_202205 | TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
 | J1939 CAN FD | SAE J1939-22_202209 | NOT_IMPLEMENTED |
-| J1939 network management | SAE J1939/81_202504 | ADDRESS_CLAIM_SUBSET_TECHNICAL_PASS / CLAUSE_AUDIT_REQUIRED |
-| J1939 diagnostics | SAE J1939-73_202609 | NOT_IMPLEMENTED |
+| J1939 network management | SAE J1939/81_202504 | ADDRESS_CLAIM_COMMANDED_ADDRESS_TECHNICAL_PASS / CLAUSE_AUDIT_REQUIRED |
+| J1939 diagnostics | SAE J1939-73_202609 | DM1_DM2_READ_ONLY_TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
 | J1939 top-level heavy-duty network | SAE J1939_202603 | BASELINE_VERIFIED |
 | J1939 vehicle application layer | SAE J1939/71_202502 | CLAUSE_AUDIT_REQUIRED |
 | Truck/trailer diagnostic communication | ISO 11992-4:2023 | NOT_IMPLEMENTED |
@@ -150,21 +150,23 @@ Core V2 now has a technical-gate implementation of:
 - 29-bit identifier/PGN/address model,
 - complete 64-bit NAME representation,
 - Address Claim subset,
-- Classical TP BAM and RTS/CTS receive/transmit state machines.
+- opt-in Commanded Address handling after TP reassembly,
+- Classical TP BAM and RTS/CTS receive/transmit state machines,
+- read-only J1939-73 DM1/DM2 diagnostic decoding.
 
 Detailed evidence is recorded in:
 `docs/CORE_V2_J1939_NETWORK_TP_STATUS.md`.
 
-This is a technical PASS only. Commanded Address, remaining network-management
-behavior, ETP/ISOBUS extensions and diagnostic/application layers are separately
-gated.
+This is a technical PASS only. Remaining network-management behavior,
+J1939-22 CAN FD and broader diagnostic/application services are separately
+gated. ISO 11783 ETP is implemented under its own technical gate.
 
 Before J1939 module standards PASS:
 - clause audit against SAE J1939/21_202205,
 - interoperability evidence for implemented Classical TP,
 - CAN FD rules per SAE J1939-22_202209,
 - Address Claiming/network management per SAE J1939/81_202504,
-- diagnostics per SAE J1939-73_202609 when implemented.
+- diagnostics per SAE J1939-73_202609 for the declared DM1/DM2 subset.
 
 ### ISO 11783 / ISOBUS extended transport
 

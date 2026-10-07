@@ -20,7 +20,8 @@ bool decode_identifier(
   fields.source_address =
       static_cast<std::uint8_t>(identifier & 0xFFU);
 
-  return !fields.reserved;
+  return !fields.reserved &&
+         is_valid_source_address(fields.source_address);
 }
 
 bool decode_classic_frame_identifier(
@@ -65,7 +66,8 @@ bool encode_identifier(
     const MessageAddress& address,
     std::uint32_t& identifier) noexcept {
   if (address.priority > 7U ||
-      address.pgn > kMaxPgn) {
+      address.pgn > kMaxPgn ||
+      !is_valid_source_address(address.source_address)) {
     return false;
   }
 

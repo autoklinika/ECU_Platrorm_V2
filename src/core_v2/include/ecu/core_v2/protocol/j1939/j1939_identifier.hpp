@@ -42,6 +42,11 @@ struct MessageAddress {
   return address <= kMaxClaimableAddress;
 }
 
+[[nodiscard]] constexpr bool is_valid_source_address(
+    const std::uint8_t address) noexcept {
+  return address != kGlobalAddress;
+}
+
 [[nodiscard]] bool decode_identifier(
     std::uint32_t identifier,
     IdentifierFields& fields) noexcept;

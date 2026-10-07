@@ -99,13 +99,16 @@ AddressClaimStep AddressClaimEngine::on_frame(
     }
 
     if (name_has_higher_priority(remote_name, raw_name_)) {
-      return lose_address(frame.timestamp);
+      auto result = lose_address(frame.timestamp);
+      result.conflict_observed = true;
+      return result;
     }
 
     const bool was_claimed =
         state_ == AddressClaimState::claimed;
     auto result =
         start_claim(current_address_, frame.timestamp, false);
+    result.conflict_observed = true;
     if (was_claimed) {
       result.became_claimed = false;
     }
@@ -113,7 +116,13 @@ AddressClaimStep AddressClaimEngine::on_frame(
   }
 
   if (pgn == kRequestPgn &&
-      is_request_for_address_claim(frame.frame, fields)) {
+      addressed_to_us_or_global(fields)) {
+    if (frame.frame.length != 3U) {
+      return {AddressClaimStatus::invalid_argument};
+    }
+    if (!is_request_for_address_claim(frame.frame, fields)) {
+      return {AddressClaimStatus::no_action};
+    }
     if (!observe_time(frame.timestamp)) {
       return {AddressClaimStatus::invalid_time};
     }
@@ -187,6 +196,35 @@ AddressClaimStep AddressClaimEngine::poll(
   }
 
   return {AddressClaimStatus::no_action};
+}
+
+AddressClaimStep AddressClaimEngine::command_address(
+    const std::uint64_t target_name,
+    const std::uint8_t commanded_address,
+    const time::MonotonicClockReading& now) noexcept {
+  if (!configured_) {
+    return {AddressClaimStatus::invalid_state};
+  }
+  if (state_ == AddressClaimState::faulted) {
+    return {AddressClaimStatus::faulted};
+  }
+  if (target_name != raw_name_ ||
+      !config_.accept_commanded_address) {
+    return {AddressClaimStatus::no_action};
+  }
+  if (state_ == AddressClaimState::idle) {
+    return {AddressClaimStatus::invalid_state};
+  }
+  if (!is_claimable_address(commanded_address)) {
+    return {AddressClaimStatus::invalid_argument};
+  }
+  if (!observe_time(now)) {
+    return {AddressClaimStatus::invalid_time};
+  }
+
+  const bool changed = current_address_ != commanded_address;
+  next_alternative_ = 0U;
+  return start_claim(commanded_address, now, changed);
 }
 
 AddressClaimState AddressClaimEngine::state() const noexcept {
@@ -313,14 +351,19 @@ bool AddressClaimEngine::requires_stabilization_delay(
 
 bool AddressClaimEngine::next_address(
     std::uint8_t& address) noexcept {
-  if (!config_.name.arbitrary_address_capable ||
-      next_alternative_ >= config_.alternative_count) {
+  if (!config_.name.arbitrary_address_capable) {
     return false;
   }
 
-  address =
-      config_.alternative_addresses[next_alternative_++];
-  return true;
+  while (next_alternative_ < config_.alternative_count) {
+    const auto candidate =
+        config_.alternative_addresses[next_alternative_++];
+    if (candidate != current_address_) {
+      address = candidate;
+      return true;
+    }
+  }
+  return false;
 }
 
 AddressClaimStep AddressClaimEngine::start_claim(
@@ -417,7 +460,7 @@ bool AddressClaimEngine::is_request_for_address_claim(
     const transport::CanFrame& frame,
     const IdentifierFields& fields) const noexcept {
   if (!addressed_to_us_or_global(fields) ||
-      frame.length < 3U) {
+      frame.length != 3U) {
     return false;
   }
 

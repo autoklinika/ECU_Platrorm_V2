@@ -118,6 +118,28 @@ transport::ReceivedCanFrame request_address_claim(
   return received;
 }
 
+TpMessage commanded_address_message(
+    const NameFields& target,
+    const std::uint8_t new_address,
+    const std::uint8_t source = 0xA0U) {
+  TpMessage message{};
+  message.pgn = kCommandedAddressPgn;
+  message.source_address = source;
+  message.destination_address = kGlobalAddress;
+  message.size = 9U;
+  message.broadcast = true;
+
+  std::array<std::byte, 8U> payload{};
+  if (!encode_name_payload(target, payload)) {
+    return {};
+  }
+  for (std::size_t i = 0U; i < payload.size(); ++i) {
+    message.data[i] = payload[i];
+  }
+  message.data[8U] = static_cast<std::byte>(new_address);
+  return message;
+}
+
 bool frame_source(
     const transport::CanFrame& frame,
     std::uint8_t& source,
@@ -191,6 +213,15 @@ int main() {
     failures += require(
         !decode_identifier(0x20000000U, fields),
         "identifier above 29 bits rejected");
+    failures += require(
+        !decode_identifier(0x18FEAEFFU, fields),
+        "global address rejected as J1939 source");
+    failures += require(
+        !encode_identifier(
+            MessageAddress{
+                6U, 0xFEAEU, kGlobalAddress, kGlobalAddress},
+            identifier),
+        "global address rejected by J1939 encoder as source");
   }
 
   {
@@ -316,8 +347,9 @@ int main() {
             frame_source(tx, source, pgn) &&
             source == 0x80U &&
             pgn == kAddressClaimedPgn &&
-            manager.current_address() == 0x80U,
-        "higher-priority local NAME reasserts address");
+            manager.current_address() == 0x80U &&
+            manager.counters().address_conflicts == 1U,
+        "higher-priority local NAME reasserts address and records conflict");
   }
 
   {
@@ -400,6 +432,134 @@ int main() {
             source == 0x20U &&
             pgn == kAddressClaimedPgn,
         "Request for Address Claimed gets response");
+  }
+
+  {
+    NetworkManager manager;
+    failures += require(
+        manager.configure(config(name(10U), 0x20U)) &&
+            manager.start(reading(0)) == NetworkManagerStatus::ok,
+        "strict Request DLC setup");
+    transport::CanFrame tx{};
+    failures += require(
+        manager.try_take_tx(tx),
+        "drain strict Request DLC setup claim");
+
+    auto malformed_request =
+        request_address_claim(
+            0xA0U, kGlobalAddress, 1000000);
+    malformed_request.frame.length = 8U;
+    manager.on_can_frame(malformed_request);
+    failures += require(
+        manager.pending_tx_count() == 0U &&
+            manager.counters().malformed_management_frames == 1U,
+        "Request PGN requires exact three-byte payload");
+  }
+
+  {
+    NetworkManager manager;
+    const auto local_name = name(10U);
+    failures += require(
+        manager.configure(config(local_name, 0x20U)) &&
+            manager.start(reading(0)) == NetworkManagerStatus::ok,
+        "Commanded Address disabled setup");
+    transport::CanFrame tx{};
+    failures += require(
+        manager.try_take_tx(tx),
+        "drain Commanded Address disabled setup claim");
+
+    const auto command =
+        commanded_address_message(local_name, 0x30U);
+    failures += require(
+        manager.on_transport_message(
+            command, reading(1000000)) ==
+                NetworkManagerStatus::no_action &&
+            manager.current_address() == 0x20U &&
+            manager.counters().commanded_address_messages == 1U &&
+            manager.counters().commanded_address_applied == 0U,
+        "Commanded Address is disabled by default");
+  }
+
+  {
+    NetworkManager manager;
+    const auto local_name = name(10U);
+    auto cfg = config(local_name, 0x20U);
+    cfg.accept_commanded_address = true;
+    failures += require(
+        manager.configure(cfg) &&
+            manager.start(reading(0)) == NetworkManagerStatus::ok,
+        "Commanded Address enabled setup");
+    transport::CanFrame tx{};
+    failures += require(
+        manager.try_take_tx(tx),
+        "drain Commanded Address enabled setup claim");
+
+    const auto command =
+        commanded_address_message(local_name, 0x80U);
+    failures += require(
+        manager.on_transport_message(
+            command, reading(1000000)) ==
+                NetworkManagerStatus::ok &&
+            manager.current_address() == 0x80U &&
+            manager.address_claim_state() ==
+                AddressClaimState::claiming &&
+            manager.counters().commanded_address_messages == 1U &&
+            manager.counters().commanded_address_applied == 1U &&
+            manager.counters().address_conflicts == 0U,
+        "matching Commanded Address starts claim at requested source");
+
+    std::uint8_t source = 0U;
+    std::uint32_t pgn = 0U;
+    failures += require(
+        manager.try_take_tx(tx) &&
+            frame_source(tx, source, pgn) &&
+            source == 0x80U &&
+            pgn == kAddressClaimedPgn,
+        "Commanded Address queues Address Claimed response");
+
+    failures += require(
+        manager.service_time(reading(251000000)) ==
+                NetworkManagerStatus::ok &&
+            manager.address_claim_state() ==
+                AddressClaimState::claimed,
+        "commanded address honors 250 ms stabilization window");
+  }
+
+  {
+    NetworkManager manager;
+    const auto local_name = name(10U);
+    auto cfg = config(local_name, 0x20U);
+    cfg.accept_commanded_address = true;
+    failures += require(
+        manager.configure(cfg) &&
+            manager.start(reading(0)) == NetworkManagerStatus::ok,
+        "Commanded Address malformed setup");
+    transport::CanFrame tx{};
+    failures += require(
+        manager.try_take_tx(tx),
+        "drain malformed Commanded Address setup claim");
+
+    auto malformed =
+        commanded_address_message(local_name, kNullAddress);
+    failures += require(
+        manager.on_transport_message(
+            malformed, reading(1000000)) ==
+                NetworkManagerStatus::no_action &&
+            manager.current_address() == 0x20U &&
+            manager.counters().malformed_management_frames == 1U &&
+            manager.counters().commanded_address_applied == 0U,
+        "Commanded Address rejects NULL target address");
+
+    const auto other =
+        commanded_address_message(name(99U), 0x30U);
+    failures += require(
+        manager.on_transport_message(
+            other, reading(2000000)) ==
+                NetworkManagerStatus::no_action &&
+            manager.current_address() == 0x20U &&
+            manager.counters().commanded_address_messages == 2U &&
+            manager.counters().commanded_address_applied == 0U,
+        "Commanded Address for another NAME is ignored");
   }
 
   {
