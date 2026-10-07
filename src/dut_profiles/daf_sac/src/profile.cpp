@@ -53,7 +53,13 @@ make_profile_definition(const CanBitrateProfile bitrate) noexcept {
       0x1FFFFFFFU,
       false,
       true};
-  profile.rx_expectation_count = 1U;
+  profile.rx_expectations[1U] = {
+      kPrimaryCanLink,
+      kPressureCanId,
+      kPressureCanMask,
+      false,
+      true};
+  profile.rx_expectation_count = 2U;
 
   return profile;
 }

@@ -53,7 +53,7 @@ index 693d641..19f6dca 100644
 +      - name: Build
 +        run: >
 +          cmake --build build/daf-sac-app-clang
-+          --target ecu_daf_sac_application_tests ecu_daf_sac_bench_app_probe
++          --target ecu_daf_sac_application_tests ecu_daf_sac_bench_app_probe ecu_daf_sac_stage42_read_probe
 +      - name: Test (never transmit on CI)
 +        run: >
 +          ctest --test-dir build/daf-sac-app-clang

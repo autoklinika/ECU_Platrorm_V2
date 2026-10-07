@@ -53,7 +53,13 @@ using HostStatus = ecu::bench::BenchHostServiceStatus;
              ecu::dut_profile::DutProfileDefinition::kSchemaVersion &&
          plan.profile_id == daf::profile_id(daf::CanBitrateProfile::k250k) &&
          plan.profile_revision == daf::kProfileRevision &&
-         plan.can_link_count == 1U && plan.rx_expectation_count == 1U &&
+         plan.can_link_count == 1U && plan.rx_expectation_count == 2U &&
+         plan.rx_expectations[0U].identifier == daf::kResponseCanId &&
+         plan.rx_expectations[0U].mask == 0x1FFFFFFFU &&
+         plan.rx_expectations[1U].identifier == daf::kPressureCanId &&
+         plan.rx_expectations[1U].mask == daf::kPressureCanMask &&
+         plan.rx_expectations[1U].match_extended &&
+         !plan.rx_expectations[1U].match_standard &&
          plan.can_links[0U].link_id == daf::kPrimaryCanLink &&
          plan.can_links[0U].channel_config.nominal_bitrate == 250000U &&
          !plan.can_links[0U].channel_config.fd_enabled &&
@@ -77,12 +83,32 @@ BenchEndpoint::BenchEndpoint(
     : plan_(plan),
       bus_(bus),
       profile_endpoint_(profile_endpoint),
-      program_(program) {
+      program_(&program) {
+  configure_execution(driver_execution);
+}
+
+BenchEndpoint::BenchEndpoint(
+    const ecu::dut_profile::ResolvedDutSessionPlan& plan,
+    ecu::core::v2::transport::CanBusRuntime& bus,
+    ecu::dut_profile::DutProfileSessionEndpoint& profile_endpoint,
+    ecu::dut_profiles::daf_sac::ServiceProgram& program,
+    const ecu::core::v2::transport::CanDriverExecutionContract driver_execution)
+    noexcept
+    : plan_(plan),
+      bus_(bus),
+      profile_endpoint_(profile_endpoint),
+      services_(&program) {
+  configure_execution(driver_execution);
+}
+
+void BenchEndpoint::configure_execution(
+    const ecu::core::v2::transport::CanDriverExecutionContract driver_execution)
+    noexcept {
   const auto profile = profile_endpoint_.execution_contract();
   const auto callback = bus_.max_single_frame_dispatch_duration();
   if (!valid_plan(plan_) || !profile_endpoint_.valid() ||
       bus_.state() != CanBusState::ready ||
-      bus_.subscription_count() != 1U ||
+      bus_.subscription_count() != (services_ == nullptr ? 1U : 2U) ||
       !ecu::core::v2::transport::is_valid_can_driver_execution_contract(
           driver_execution) ||
       !nonzero_contract(profile) || callback.count() <= 0) {
@@ -232,9 +258,15 @@ std::uint8_t BenchEndpoint::last_nrc() const noexcept {
 }
 
 void BenchEndpoint::capture_diagnostic_status() noexcept {
-  last_uds_status_ = program_.last_uds_status();
-  last_transport_failure_ = program_.last_transport_failure();
-  last_nrc_ = program_.last_nrc();
+  if (services_ != nullptr) {
+    last_uds_status_ = services_->last_uds_status();
+    last_transport_failure_ = services_->last_transport_failure();
+    last_nrc_ = services_->last_nrc();
+  } else if (program_ != nullptr) {
+    last_uds_status_ = program_->last_uds_status();
+    last_transport_failure_ = program_->last_transport_failure();
+    last_nrc_ = program_->last_nrc();
+  }
 }
 
 bool BenchEndpoint::close_bus() noexcept {
@@ -264,13 +296,29 @@ Application::Application(
       endpoint_(endpoint),
       session_(session),
       host_(host),
-      program_(program),
+      program_(&program),
+      clock_(clock) {}
+
+Application::Application(
+    const ecu::dut_profile::ResolvedDutSessionPlan& plan,
+    BenchEndpoint& endpoint,
+    ecu::bench::BenchSession& session,
+    ecu::bench::BenchSessionHostRuntime& host,
+    ecu::dut_profiles::daf_sac::ServiceProgram& services,
+    ecu::dut_profiles::daf_sac::PressureMonitor& pressure,
+    const ecu::core::v2::time::IMonotonicClock& clock) noexcept
+    : plan_(plan),
+      endpoint_(endpoint),
+      session_(session),
+      host_(host),
+      services_(&services),
+      pressure_(&pressure),
       clock_(clock) {}
 
 bool Application::configure(
     const ecu::bench::BenchHostServiceConfig host_config) noexcept {
-  if (state_ != AppState::unconfigured ||
-      !valid_plan(plan_) || !endpoint_.valid() ||
+  if (state_ != AppState::unconfigured || !valid_plan(plan_) ||
+      !endpoint_.valid() ||
       !ecu::core::v2::time::is_valid_clock_properties(clock_.properties()) ||
       clock_.properties().domain !=
           plan_.can_links[0U].channel_config.timestamp_domain ||
@@ -284,24 +332,31 @@ bool Application::configure(
   return true;
 }
 
-AppStatus Application::identify() noexcept {
-  if (state_ != AppState::ready &&
-      state_ != AppState::identified) {
-    return AppStatus::invalid_state;
-  }
-  record_ = {};
-  record_valid_ = false;
+bool Application::operation_active() const noexcept {
+  return state_ == AppState::identifying ||
+         state_ == AppState::reading_parameters ||
+         state_ == AppState::reading_dtcs ||
+         state_ == AppState::clearing_dtcs;
+}
+
+void Application::invalidate_clear_challenge() noexcept {
+  armed_clear_sequence_ = 0U;
+}
+
+AppStatus Application::begin_operation(const AppState state) noexcept {
+  invalidate_clear_challenge();
   const auto started = host_.start();
   if (started.status != HostStatus::ok) {
     return fail(started);
   }
   const auto now = clock_.read();
-  constexpr auto kMaxIdentification = std::chrono::seconds{10};
-  const auto max_time =
-      (std::numeric_limits<Duration::rep>::max)();
+  constexpr auto kMaxOperation = std::chrono::seconds{10};
+  const auto max_time = (std::numeric_limits<Duration::rep>::max)();
   if (!ecu::core::v2::time::is_valid_clock_reading(
           now, clock_.properties().domain) ||
-      now.value.count() > max_time - kMaxIdentification.count() * 1000000000LL) {
+      now.value.count() >
+          max_time - std::chrono::duration_cast<Duration>(
+                         kMaxOperation).count()) {
     const auto stopped = host_.stop();
     state_ = AppState::faulted;
     status_ =
@@ -311,14 +366,100 @@ AppStatus Application::identify() noexcept {
             : AppStatus::safe_shutdown_failed;
     return status_;
   }
-  deadline_ = now.value + kMaxIdentification;
-  state_ = AppState::identifying;
+  deadline_ = now.value + kMaxOperation;
+  pressure_wait_deadline_ = now.value + std::chrono::milliseconds{800};
+  state_ = state;
   status_ = AppStatus::ok;
   return status_;
 }
 
+AppStatus Application::identify() noexcept {
+  if (state_ == AppState::unconfigured ||
+      state_ == AppState::faulted || operation_active()) {
+    return AppStatus::invalid_state;
+  }
+  if (services_ != nullptr &&
+      !services_->select(ecu::dut_profiles::daf_sac::SacService::identify)) {
+    return AppStatus::invalid_state;
+  }
+  record_ = {};
+  record_valid_ = false;
+  return begin_operation(AppState::identifying);
+}
+
+AppStatus Application::read_parameters() noexcept {
+  if (services_ == nullptr || pressure_ == nullptr) {
+    return AppStatus::unsupported;
+  }
+  if (state_ == AppState::unconfigured ||
+      state_ == AppState::faulted || operation_active()) {
+    return AppStatus::invalid_state;
+  }
+  if (!services_->select(ecu::dut_profiles::daf_sac::SacService::read_voltage)) {
+    return AppStatus::invalid_state;
+  }
+  pressure_->reset();
+  voltage_ = {};
+  pressure_sample_ = {};
+  return begin_operation(AppState::reading_parameters);
+}
+
+AppStatus Application::read_dtcs(const std::uint8_t mask) noexcept {
+  if (services_ == nullptr) {
+    return AppStatus::unsupported;
+  }
+  if (state_ == AppState::unconfigured ||
+      state_ == AppState::faulted || operation_active()) {
+    return AppStatus::invalid_state;
+  }
+  if (!services_->select(
+          ecu::dut_profiles::daf_sac::SacService::read_dtcs, mask)) {
+    return AppStatus::invalid_state;
+  }
+  dtcs_ = {};
+  clear_acknowledged_ = false;
+  return begin_operation(AppState::reading_dtcs);
+}
+
+ClearDtcChallenge Application::prepare_clear_dtcs() noexcept {
+  if (services_ == nullptr || state_ != AppState::dtcs_ready ||
+      !dtcs_.valid ||
+      session_.state() != ecu::bench::BenchSessionState::ready ||
+      next_clear_sequence_ ==
+          (std::numeric_limits<std::uint64_t>::max)()) {
+    return {};
+  }
+  ++next_clear_sequence_;
+  armed_clear_sequence_ = next_clear_sequence_;
+  return {armed_clear_sequence_, plan_.profile_id, dtcs_.count};
+}
+
+AppStatus Application::clear_dtcs(
+    const ClearDtcChallenge& confirmation,
+    const bool explicitly_confirmed) noexcept {
+  if (services_ == nullptr) {
+    return AppStatus::unsupported;
+  }
+  if (state_ != AppState::dtcs_ready || !dtcs_.valid ||
+      armed_clear_sequence_ == 0U || !explicitly_confirmed ||
+      confirmation.sequence != armed_clear_sequence_ ||
+      confirmation.profile_id != plan_.profile_id ||
+      confirmation.inspected_dtc_count != dtcs_.count) {
+    return AppStatus::confirmation_required;
+  }
+  // Consume the token before starting the session. Retry requires a new
+  // successful DTC read and a new explicit confirmation.
+  invalidate_clear_challenge();
+  if (!services_->select(ecu::dut_profiles::daf_sac::SacService::clear_dtcs)) {
+    return AppStatus::invalid_state;
+  }
+  dtcs_ = {}; // previous read is stale as soon as clear is attempted
+  clear_acknowledged_ = false;
+  return begin_operation(AppState::clearing_dtcs);
+}
+
 AppStatus Application::service() noexcept {
-  if (state_ != AppState::identifying) {
+  if (!operation_active()) {
     return AppStatus::invalid_state;
   }
 
@@ -329,6 +470,9 @@ AppStatus Application::service() noexcept {
     const auto stopped = host_.stop();
     record_ = {};
     record_valid_ = false;
+    voltage_ = {};
+    pressure_sample_ = {};
+    dtcs_ = {};
     state_ = AppState::faulted;
     status_ =
         (stopped.status == HostStatus::ok ||
@@ -344,42 +488,83 @@ AppStatus Application::service() noexcept {
     return fail(serviced);
   }
 
-  if (program_.status() !=
-      ecu::dut_profiles::daf_sac::IdentificationProgramStatus::complete) {
+  const auto complete = services_ == nullptr
+      ? program_->status() ==
+          ecu::dut_profiles::daf_sac::IdentificationProgramStatus::complete
+      : services_->status() ==
+          ecu::dut_profiles::daf_sac::IdentificationProgramStatus::complete;
+
+  if (!complete) {
+    return AppStatus::no_action;
+  }
+  // The FE96 response can arrive before the next periodic PGN 0xFEAE.
+  // Continue bounded receive-only polling for at most 800ms to give
+  // the SAC pressure broadcast a chance to arrive.
+  if (state_ == AppState::reading_parameters && pressure_ != nullptr &&
+      !pressure_->sample().received && now.value < pressure_wait_deadline_) {
     return AppStatus::no_action;
   }
 
-  const auto& result = program_.result();
-  if (result.vin.length == 17U &&
-      result.software.length > 0U && result.hardware.length > 0U) {
-    record_ = result;
-    record_valid_ = true;
+  const auto prior_state = state_;
+  bool payload_valid = false;
+  if (prior_state == AppState::identifying) {
+    const auto& result = services_ != nullptr
+        ? services_->identification() : program_->result();
+    payload_valid = result.vin.length == 17U &&
+                    result.software.length > 0U &&
+                    result.hardware.length > 0U;
+    if (payload_valid) {
+      record_ = result;
+      record_valid_ = true;
+    }
+  } else if (prior_state == AppState::reading_parameters) {
+    voltage_ = services_->voltage();
+    pressure_sample_ = pressure_->sample();
+    // A valid FE96 voltage response can succeed even if the ECU has
+    // broadcast pressure marked as unavailable / not supported on the bench.
+    payload_valid = voltage_.valid;
+  } else if (prior_state == AppState::reading_dtcs) {
+    dtcs_ = services_->dtcs();
+    payload_valid = dtcs_.valid;
+  } else if (prior_state == AppState::clearing_dtcs) {
+    clear_acknowledged_ = services_->clear_acknowledged();
+    payload_valid = clear_acknowledged_;
   }
 
   const auto stopped = host_.stop();
   if (stopped.status != HostStatus::ok &&
       stopped.status != HostStatus::no_action) {
-    record_ = {};
-    record_valid_ = false;
     return fail(stopped);
   }
-  if (!record_valid_) {
+  if (!payload_valid) {
+    record_ = {};
+    record_valid_ = false;
+    voltage_ = {};
+    pressure_sample_ = {};
+    dtcs_ = {};
     state_ = AppState::faulted;
     status_ = AppStatus::runtime_fault;
     return status_;
   }
-  state_ = AppState::identified;
-  status_ = AppStatus::ok;
+
+  switch (prior_state) {
+    case AppState::identifying: state_ = AppState::identified; break;
+    case AppState::reading_parameters: state_ = AppState::parameters_ready; break;
+    case AppState::reading_dtcs: state_ = AppState::dtcs_ready; break;
+    case AppState::clearing_dtcs:
+      state_ = AppState::dtcs_clear_acknowledged; break;
+    default: state_ = AppState::faulted; break;
+  }
+  status_ = state_ == AppState::faulted
+                ? AppStatus::runtime_fault : AppStatus::ok;
   return status_;
 }
 
 AppStatus Application::stop() noexcept {
-  if (state_ == AppState::ready ||
-      state_ == AppState::identified) {
-    return AppStatus::no_action;
-  }
-  if (state_ != AppState::identifying) {
-    return AppStatus::invalid_state;
+  if (!operation_active()) {
+    return (state_ != AppState::unconfigured &&
+            state_ != AppState::faulted)
+        ? AppStatus::no_action : AppStatus::invalid_state;
   }
   const auto stopped = host_.stop();
   if (stopped.status != HostStatus::ok &&
@@ -388,6 +573,11 @@ AppStatus Application::stop() noexcept {
   }
   record_ = {};
   record_valid_ = false;
+  voltage_ = {};
+  pressure_sample_ = {};
+  dtcs_ = {};
+  clear_acknowledged_ = false;
+  invalidate_clear_challenge();
   state_ = AppState::ready;
   status_ = AppStatus::ok;
   return status_;
@@ -408,6 +598,11 @@ AppStatus Application::recover() noexcept {
   }
   record_ = {};
   record_valid_ = false;
+  voltage_ = {};
+  pressure_sample_ = {};
+  dtcs_ = {};
+  clear_acknowledged_ = false;
+  invalidate_clear_challenge();
   state_ = AppState::ready;
   status_ = AppStatus::ok;
   return status_;
@@ -418,16 +613,21 @@ AppSnapshot Application::snapshot() const noexcept {
   out.state = state_;
   out.status = status_;
   out.profile_id = plan_.profile_id;
-  out.bitrate =
-      plan_.can_link_count != 0U
-          ? plan_.can_links[0U].channel_config.nominal_bitrate
-          : 0U;
+  out.bitrate = plan_.can_link_count != 0U
+      ? plan_.can_links[0U].channel_config.nominal_bitrate : 0U;
   out.bench = session_.snapshot();
   out.can_status = endpoint_.last_can_status();
   out.uds_status = endpoint_.last_uds_status();
   out.transport_failure = endpoint_.last_transport_failure();
   out.nrc = endpoint_.last_nrc();
   out.identification_available = record_valid_;
+  out.voltage_available = voltage_.valid;
+  out.pressure_received = pressure_sample_.received;
+  out.pressure1_valid = pressure_sample_.pressure1_valid;
+  out.pressure2_valid = pressure_sample_.pressure2_valid;
+  out.dtcs_available = dtcs_.valid;
+  out.dtc_count = dtcs_.count;
+  out.clear_acknowledged = clear_acknowledged_;
   if (record_valid_) {
     for (std::size_t i = 0U; i < 4U; ++i) {
       out.vin_suffix[i] = record_.vin.data[13U + i];
@@ -441,10 +641,30 @@ Application::identification() const noexcept {
   return record_;
 }
 
+ecu::dut_profiles::daf_sac::SacVoltage
+Application::voltage() const noexcept {
+  return voltage_;
+}
+
+ecu::dut_profiles::daf_sac::SacPressure
+Application::pressure() const noexcept {
+  return pressure_sample_;
+}
+
+const ecu::dut_profiles::daf_sac::SacDtcList&
+Application::dtcs() const noexcept {
+  return dtcs_;
+}
+
 AppStatus Application::fail(
     const ecu::bench::BenchHostServiceResult& result) noexcept {
   record_ = {};
   record_valid_ = false;
+  voltage_ = {};
+  pressure_sample_ = {};
+  dtcs_ = {};
+  clear_acknowledged_ = false;
+  invalidate_clear_challenge();
   state_ = AppState::faulted;
   if (result.status == HostStatus::deadline_missed) {
     status_ = AppStatus::timeout;

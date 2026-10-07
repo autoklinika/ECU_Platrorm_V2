@@ -329,13 +329,19 @@ int main() {
       "SAC is an ECU-class truck UDS/ISO-TP proof");
 
   failures += require(
-      profile_250.rx_expectation_count == 1U &&
+      profile_250.rx_expectation_count == 2U &&
           profile_250.rx_expectations[0U].identifier ==
               daf::kResponseCanId &&
           profile_250.rx_expectations[0U].mask == 0x1FFFFFFFU &&
           !profile_250.rx_expectations[0U].match_standard &&
-          profile_250.rx_expectations[0U].match_extended,
-      "SAC exact 29-bit diagnostic response is profile-owned");
+          profile_250.rx_expectations[0U].match_extended &&
+          profile_250.rx_expectations[1U].identifier ==
+              daf::kPressureCanId &&
+          profile_250.rx_expectations[1U].mask ==
+              daf::kPressureCanMask &&
+          !profile_250.rx_expectations[1U].match_standard &&
+          profile_250.rx_expectations[1U].match_extended,
+      "SAC diagnostic and passive pressure RX filters are profile-owned");
 
   {
     dp::DutProfileRegistry registry;

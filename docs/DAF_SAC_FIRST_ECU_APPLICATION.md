@@ -3,7 +3,7 @@
 Data: 2026-10-07
 Gałąź: `app/daf-sac-first-ecu`
 Zakres: projekt docelowy oraz implementacja pionowego przekroju Stage 4.0.
-Status: Stage 4.0 lokalne testy PASS; Stage 4.1 fizyczny Bench Runtime proof PASS na DAF SAC; GitHub CI dla gałęzi pozostaje osobną bramką; WebGUI/API (4.2) nie są jeszcze podłączone.
+Status: Stage 4.0 i 4.1 PASS; Stage 4.2 = nowe usługi SAC (parametry, DTC read/clear) z testami programowymi; bez API i WebGUI. Fizyczne testy nowych odczytów oraz kasowania DTC nie są jeszcze zaliczone.
 
 ## 1. Nieprzekraczalne granice
 
@@ -33,7 +33,7 @@ pełnym re-gate. Żaden automatyczny merge do produkcyjnego main.
 ## 2. Pionowy przekrój
 
 ```text
-WebGUI (Stage 4.2)  ->   autoryzowany backend API (Stage 4.2)
+WebGUI (etap przyszły) -> autoryzowany backend API (etap przyszły)
                                     |
                                     v
                     ECU application: DAF SAC (Stage 4.0)
@@ -77,9 +77,10 @@ Kod aplikacyjny nie wywołuje bezpośrednio `try_send` ani `try_receive`.
 | Identyfikacja SW | TAK, read-only | UDS 0x22 F188 |
 | Identyfikacja HW | TAK, read-only | UDS 0x22 F192 |
 | Stop/Recovery | TAK | Bench lifecycle |
-| DTC odczyt | NIE | Potrzebna osobna weryfikacja |
-| Parametry bieżące | NIE | Potrzebna osobna weryfikacja |
-| Kasowanie DTC | NIE | Operacja zmieniająca stan |
+| Odczyt DTC | TAK — Stage 4.2 w kodzie | UDS 10 03 -> 19 02 FF, wymaga walidacji na SAC |
+| Ciśnienie | TAK — Stage 4.2 w kodzie | Pasywne J1939 PGN 65198, wartości FE/FF są niedostępne |
+| Napięcie zasilania | TAK — Stage 4.2 w kodzie | UDS 22 FE96, wymaga walidacji na SAC |
+| Kasowanie DTC | TAK — testowo i z potwierdzeniem | UDS 10 03 -> 14 FF FF FF, brak zgody na automatyczne fizyczne wykonanie |
 | Testy wyjść/aktywatory | NIE | Brak zweryfikowanej procedury oraz warstwy kontroli energii |
 | Flash/programowanie | NIE | Poza zakresem pierwszego etapu |
 
@@ -118,7 +119,7 @@ wynik, dlatego aplikacja przed stop kopiuje rekord do pamięci sesji,
 a następnie weryfikuje zwolnienie zasobów. Rekord jest zerowany przy
 kolejnym uruchomieniu i błędzie; nie jest automatycznie zapisywany do pliku.
 
-## 5. WebGUI — projekt pierwszego ekranu (Stage 4.2)
+## 5. WebGUI — projekt odłożony na późniejszy etap
 
 Ścieżka aplikacji: `Urządzenia -> TRUCK -> DAF -> SAC`.
 Ekran zawiera:
@@ -179,12 +180,13 @@ Runner potwierdził docelową ścieżkę z Bench oraz `can0` 250000.
 Nie wykonano write, diagnostic session control, flash ani output testu.
 Skrypt przywrócił CAN DOWN, co sprawdzono niezależnie po uruchomieniu.
 
-Stage 4.2: osobny backend API i rzeczywisty interaktywny WebGUI;
-przed udostępnieniem trzeba domknąć auth, DTO, CSRF/origin,
-kontrolę konkurencyjności sesji i recovery po restarcie serwera.
+Stage 4.2 (zmieniony zakres decyzją właściciela projektu): wyłącznie
+obsługa ciśnienia PGN 65198, napięcia UDS FE96, odczytu DTC 19 02 i
+jawnie potwierdzanego kasowania DTC 14. Bez uruchamiania API i WebGUI.
+Szczegóły, testy i ograniczenia: `DAF_SAC_STAGE42_SERVICES.md`.
 
-Po Stage 4.2 będzie można mówić o pełnej pierwszej funkcji ECU
-obsługiwanej przez GUI. Sam Stage 4.0 nie oznacza, że WebGUI już działa.
+Po Stage 4.2 ECU SAC jest obsługiwane programowo w Bench Runtime.
+Zdalny interfejs API/WebGUI pozostaje niezależnym przyszłym zadaniem.
 
 ## 8. Wymagania utrzymaniowe
 
@@ -247,6 +249,6 @@ systemowy interfejs `can0` bezpiecznie przełączony do DOWN przez skrypt.
 
 **Decyzja o bramkach:** Stage 4.1 fizyczny test identyfikacji — PASS.
 Nie oznacza to gotowości WebGUI/API ani zatwierdzenia zmian do `main`.
-Pozostaje sprawdzenie GitHub CI i osobna walidacja Stage 4.2.
+Pozostaje sprawdzenie GitHub CI i osobna fizyczna walidacja odczytów Stage 4.2.
 Nie wykonywano programowania, sterowania wyjściami, kasowania błędów
 ani zmian sesji UDS.

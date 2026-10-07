@@ -2,12 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-echo "[ECU V2] DAF SAC application Stage 4.0 gate"
+echo "[ECU V2] DAF SAC application Stage 4.0 + 4.2 gate"
 
 python3 "$ROOT_DIR/scripts/check_dut_profile_architecture.py"
 python3 "$ROOT_DIR/scripts/check_daf_sac_profile_architecture.py"
 python3 "$ROOT_DIR/scripts/check_daf_sac_application_architecture.py"
 bash -n "$ROOT_DIR/scripts/run_stage4_daf_sac_bench_gate.sh"
+bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_read_gate.sh"
 
 common=(
   -DECU_BUILD_TESTS=ON
@@ -48,3 +49,4 @@ test_configuration stage4-sanitize Debug \
   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
 
 echo "DAF_SAC_APPLICATION_STAGE4_LOCAL_GATE=PASS"
+echo "DAF_SAC_APPLICATION_STAGE42_LOCAL_GATE=PASS"

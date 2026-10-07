@@ -1,6 +1,7 @@
 add_library(ecu_daf_sac_profile STATIC
   src/profile.cpp
   src/identification_program.cpp
+  src/service_program.cpp
 )
 
 add_library(ECU::daf_sac_profile ALIAS ecu_daf_sac_profile)
