@@ -22,9 +22,10 @@ Policy values:
 | J1939 identifier/PGN helpers | REVALIDATE | High-value heavy-duty primitive; expand toward Address Claiming and TP only after clause audit. |
 | Resource manager | REBUILD | Keep generation-safe ownership concept; align with frozen runtime graph and domain-aware resources. |
 | Command/state/event runtime | REBUILD | Current proof is useful, but lifetime/versioning/executor semantics must be explicit. |
-| Module/device registries | REBUILD | Configuration-time stable handles; no unsafe runtime removal. |
-| Device classes camera/printer/robot | EXCLUDE from generic Core | Bench/UI peripherals belong to device services/adapters, not TRUCK/AGRI/OHV domain foundation. |
-| Actuator contract | REBUILD | Keep safe-stop principle; add deterministic scheduler/interlock ownership model. |
+| DUT identity/class/capability contract | REBUILD | Generic Core must model ECU, actuator, sensor, gateway and other automotive DUT classes without making diagnostics mandatory. |
+| Module/device registries | REBUILD | Configuration-time stable handles; no unsafe runtime removal. DUT registry semantics must remain separate from bench peripherals. |
+| Device classes camera/printer/robot | EXCLUDE from generic Core | Bench/UI peripherals belong to device services/adapters, not TRUCK/AGRI/OHV DUT domain foundation. |
+| Actuator contract | REBUILD | Keep safe-stop principle; add deterministic cyclic raw-CAN scheduler/interlock ownership model. EGR/VGT are primary proof cases, not exceptions. |
 | Safety watchdog | REBUILD | Late kick must fail closed; expiry cannot be revived implicitly. |
 | Trace/replay concepts | REVALIDATE | Keep bounded flight-recorder idea; move to V2 event/frame identities. |
 | Simulated CAN | REBUILD around V2 driver | Keep testability concept and useful test vectors. |

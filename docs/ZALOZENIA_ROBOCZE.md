@@ -38,9 +38,12 @@
 ## 1. Charakter projektu
 
 - **[USTALONE]** ECU Platform V2 powstaje jako nowy projekt w nowym repozytorium.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** ECU Platform V2 jest platformą laboratoryjną do naprawy i inżynierii elektroniki automotive. Diagnostyka jest jedną z jej funkcji, ale produkt nie jest modelowany jako klasyczny tester diagnostyczny.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Bazową abstrakcją obiektu podłączonego do stanowiska jest **DUT (Device Under Test)**. ECU jest jedną klasą DUT; równorzędnie wspierane mają być inteligentne aktuatory (np. EGR/VGT), sensory, gatewaye i inne elektroniczne węzły automotive.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** DUT nie musi obsługiwać UDS, J1939 ani żadnego protokołu diagnostycznego. Surowy/proprietary CAN/CAN-FD, w tym cykliczne komendy i feedback, jest pełnoprawnym pierwszoplanowym przypadkiem użycia.
 - **[USTALONE]** ECU Platform V2 ma być ogólną, rozwijalną platformą inżyniersko-diagnostyczną, a nie aplikacją zbudowaną pod jeden konkretny ECU, pojazd lub aktuator.
-- **[USTALONE]** Platforma ma obsługiwać pracę zarówno ze sterownikami/modułami na stole, jak i — tam gdzie jest to technicznie i bezpiecznie uzasadnione — w pojeździe.
-- **[USTALONE]** Zakładany zakres platformy obejmuje co najmniej: komunikację z ECU/modułami, identyfikację sterowników, diagnostykę, odczyt i kasowanie DTC, dane live/runtime, sterowanie aktuatorami, automatyczne procedury i testy, skanowanie i analizę CAN, rejestrację komunikacji oraz generowanie raportów.
+- **[USTALONE]** Platforma ma obsługiwać pracę zarówno z ECU, aktuatorami, sensorami i innymi modułami na stole, jak i — tam gdzie jest to technicznie i bezpiecznie uzasadnione — w pojeździe.
+- **[USTALONE]** Zakładany zakres platformy obejmuje co najmniej: identyfikację i komunikację z różnymi klasami DUT, diagnostykę ECU tam gdzie ma zastosowanie, odczyt/kasowanie DTC, dane live/runtime, surową analizę CAN/CAN-FD, deterministyczne sterowanie aktuatorami, cykliczne ramki OEM z counter/checksum/E2E, automatyczne procedury i testy, rejestrację komunikacji oraz generowanie raportów.
 - **[USTALONE]** Obsługa nowych ECU nie może ograniczać się do CAN/CAN-FD. ECU Platform V2 musi od początku uwzględniać diagnostykę **DoIP (Diagnostics over Internet Protocol, ISO 13400)** jako równorzędny, pierwszoplanowy transport diagnostyczny.
 - **[USTALONE]** ECU Platform V2 jest budowana jako **WebGUI-first**. WebGUI jest jedyną bazową technologią interfejsu użytkownika V2; lokalny ekran urządzenia uruchamia tę samą aplikację WebGUI w trybie kioskowym.
 - **[USTALONE]** Rozwijalność jest wymaganiem fundamentalnym: dodanie w przyszłości nowego ECU, modułu, urządzenia wykonawczego, protokołu, transportu, klienta lub innej klasy obsługiwanych elementów nie może wymagać przebudowy całej platformy.
@@ -91,7 +94,8 @@
 - **[USTALONE]** Lokalny ekran urządzenia nie posiada osobnej aplikacji GUI; uruchamia WebGUI w przeglądarce/runtime kioskowym.
 - **[USTALONE]** Lokalny kiosk i autoryzowani klienci zdalni korzystają z tego samego modelu API i tej samej aplikacji WebGUI.
 - **[USTALONE]** Krytyczne czasowo sterowanie nie może zależeć od GUI, renderowania, event loop warstwy prezentacji ani od aktywności użytkownika.
-- **[USTALONE]** Klient wysyła polecenia wysokiego poziomu; sposób bezpiecznego wykonania polecenia należy do Core.
+- **[USTALONE / NADRZĘDNE]** Cykliczna komunikacja wykonawcza EGR/VGT i podobnych DUT musi być generowana przez deterministyczny runtime/scheduler, nie przez WebGUI/API timer. Profile DUT dostarczają identyfikatory, payload, rolling counter/checksum/E2E i limity; generic Core egzekwuje cadence, timeout/interlock i safe-stop.
+- **[USTALONE]** Klient wysyła polecenia wysokiego poziomu; sposób bezpiecznego wykonania polecenia należy do Core/Bench Runtime.
 - **[USTALONE]** Fizyczny interfejs CAN / hardware musi mieć jednoznacznego właściciela i kontrolowany mechanizm arbitrażu dostępu.
 - **[USTALONE]** Awaria lub restart GUI nie może powodować destabilizacji warstwy komunikacji i sterowania.
 - **[USTALONE]** Funkcje specyficzne dla konkretnego ECU, aktuatora lub protokołu nie mogą wymuszać zmian w niezwiązanych modułach systemu.

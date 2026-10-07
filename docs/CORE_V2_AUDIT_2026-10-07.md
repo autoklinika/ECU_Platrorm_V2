@@ -186,18 +186,36 @@ Controller, timing scheduler or machine actuation was introduced.
 The ISOBUS Working Set lifecycle engineering gate is PASS. Normative timing,
 ageing, clause mapping and independent interoperability evidence remain open.
 
+### A-18 — product root abstraction was still ECU/diagnostics-biased
+
+Resolution: made Device Under Test (DUT) the explicit laboratory root
+abstraction. Core V2 now has a DUT class/capability contract covering ECU,
+actuator, sensor, gateway, generic network-node and other automotive devices.
+Raw CAN and cyclic CAN are independent capabilities and do not require UDS,
+J1939 or other diagnostics. UDS requires an explicit supported transport
+(ISO-TP or DoIP).
+
+The architecture baseline now states that EGR/VGT-class proprietary cyclic CAN
+control is a primary product path. The legacy MAN Sonceboz EGR evidence remains
+a proof-case source, but its concrete protocol must stay in a DUT profile rather
+than generic Core.
+
+This closes the ECU-centric type-model defect. Core freeze remains blocked on
+the deterministic cyclic actuator runtime/interlock contract required to execute
+such profiles safely.
+
 ## Open items that are not engineering defects
 
 The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939-22, SAE J1939/81, SAE J1939-73, ISO 11783-5:2019, ISO 11783-6, ISO 11783-7:2022, ISO 15765-2:2024 or ISO 14229-1/-2/-3. Independent interoperability evidence is also required before formal protocol-conformance PASS.
 
-## Next protocol priorities
+## Next engineering priorities
 
-1. Continue remaining ISO 11783 application profiles after the network-management + Working Set lifecycle foundations; keep VT/TC/control behavior separately gated.
-2. ISO 11992 / WWH-OBD where required by heavy-truck modules.
-3. UDS service/profile expansion after the transport-neutral foundation.
-4. Further read-only J1939-73 services selected from actual TRUCK/AGRI/OHV workshop needs.
-5. J1939-22 assurance profiles only when the required safety/cybersecurity profile is explicitly selected.
-6. ISO-TP/UDS/J1939 normative clause mapping and external interoperability evidence.
+1. Rebuild the deterministic actuator runtime for proprietary cyclic raw-CAN DUTs: cadence, bounded scheduling, watchdog/timeout, interlock ownership and safe-stop.
+2. Run the final DUT-neutral Core V2 audit and freeze only after an ECU-style and an actuator-style proof case both fit the contracts without Core changes.
+3. Build Bench Session above Core for the default topology of one physical DUT, with optional minimal environment emulation requested by a profile.
+4. Build the common DUT Profile contract and prove it with the retained MAN Sonceboz EGR knowledge plus one ECU-class profile.
+5. Continue deeper ISO 11783, ISO 11992/WWH-OBD, DoIP and other protocol work only when a real DUT/use case requires it.
+6. Keep normative clause mapping and external interoperability evidence as separate module conformance gates.
 
 CORE_V2_ENGINEERING_AUDIT=PASS
 CORE_V2_NORMATIVE_CLAUSE_AUDITS=OPEN

@@ -1,4 +1,5 @@
 #include "ecu/core_v2/domain/product_scope.hpp"
+#include "ecu/core_v2/domain/device_under_test.hpp"
 #include "ecu/core_v2/safety/deadline_watchdog.hpp"
 #include "ecu/core_v2/transport/can_bus_runtime.hpp"
 
@@ -1359,6 +1360,82 @@ int main() {
                             polled == safety::DeadlineWatchdogStatus::ok &&
                             fault == CanStatus::io_error && recovered == CanStatus::ok &&
                             restarted == CanStatus::ok, "allocation probe operations succeed");
+  }
+
+  {
+    using namespace domain;
+
+    const auto actuator_capabilities =
+        dut_capability_mask(DutCapability::raw_can) |
+        dut_capability_mask(DutCapability::cyclic_can) |
+        dut_capability_mask(DutCapability::active_control) |
+        dut_capability_mask(DutCapability::feedback);
+    const DutDescriptor actuator{
+        1U,
+        DutClass::actuator,
+        kAllSupported,
+        actuator_capabilities};
+
+    failures += require(
+        is_valid_dut_descriptor(actuator) &&
+            has_dut_capability(
+                actuator.capabilities,
+                DutCapability::raw_can) &&
+            has_dut_capability(
+                actuator.capabilities,
+                DutCapability::cyclic_can) &&
+            !has_dut_capability(
+                actuator.capabilities,
+                DutCapability::uds),
+        "DUT contract supports raw cyclic actuator without diagnostics");
+
+    const DutDescriptor ecu{
+        2U,
+        DutClass::ecu,
+        kTruck,
+        static_cast<DutCapabilityMask>(
+            dut_capability_mask(DutCapability::raw_can) |
+            dut_capability_mask(DutCapability::isotp) |
+            dut_capability_mask(DutCapability::uds) |
+            dut_capability_mask(
+                DutCapability::requires_environment))};
+
+    failures += require(
+        is_valid_dut_descriptor(ecu) &&
+            has_dut_capability(
+                ecu.capabilities,
+                DutCapability::uds) &&
+            has_dut_capability(
+                ecu.capabilities,
+                DutCapability::requires_environment),
+        "DUT contract supports ECU diagnostics plus bench environment");
+
+    const DutDescriptor invalid_cyclic{
+        3U,
+        DutClass::actuator,
+        kTruck,
+        dut_capability_mask(DutCapability::cyclic_can)};
+    failures += require(
+        !is_valid_dut_descriptor(invalid_cyclic),
+        "cyclic CAN capability requires raw CAN capability");
+
+    const DutDescriptor invalid_uds{
+        4U,
+        DutClass::ecu,
+        kTruck,
+        dut_capability_mask(DutCapability::uds)};
+    failures += require(
+        !is_valid_dut_descriptor(invalid_uds),
+        "UDS capability requires ISO-TP or DoIP transport");
+
+    const DutDescriptor invalid_sensor_control{
+        5U,
+        DutClass::sensor,
+        kAgri,
+        dut_capability_mask(DutCapability::active_control)};
+    failures += require(
+        !is_valid_dut_descriptor(invalid_sensor_control),
+        "passive sensor DUT cannot declare active-control capability");
   }
 
   if (failures == 0) {

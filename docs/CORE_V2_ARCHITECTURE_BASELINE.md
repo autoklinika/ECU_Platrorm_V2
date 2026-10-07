@@ -22,6 +22,14 @@ Core V2 exists only for:
 
 Passenger-car-only concepts are out of scope.
 
+ECU Platform V2 is an **automotive electronics laboratory platform**, not a
+diagnostic tester as its root abstraction. The object connected to the bench is
+a Device Under Test (DUT). An ECU is one DUT class; actuators such as EGR/VGT,
+sensors, gateways and other automotive network nodes are equally valid DUTs.
+
+Raw CAN/CAN-FD is therefore a first-class product path. A DUT is not required to
+support J1939, ISO-TP, UDS or any diagnostic protocol.
+
 First-class protocol families:
 
 - SAE J1939,
@@ -143,18 +151,22 @@ Examples:
 
 UDS remains transport-independent.
 
-### L5 — ECU and machine modules
+### L5 — DUT and machine modules
 
-Contains knowledge specific to:
+Contains knowledge specific to a Device Under Test or machine/vehicle family:
 
 - ECU family,
+- actuator family such as EGR/VGT,
+- sensor/gateway/network-node family,
 - machine/vehicle family,
-- DIDs/PIDs/SPNs/PGNs,
-- diagnostic procedures,
-- actuator procedures,
+- DIDs/PIDs/SPNs/PGNs where applicable,
+- proprietary raw CAN identifiers and cyclic frame contracts,
+- rolling counters/checksums/OEM E2E rules,
+- diagnostic procedures where applicable,
+- actuator procedures and limits,
 - OEM extensions.
 
-Generic Core must not depend on any one module.
+Generic Core must not depend on any one DUT module.
 
 ### L6 — Runtime semantics
 
@@ -170,15 +182,20 @@ Responsibilities:
 
 Runtime topology is configured before RUNNING and then frozen.
 
-### L7 — Safety and deterministic actuation
+### L7 — Safety and deterministic laboratory actuation
 
 Responsibilities:
 
 - interlocks,
 - deadlines,
 - safe-stop semantics,
-- deterministic scheduling contracts,
-- ownership of actuator execution.
+- deterministic cyclic scheduling contracts,
+- ownership of actuator execution,
+- prevention of GUI/API ownership of time-critical CAN cadence,
+- fail-closed stop on transport, feedback or command-validity faults.
+
+This layer must support proprietary cyclic raw-CAN actuators as a primary use
+case, not only diagnostic actuator tests routed through UDS/J1939.
 
 A generic watchdog is only a primitive. Safety claims require domain-specific
 analysis and evidence.
