@@ -216,5 +216,3 @@ jobs:
           -R "^ecu\.bench\."
           --output-on-failure
           --no-tests=error
-
-[executed on device: ecu (4a17dcf9-64bf-4337-8a46-7d88ad637c0f)]
