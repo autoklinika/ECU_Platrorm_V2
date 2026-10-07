@@ -2,6 +2,7 @@
 
 Data: 2026-10-07
 Gałąź: `stage4.2/sac-parameters-dtc`
+Status: **SOFTWARE + PHYSICAL READ PASS / DTC CLEAR PHYSICAL NOT RUN / DEDICATED CI PENDING**
 Zakres: **BEZ API, BEZ GUI, BEZ zmian CORE V2/Bench Runtime**.
 
 ## Podział odpowiedzialności
@@ -15,17 +16,17 @@ Rewizja DUT Profile: **2** (wcześniejsza identyfikacja na fizycznym SAC
 została przyjęta z rewizją 1). Rewizja 2 deklaruje już oba odbiorniki CAN:
 dokładny `0x18DAF930 / 0x1FFFFFFF` dla UDS i maskowany
 `0x18FEAE30 / 0x03FFFFFF` dla ciśnienia. Ta zmiana nie modyfikuje
-żadnego kontraktu CORE V2 ani Bench Runtime. Rewizja 2 wymaga osobnego
-odczytowego potwierdzenia na fizycznym SAC.
+żadnego kontraktu CORE V2 ani Bench Runtime. Rewizja 2 została potwierdzona dwoma odczytami na fizycznym SAC
+(2026-10-07), z zastrzeżeniem niedostępnych wartości ciśnienia.
 
 ## Funkcje
 
 | Funkcja | Mechanizm | Status dowodowy |
 |---|---|---|
 | Identyfikacja SAC | 22 F190/F188/F192 | Fizycznie PASS w Stage 4.1 |
-| Ciśnienie 1 i 2 | Pasywnie PGN `65198` / `0xFEAE`, SA=`0x30`; bajty 2,3 × 0,08 bar | Poprawny odbiór PGN potwierdzony fizycznie; skala z legacy, pomiar ciśnienia do weryfikacji |
-| Napięcie permanentne i ignition | UDS `22 FE96`, bajty 7–8 i 9–10 odpowiedzi `62 FE 96 ...`, big-endian /10 V | Software/testy PASS, fizyczny odczyt czeka |
-| DTC | UDS `10 03` potem `19 02 FF` (dowolna maska ustawiana jawnie) | Software/testy PASS, fizyczny odczyt czeka |
+| Ciśnienie 1 i 2 | Pasywnie PGN `65198` / `0xFEAE`, SA=`0x30`; bajty 2,3 × 0,08 bar | Fizyczny RX PASS; dwa pola niedostępne (`0xFE`) — skalowanie dla rzeczywistej wartości jeszcze niepotwierdzone |
+| Napięcie permanentne i ignition | UDS `22 FE96`, bajty 7–8 i 9–10 odpowiedzi `62 FE 96 ...`, big-endian /10 V | Fizyczny odczyt PASS: 28,1 V / 28,1 V |
+| DTC | UDS `10 03` potem `19 02 FF` (dowolna maska ustawiana jawnie) | Fizyczny odczyt PASS: 12 rekordów, maska dostępności `0x8B` |
 | Kasowanie DTC | UDS `10 03` potem `14 FF FF FF`; pozytywna odpowiedź `54` | Implementacja/testy offline PASS, **obsługa i warunki OEM nieweryfikowane fizycznie** |
 
 Wszystkie działania z wyjątkiem kasowania DTC są odczytowe, jednak przejście
@@ -119,11 +120,103 @@ czy ECU obsługuje `14 FF FF FF` i jakie ma warunki bezpieczeństwa.
 ## Bramy release
 
 - Program/testy lokalne Stage 4.2: osobno raportować wynik.
-- Test fizyczny odczytu FE96 / PGN / DTC: **PENDING** do wyniku operatora.
-- Fizyczne kasowanie DTC: **NOT RUN / OEM UNVERIFIED**.
+- Test fizyczny odczytu FE96 / PGN / DTC: **PASS** 2026-10-07 (dowód poniżej).
+- Fizyczne kasowanie DTC: **NOT RUN / OEM UNVERIFIED**; zachować 12 odczytanych DTC jako materiał do dalszej analizy.
 - WebGUI/API: **NIE ROBIMY w Stage 4.2**.
 - CI GitHub dla nowego zakresu: wymaga zatwierdzonego workflow; aktualny
   token nie ma uprawnienia edycji workflow. Zmiany CI pozostają w patchu
   `docs/DAF_SAC_STAGE4_CI_WORKFLOW.patch`.
 - CORE V2, Bench Runtime, produkcyjny `main`: **bez zmian**.
 - Merge do `main`: wyłącznie po Twojej wyraźnej zgodzie.
+
+## Physical validation evidence — 2026-10-07
+
+Source: the operator's console output for both commands
+`sudo ./scripts/run_stage42_daf_sac_read_gate.sh parameters` and
+`sudo ./scripts/run_stage42_daf_sac_read_gate.sh dtc` on the real DAF SAC.
+
+**Both operator-triggered physical read gates PASS** at Classic CAN 250 kbit/s,
+normal ACK mode, 29-bit addressing and DUT Profile revision 2.
+The output pasted into the conversation had the two sessions interleaved;
+the measurements below were assigned using their individual
+`Mode: parameters` / `Mode: dtc` and `SAC_STAGE42_READ_GATE` markers.
+
+### Voltage and pressure
+
+- `SAC_FE96_PERMANENT_V=28.1`
+- `SAC_FE96_IGNITION_V=28.1`
+- `SAC_PGN_FEAE_OBSERVED=1`
+- `SAC_PRESSURE1_BAR=UNAVAILABLE`
+- `SAC_PRESSURE2_BAR=UNAVAILABLE`
+- `SAC_BENCH_RESOURCE_LEASES=0`
+- `SAC_STAGE42_READ_PHYSICAL=PASS`
+- `SAC_STAGE42_READ_GATE=PASS mode=parameters`
+- `SAC_STAGE42_LINK_CLEANUP=DOWN`
+
+Measured kernel counters during this single active test:
+RX packets `12805 -> 12810` (+5), TX `12 -> 14` (+2);
+RX errors `0 -> 0`, TX errors `0 -> 0`, no new dropped TX.
+
+Both pressure channels have unavailable raw values, consistent with the earlier
+passively captured PGN payload `FF FF FE FE FF FF FF FF`. This proves correct
+handling of absent sensor values, **not pressure scaling against a measured
+physical pressure**. A known-pressure test will be needed for full calibration.
+
+### DTC read
+
+- `SAC_DTC_AVAILABILITY_MASK=0x8b`
+- `SAC_DTC_COUNT=12`
+- `SAC_BENCH_RESOURCE_LEASES=0`
+- `SAC_STAGE42_READ_PHYSICAL=PASS`
+- `SAC_STAGE42_READ_GATE=PASS mode=dtc`
+- `SAC_STAGE42_LINK_CLEANUP=DOWN`
+
+Received 12 raw three-byte DTC identifiers with their UDS status bytes:
+
+| DTC (hex, 24-bit) | Status byte |
+|---|---|
+| `3A0002` | `0A` |
+| `DFF7E9` | `8B` |
+| `DCF7E9` | `8B` |
+| `DEF7E9` | `8B` |
+| `D9F7E9` | `8B` |
+| `DBF7E9` | `8B` |
+| `DAF7E9` | `8B` |
+| `DDF7E9` | `8B` |
+| `77F9E5` | `8B` |
+| `74F9E3` | `8B` |
+| `08F9E2` | `8B` |
+| `09F9E2` | `89` |
+
+UDS statusAvailabilityMask `0x8B` indicates supported bits 0, 1, 3 and 7.
+Observed status `0x8B`: testFailed, testFailedThisOperationCycle,
+confirmedDTC and warningIndicatorRequested. Status `0x89`: testFailed,
+confirmedDTC and warningIndicatorRequested. Status `0x0A`:
+testFailedThisOperationCycle and confirmedDTC, without current testFailed bit.
+These are ISO-14229 status interpretations only; **no OEM-specific DAF fault
+names, causes or required repair actions have been validated**.
+A `confirmedDTC` does not imply that the fault is currently present.
+
+Measured kernel counters for this single active DTC test:
+RX packets `12814 -> 12829` (+15), TX `14 -> 17` (+3);
+RX errors `0 -> 0`, TX errors `0 -> 0`, no new dropped TX.
+
+Because this read included `10 03` (extended diagnostic session), it changed
+the ECU diagnostic session temporarily. No DTC clearing, write, flash,
+security access or actuator command was executed. Neither diagnostic session
+restoration nor physical DTC clearing is asserted by this test.
+
+The CM5 was independently inspected after these tests:
+`can0 state DOWN / CAN STOPPED`, clocked at the configured 250 kbit/s.
+
+### Acceptance boundary
+
+**Stage 4.2 physical READ gate: PASS** (UDS voltage, presence/NA handling
+of pressure broadcast, DTC query and parsing).
+**DTC clear: NOT TESTED on real ECU.** Do not automatically issue
+`14 FF FF FF` to a unit with 12 recorded DTCs; preserve evidence
+and obtain an explicit operator decision before any destructive trial.
+Full analog pressure scaling and DAF OEM fault-code interpretation remain
+separate follow-up verification tasks.
+
+The VIN was not written into this public evidence file.

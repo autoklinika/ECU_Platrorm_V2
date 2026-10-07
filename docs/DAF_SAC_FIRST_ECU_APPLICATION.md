@@ -3,7 +3,7 @@
 Data: 2026-10-07
 Gałąź: `app/daf-sac-first-ecu`
 Zakres: projekt docelowy oraz implementacja pionowego przekroju Stage 4.0.
-Status: Stage 4.0 i 4.1 PASS; Stage 4.2 = nowe usługi SAC (parametry, DTC read/clear) z testami programowymi; bez API i WebGUI. Fizyczne testy nowych odczytów oraz kasowania DTC nie są jeszcze zaliczone.
+Status: Stage 4.0 i 4.1 PASS; Stage 4.2 = parametry, odczyt i obsługa kasowania DTC, bez API/WebGUI. Odczyty parametrów i DTC potwierdzone fizycznie 2026-10-07; kasowanie DTC pozostaje nieweryfikowane na realnym sterowniku.
 
 ## 1. Nieprzekraczalne granice
 
@@ -77,9 +77,9 @@ Kod aplikacyjny nie wywołuje bezpośrednio `try_send` ani `try_receive`.
 | Identyfikacja SW | TAK, read-only | UDS 0x22 F188 |
 | Identyfikacja HW | TAK, read-only | UDS 0x22 F192 |
 | Stop/Recovery | TAK | Bench lifecycle |
-| Odczyt DTC | TAK — Stage 4.2 w kodzie | UDS 10 03 -> 19 02 FF, wymaga walidacji na SAC |
+| Odczyt DTC | TAK — Stage 4.2 fizyczny PASS | UDS 10 03 → 19 02 FF; 12 rzeczywistych rekordów |
 | Ciśnienie | TAK — Stage 4.2 w kodzie | Pasywne J1939 PGN 65198, wartości FE/FF są niedostępne |
-| Napięcie zasilania | TAK — Stage 4.2 w kodzie | UDS 22 FE96, wymaga walidacji na SAC |
+| Napięcie zasilania | TAK — Stage 4.2 fizyczny PASS | UDS 22 FE96; 28,1 V permanent i 28,1 V ignition |
 | Kasowanie DTC | TAK — testowo i z potwierdzeniem | UDS 10 03 -> 14 FF FF FF, brak zgody na automatyczne fizyczne wykonanie |
 | Testy wyjść/aktywatory | NIE | Brak zweryfikowanej procedury oraz warstwy kontroli energii |
 | Flash/programowanie | NIE | Poza zakresem pierwszego etapu |
@@ -249,6 +249,6 @@ systemowy interfejs `can0` bezpiecznie przełączony do DOWN przez skrypt.
 
 **Decyzja o bramkach:** Stage 4.1 fizyczny test identyfikacji — PASS.
 Nie oznacza to gotowości WebGUI/API ani zatwierdzenia zmian do `main`.
-Pozostaje sprawdzenie GitHub CI i osobna fizyczna walidacja odczytów Stage 4.2.
+Odczyty fizyczne Stage 4.2: PASS (2026-10-07); fizyczne kasowanie DTC: NOT RUN. Dedykowana matryca CI Stage 4.2 wymaga wdrożenia osobnego patcha workflow.
 Nie wykonywano programowania, sterowania wyjściami, kasowania błędów
 ani zmian sesji UDS.
