@@ -369,10 +369,11 @@ Implementation priority after foundation:
 5. ISO 11783 / ISOBUS extended transport — **DONE / ETP technical gate PASS**;
    remaining network/application profiles stay module-gated,
 6. J1939 diagnostics — **DM1/DM2 read-only subset DONE / technical gate PASS**,
-7. ISO-TP revalidation on shared-bus ports,
-8. UDS revalidation over transport-neutral interface,
-9. DoIP,
-10. ISO 11992 / WWH-OBD profiles where applicable.
+7. J1939-22 CAN FD — **FEFF/no-assurance C-PG subset DONE / technical gate PASS**; FBFF, FD.TP and assurance profiles remain gated,
+8. ISO-TP revalidation on shared-bus ports,
+9. UDS revalidation over transport-neutral interface,
+10. DoIP,
+11. ISO 11992 / WWH-OBD profiles where applicable.
 
 This order reflects the actual TRUCK/AGRI/OHV product scope.
 

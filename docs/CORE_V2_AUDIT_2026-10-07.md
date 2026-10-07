@@ -81,7 +81,7 @@ The repository does not contain licensed full SAE/ISO normative texts. Consequen
 
 ## Next protocol priorities
 
-1. SAE J1939-22 CAN FD transport/application adaptation.
+1. SAE J1939-22 CAN FD adaptation — FEFF/no-assurance C-PG subset implemented after this audit; FBFF, FD.TP and assurance profiles remain open.
 2. ISO-TP / DoCAN revalidation on the Core V2 shared-bus runtime.
 3. UDS transport-neutral promotion/revalidation.
 4. Broader J1939-73 read-only diagnostics.

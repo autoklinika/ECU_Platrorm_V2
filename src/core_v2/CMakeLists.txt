@@ -8,6 +8,7 @@ add_library(ecu_core_v2 STATIC
   src/network_manager.cpp
   src/request.cpp
   src/acknowledgment.cpp
+  src/fd_contained_pg.cpp
   src/diagnostics.cpp
   src/transport_protocol.cpp
   src/extended_transport.cpp
