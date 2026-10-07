@@ -10,6 +10,7 @@ option(ECU_BUILD_TESTS "Build ECU Platform V2 tests" ON)
 option(ECU_BUILD_LEGACY_CORE "Build legacy Core" ON)
 option(ECU_BUILD_CORE_V2 "Build rebuilt TRUCK/AGRI/OHV Core V2" ON)
 option(ECU_BUILD_BENCH_RUNTIME "Build DUT-neutral Bench Runtime" ON)
+option(ECU_BUILD_DUT_PROFILE "Build Stage 3 DUT Profile foundation" OFF)
 option(ECU_BUILD_SAC_MODULE "Build SAC ECU module" ON)
 option(
   ECU_BUILD_LINUX_SOCKETCAN
@@ -45,6 +46,14 @@ if(ECU_BUILD_BENCH_RUNTIME)
       "Bench Runtime requires ECU::core_v2; enable ECU_BUILD_CORE_V2 or disable ECU_BUILD_BENCH_RUNTIME")
   endif()
   add_subdirectory(src/bench)
+endif()
+
+if(ECU_BUILD_DUT_PROFILE)
+  if(NOT TARGET ECU::bench)
+    message(FATAL_ERROR
+      "DUT Profile foundation requires ECU::bench; enable ECU_BUILD_BENCH_RUNTIME or disable ECU_BUILD_DUT_PROFILE")
+  endif()
+  add_subdirectory(src/dut_profile)
 endif()
 
 if(ECU_BUILD_SAC_MODULE)
