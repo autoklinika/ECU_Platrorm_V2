@@ -13,7 +13,10 @@ Status:
 ISO-TP is implemented above the Core V2 shared CAN runtime rather than owning a
 physical CAN driver.
 
-- RX arrives through `ICanFrameSink::on_can_frame()`.
+- A header-only `IsoTpCanFrameSinkAdapter` implements `ICanFrameSink` and
+  forwards routed RX to the non-polymorphic ISO-TP state machine.
+- This keeps compiler-specific pure-virtual runtime dependencies out of the
+  Core V2 static library.
 - The RX callback performs bounded local state transitions only.
 - The callback never calls `CanBusRuntime::send()` or `poll()`.
 - Flow Control is queued in one bounded deferred-control slot.

@@ -77,8 +77,11 @@ Resolution: added a read-only PGN 59392 Acknowledgment decoder covering ACK, NAC
 
 ### A-11 — ISO-TP still depended on the legacy direct CAN interface
 
-Resolution: revalidated ISO-TP on the Core V2 shared-bus contract. RX is routed through
-`ICanFrameSink`; callbacks are bounded and never transmit. Flow Control and data
+Resolution: revalidated ISO-TP on the Core V2 shared-bus contract. A header-only
+`IsoTpCanFrameSinkAdapter` receives routed `ICanFrameSink` traffic and forwards it
+to the non-polymorphic state machine; callbacks are bounded and never transmit.
+This keeps compiler-specific pure-virtual runtime support out of the Core static
+library. Flow Control and data
 TX are deferred to `service()` through `CanBusRuntime`, with at most one CAN TX
 attempt per service call. The V2 implementation uses fixed 4095-byte storage,
 supports Classic CAN and CAN-FD, 11-bit/29-bit CAN identifiers, Single/First/

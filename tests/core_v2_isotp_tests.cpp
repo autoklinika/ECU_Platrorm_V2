@@ -248,7 +248,7 @@ class TestDriver final : public transport::ICanDriver,
 
 [[nodiscard]] bool start_bus(
     transport::CanBusRuntime& bus,
-    IsoTpEndpoint& endpoint,
+    transport::ICanFrameSink& sink,
     const IsoTpAddress address,
     const bool fd) noexcept {
   transport::CanFilter filter{};
@@ -268,7 +268,7 @@ class TestDriver final : public transport::ICanDriver,
   const auto subscription =
       bus.subscribe(
           filter,
-          endpoint,
+          sink,
           {time::MonotonicDuration{100000}});
   if (subscription.status !=
       transport::CanSubscriptionStatus::subscribed) {
@@ -411,12 +411,14 @@ int main() {
     auto config = classic_config();
     IsoTpEndpoint a{address_a(), config};
     IsoTpEndpoint b{address_b(), config};
+    IsoTpCanFrameSinkAdapter sink_a{a};
+    IsoTpCanFrameSinkAdapter sink_b{b};
     transport::CanBusRuntime bus_a{driver_a};
     transport::CanBusRuntime bus_b{driver_b};
 
     failures += require(
-        start_bus(bus_a, a, address_a(), false) &&
-            start_bus(bus_b, b, address_b(), false),
+        start_bus(bus_a, sink_a, address_a(), false) &&
+            start_bus(bus_b, sink_b, address_b(), false),
         "classic runtimes start");
 
     const std::vector<std::byte> payload{
@@ -458,11 +460,13 @@ int main() {
 
     IsoTpEndpoint a{address_a(), tx_config};
     IsoTpEndpoint b{address_b(), rx_config};
+    IsoTpCanFrameSinkAdapter sink_a{a};
+    IsoTpCanFrameSinkAdapter sink_b{b};
     transport::CanBusRuntime bus_a{driver_a};
     transport::CanBusRuntime bus_b{driver_b};
     failures += require(
-        start_bus(bus_a, a, address_a(), false) &&
-            start_bus(bus_b, b, address_b(), false),
+        start_bus(bus_a, sink_a, address_a(), false) &&
+            start_bus(bus_b, sink_b, address_b(), false),
         "classic MF runtimes start");
 
     std::vector<std::byte> payload(30U);
@@ -515,11 +519,13 @@ int main() {
     auto config = fd_config();
     IsoTpEndpoint a{address_a(), config};
     IsoTpEndpoint b{address_b(), config};
+    IsoTpCanFrameSinkAdapter sink_a{a};
+    IsoTpCanFrameSinkAdapter sink_b{b};
     transport::CanBusRuntime bus_a{driver_a};
     transport::CanBusRuntime bus_b{driver_b};
     failures += require(
-        start_bus(bus_a, a, address_a(), true) &&
-            start_bus(bus_b, b, address_b(), true),
+        start_bus(bus_a, sink_a, address_a(), true) &&
+            start_bus(bus_b, sink_b, address_b(), true),
         "FD SF runtimes start");
 
     std::vector<std::byte> payload(20U);
@@ -574,11 +580,13 @@ int main() {
 
     IsoTpEndpoint a{address_a(), tx_config};
     IsoTpEndpoint b{address_b(), rx_config};
+    IsoTpCanFrameSinkAdapter sink_a{a};
+    IsoTpCanFrameSinkAdapter sink_b{b};
     transport::CanBusRuntime bus_a{driver_a};
     transport::CanBusRuntime bus_b{driver_b};
     failures += require(
-        start_bus(bus_a, a, address_a(), true) &&
-            start_bus(bus_b, b, address_b(), true),
+        start_bus(bus_a, sink_a, address_a(), true) &&
+            start_bus(bus_b, sink_b, address_b(), true),
         "FD MF runtimes start");
 
     std::vector<std::byte> payload(180U);
@@ -637,9 +645,10 @@ int main() {
         std::chrono::milliseconds{10};
 
     IsoTpEndpoint endpoint{address_a(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_a(), false),
+        start_bus(bus, sink, address_a(), false),
         "timeout runtime starts");
 
     std::vector<std::byte> payload(
@@ -672,9 +681,10 @@ int main() {
     config.flow_control_timeout =
         std::chrono::milliseconds{10};
     IsoTpEndpoint endpoint{address_a(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_a(), false),
+        start_bus(bus, sink, address_a(), false),
         "late-FC runtime starts");
 
     std::vector<std::byte> payload(
@@ -708,9 +718,10 @@ int main() {
     config.consecutive_frame_timeout =
         std::chrono::milliseconds{10};
     IsoTpEndpoint endpoint{address_b(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_b(), false),
+        start_bus(bus, sink, address_b(), false),
         "late-CF runtime starts");
 
     driver.inject(
@@ -744,9 +755,10 @@ int main() {
     auto config = classic_config();
     config.rx_block_size = 1U;
     IsoTpEndpoint endpoint{address_b(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_b(), false),
+        start_bus(bus, sink, address_b(), false),
         "early-CF runtime starts");
 
     driver.inject(
@@ -773,9 +785,10 @@ int main() {
     TestDriver driver{clock, 10U};
     auto config = classic_config();
     IsoTpEndpoint endpoint{address_b(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_b(), false),
+        start_bus(bus, sink, address_b(), false),
         "sequence runtime starts");
 
     driver.inject(
@@ -826,11 +839,13 @@ int main() {
 
     IsoTpEndpoint a{ext_a, config};
     IsoTpEndpoint b{ext_b, config};
+    IsoTpCanFrameSinkAdapter sink_a{a};
+    IsoTpCanFrameSinkAdapter sink_b{b};
     transport::CanBusRuntime bus_a{driver_a};
     transport::CanBusRuntime bus_b{driver_b};
     failures += require(
-        start_bus(bus_a, a, ext_a, false) &&
-            start_bus(bus_b, b, ext_b, false),
+        start_bus(bus_a, sink_a, ext_a, false) &&
+            start_bus(bus_b, sink_b, ext_b, false),
         "29-bit runtimes start");
 
     const std::vector<std::byte> payload{
@@ -860,9 +875,10 @@ int main() {
     TestDriver driver{clock, 13U};
     auto config = classic_config();
     IsoTpEndpoint endpoint{address_a(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_a(), false),
+        start_bus(bus, sink, address_a(), false),
         "overflow runtime starts");
 
     std::vector<std::byte> payload(
@@ -894,9 +910,10 @@ int main() {
     auto config = classic_config();
     config.max_wait_frames = 1U;
     IsoTpEndpoint endpoint{address_a(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_a(), false),
+        start_bus(bus, sink, address_a(), false),
         "wait-frame runtime starts");
 
     std::vector<std::byte> payload(
@@ -947,11 +964,13 @@ int main() {
 
     IsoTpEndpoint a{address_a(), tx_config};
     IsoTpEndpoint b{address_b(), rx_config};
+    IsoTpCanFrameSinkAdapter sink_a{a};
+    IsoTpCanFrameSinkAdapter sink_b{b};
     transport::CanBusRuntime bus_a{driver_a};
     transport::CanBusRuntime bus_b{driver_b};
     failures += require(
-        start_bus(bus_a, a, address_a(), false) &&
-            start_bus(bus_b, b, address_b(), false),
+        start_bus(bus_a, sink_a, address_a(), false) &&
+            start_bus(bus_b, sink_b, address_b(), false),
         "4095-byte runtimes start");
 
     std::vector<std::byte> payload(kMaxPayloadSize);
@@ -988,9 +1007,10 @@ int main() {
     TestDriver driver{clock, 17U};
     auto config = classic_config();
     IsoTpEndpoint endpoint{address_b(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_b(), false),
+        start_bus(bus, sink, address_b(), false),
         "extended-length rejection runtime starts");
 
     auto frame = classic_frame(
@@ -1037,9 +1057,10 @@ int main() {
     TestDriver driver{clock, 18U};
     auto config = classic_config();
     IsoTpEndpoint endpoint{address_b(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_b(), false),
+        start_bus(bus, sink, address_b(), false),
         "time-domain separation runtime starts");
 
     clock.set(time::MonotonicTime{1000000});
@@ -1065,9 +1086,10 @@ int main() {
     TestDriver driver{clock, 19U};
     auto config = classic_config();
     IsoTpEndpoint endpoint{address_b(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_b(), false),
+        start_bus(bus, sink, address_b(), false),
         "RX monotonicity runtime starts");
 
     const auto sf = classic_frame(
@@ -1091,9 +1113,10 @@ int main() {
     TestDriver driver{clock, 20U};
     auto config = classic_config();
     IsoTpEndpoint endpoint{address_a(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_a(), false),
+        start_bus(bus, sink, address_a(), false),
         "service monotonicity runtime starts");
 
     failures += require(
@@ -1121,9 +1144,10 @@ int main() {
     TestDriver driver{clock, 21U};
     auto config = classic_config();
     IsoTpEndpoint endpoint{address_b(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_b(), false),
+        start_bus(bus, sink, address_b(), false),
         "malformed-frame runtime starts");
 
     auto malformed = classic_frame(
@@ -1144,9 +1168,10 @@ int main() {
     TestDriver driver{clock, 22U};
     auto config = classic_config();
     IsoTpEndpoint endpoint{address_a(), config};
+    IsoTpCanFrameSinkAdapter sink{endpoint};
     transport::CanBusRuntime bus{driver};
     failures += require(
-        start_bus(bus, endpoint, address_a(), false),
+        start_bus(bus, sink, address_a(), false),
         "would-block runtime starts");
 
     const std::vector<std::byte> payload{

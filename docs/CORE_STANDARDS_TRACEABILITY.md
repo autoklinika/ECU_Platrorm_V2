@@ -112,7 +112,7 @@ Not inherited by this PASS:
 ### ISO-TP / DoCAN
 Core V2 now contains an engineering-gate ISO-TP endpoint on the shared CAN
 runtime:
-- routed RX through `ICanFrameSink`; protocol callbacks never transmit,
+- routed RX through a header-only `ICanFrameSink` adapter; the protocol state machine remains non-polymorphic and callbacks never transmit,
 - deferred centralized TX through `CanBusRuntime`,
 - fixed 4095-byte bounded PDU storage with no dynamic allocation,
 - Classic CAN and CAN-FD Single/Multi-Frame paths,

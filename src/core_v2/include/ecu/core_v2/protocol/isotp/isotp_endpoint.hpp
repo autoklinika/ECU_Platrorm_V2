@@ -68,7 +68,7 @@ struct IsoTpReceiveResult {
     std::uint8_t encoded,
     bool& valid) noexcept;
 
-class IsoTpEndpoint final : public transport::ICanFrameSink {
+class IsoTpEndpoint final {
  public:
   IsoTpEndpoint(
       IsoTpAddress address,
@@ -89,7 +89,7 @@ class IsoTpEndpoint final : public transport::ICanFrameSink {
   // RX callback only mutates bounded local state and may queue one deferred
   // Flow Control frame. It never calls runtime.send() or runtime.poll().
   void on_can_frame(
-      const transport::ReceivedCanFrame& frame) noexcept override;
+      const transport::ReceivedCanFrame& frame) noexcept;
 
   [[nodiscard]] bool tx_busy() const noexcept;
   [[nodiscard]] IsoTpStatus last_tx_status() const noexcept;
@@ -195,6 +195,24 @@ class IsoTpEndpoint final : public transport::ICanFrameSink {
   time::MonotonicTime last_receive_time_{0};
   bool has_last_service_time_{false};
   bool has_last_receive_time_{false};
+};
+
+// Integration adapter intentionally stays header-only. Keeping the protocol
+// state machine itself non-polymorphic prevents compiler-specific pure-virtual
+// runtime dependencies from leaking into the Core V2 static library.
+class IsoTpCanFrameSinkAdapter final : public transport::ICanFrameSink {
+ public:
+  explicit IsoTpCanFrameSinkAdapter(
+      IsoTpEndpoint& endpoint) noexcept
+      : endpoint_(endpoint) {}
+
+  void on_can_frame(
+      const transport::ReceivedCanFrame& frame) noexcept override {
+    endpoint_.on_can_frame(frame);
+  }
+
+ private:
+  IsoTpEndpoint& endpoint_;
 };
 
 }  // namespace ecu::core::v2::protocol::isotp
