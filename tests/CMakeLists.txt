@@ -985,3 +985,40 @@ if(TARGET ECU::dut_profile)
       ecu_dut_profile_registry_tests
   )
 endif()
+
+
+if(TARGET ECU::daf_sac_profile)
+  add_executable(
+    ecu_daf_sac_profile_tests
+    daf_sac_profile_tests.cpp
+  )
+  target_link_libraries(
+    ecu_daf_sac_profile_tests
+    PRIVATE ECU::daf_sac_profile
+  )
+  set_target_properties(
+    ecu_daf_sac_profile_tests
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(MSVC)
+    target_compile_options(
+      ecu_daf_sac_profile_tests
+      PRIVATE /W4 /WX
+    )
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_daf_sac_profile_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+
+  add_test(
+    NAME ecu.dut_profile.daf_sac
+    COMMAND ecu_daf_sac_profile_tests
+  )
+
+  add_custom_target(
+    ecu_daf_sac_profile_tests_target
+    DEPENDS ecu_daf_sac_profile_tests
+  )
+endif()

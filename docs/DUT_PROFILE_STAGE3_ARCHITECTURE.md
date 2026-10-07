@@ -262,13 +262,24 @@ a profile definition does not introduce hidden driver/protocol ownership.
 
 ### 3.3 — Real proof profiles
 
-Only after 3.0/3.1 are accepted:
+Proof order was revised on 2026-10-07 to start with the physically available
+DAF SAC before the actuator-class proof.
 
-1. MAN Sonceboz EGR actuator proof from retained evidence,
-2. one ECU-class proof using existing CAN / ISO-TP / UDS or J1939 foundations.
+1. **3.3A — DAF SAC ECU-class proof** using retained, previously verified
+   29-bit CAN / ISO-TP / UDS evidence. The initial proof is read-oriented and
+   covers deterministic profile selection plus VIN/software/hardware
+   identification.
+2. **3.3B — actuator/cyclic-CAN proof** (MAN Sonceboz EGR or another
+   evidence-backed actuator available on the bench).
 
-The two proof cases will test whether the common contract is genuinely
-DUT-neutral before further devices are added.
+The first proof validates the ECU diagnostic path without changing Core V2 or
+Bench Runtime. The second proof is still required to validate the distinct
+cyclic-actuator/watchdog/safe-stop path before Stage 3 can be considered proven
+across both principal DUT classes.
+
+The same rule applies to later ECU, EGR, VGT and other DUTs: device-specific
+needs are solved in DUT Profile / Bench Runtime first. Core V2 is revised only
+for a demonstrated generic architectural gap.
 
 ## 12. Explicit non-goals
 

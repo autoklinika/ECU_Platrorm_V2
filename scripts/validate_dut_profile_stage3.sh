@@ -12,6 +12,7 @@ echo "[ECU V2] DUT Profile Stage 3 foundation validation"
 echo
 echo "=== DUT Profile architecture ==="
 python3 "$ROOT_DIR/scripts/check_dut_profile_architecture.py"
+python3 "$ROOT_DIR/scripts/check_daf_sac_profile_architecture.py"
 
 configure_profile() {
   local type="$1"
@@ -28,6 +29,7 @@ configure_profile() {
     -DECU_BUILD_CORE_V2=ON \
     -DECU_BUILD_BENCH_RUNTIME=ON \
     -DECU_BUILD_DUT_PROFILE=ON \
+    -DECU_BUILD_DAF_SAC_PROFILE=ON \
     "$@"
 }
 
@@ -37,7 +39,7 @@ build_and_test_profile() {
   shift 2
 
   configure_profile "$type" "$dir" "$@"
-  cmake --build "$dir" --target ecu_dut_profile_tests
+  cmake --build "$dir" --target ecu_dut_profile_tests ecu_daf_sac_profile_tests_target
   ctest --test-dir "$dir" \
     -R '^ecu\.dut_profile\.' \
     --output-on-failure \
@@ -61,7 +63,7 @@ echo "=== DUT Profile ASAN/UBSAN ==="
 configure_profile Debug "$SAN_DIR" \
   -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
-cmake --build "$SAN_DIR" --target ecu_dut_profile_tests
+cmake --build "$SAN_DIR" --target ecu_dut_profile_tests ecu_daf_sac_profile_tests_target
 ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=1}" \
 UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1}" \
   ctest --test-dir "$SAN_DIR" \
