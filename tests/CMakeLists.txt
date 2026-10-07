@@ -760,3 +760,40 @@ if(TARGET ECU::core)
     endif()
   endif()
 endif()
+
+
+if(TARGET ECU::bench)
+  add_executable(
+    ecu_bench_session_tests
+    bench_session_tests.cpp
+  )
+  target_link_libraries(
+    ecu_bench_session_tests
+    PRIVATE ECU::bench
+  )
+  set_target_properties(
+    ecu_bench_session_tests
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(MSVC)
+    target_compile_options(
+      ecu_bench_session_tests
+      PRIVATE /W4 /WX
+    )
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_bench_session_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+
+  add_test(
+    NAME ecu.bench.session
+    COMMAND ecu_bench_session_tests
+  )
+
+  add_custom_target(
+    ecu_bench_tests
+    DEPENDS ecu_bench_session_tests
+  )
+endif()

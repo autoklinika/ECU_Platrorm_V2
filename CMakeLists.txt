@@ -9,6 +9,7 @@ project(
 option(ECU_BUILD_TESTS "Build ECU Platform V2 tests" ON)
 option(ECU_BUILD_LEGACY_CORE "Build legacy Core" ON)
 option(ECU_BUILD_CORE_V2 "Build rebuilt TRUCK/AGRI/OHV Core V2" ON)
+option(ECU_BUILD_BENCH_RUNTIME "Build DUT-neutral Bench Runtime" ON)
 option(ECU_BUILD_SAC_MODULE "Build SAC ECU module" ON)
 option(
   ECU_BUILD_LINUX_SOCKETCAN
@@ -36,6 +37,14 @@ endif()
 
 if(ECU_BUILD_CORE_V2)
   add_subdirectory(src/core_v2)
+endif()
+
+if(ECU_BUILD_BENCH_RUNTIME)
+  if(NOT TARGET ECU::core_v2)
+    message(FATAL_ERROR
+      "Bench Runtime requires ECU::core_v2; enable ECU_BUILD_CORE_V2 or disable ECU_BUILD_BENCH_RUNTIME")
+  endif()
+  add_subdirectory(src/bench)
 endif()
 
 if(ECU_BUILD_SAC_MODULE)

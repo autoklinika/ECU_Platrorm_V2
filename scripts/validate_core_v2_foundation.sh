@@ -80,7 +80,7 @@ configure_core_only() {
   shift 2
 
   rm -rf "$dir"
-  cmake -S "$ROOT_DIR" -B "$dir" -G Ninja     -DCMAKE_BUILD_TYPE="$type"     -DECU_BUILD_TESTS=ON     -DECU_BUILD_LEGACY_CORE=OFF     -DECU_BUILD_SAC_MODULE=OFF     -DECU_BUILD_LINUX_SOCKETCAN=OFF     -DECU_BUILD_CORE_V2=ON     "$@"
+  cmake -S "$ROOT_DIR" -B "$dir" -G Ninja     -DCMAKE_BUILD_TYPE="$type"     -DECU_BUILD_TESTS=ON     -DECU_BUILD_LEGACY_CORE=OFF     -DECU_BUILD_SAC_MODULE=OFF     -DECU_BUILD_LINUX_SOCKETCAN=OFF     -DECU_BUILD_CORE_V2=ON     -DECU_BUILD_BENCH_RUNTIME=OFF     "$@"
 }
 
 build_and_test() {
