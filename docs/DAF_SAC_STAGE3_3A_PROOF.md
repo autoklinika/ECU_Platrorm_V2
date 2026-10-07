@@ -2,7 +2,7 @@
 
 Date: 2026-10-07
 Branch: `dut-profile/proof-profiles`
-Status: **PREVIOUS SOFTWARE + CI PASS / FIRST 500 KBIT/S ACTIVE READ NO RESPONSE / PASSIVE CAPTURE RERUN REQUIRED**
+Status: **PASSIVE CAN RX CONFIRMED AT 250 KBIT/S / STAGE 3.3A ACTIVE UDS PROOF PENDING**
 
 ## Scope
 
@@ -182,8 +182,40 @@ the link is brought UP, an 8-second capture window, detection of premature
 monitor termination, kernel RX/TX deltas, and raw output excerpts. It continues
 to transmit no frames and leaves `can0` DOWN on exit.
 
-Repeat the passive scan before selecting a bitrate for another UDS request.
-No change to Core V2 or Bench Runtime is justified by this defect.
+The repeat passive scan was executed successfully on 2026-10-07 with the corrected capture tool:
+
+| Metric (8 s each) | 250 kbit/s | 500 kbit/s |
+|---|---:|---:|
+| Captured CAN data frames | 12597 | 0 |
+| Kernel RX packets delta | 12591 | 0 |
+| Kernel RX bytes delta | 100760 | 0 |
+| Kernel RX errors delta | 0 | 0 |
+| Kernel TX packets delta | 0 | 0 |
+| CAN RX/TX error counters | 0/0 | 0/0 |
+| Capture mismatch flag | NO | NO |
+
+At 250 kbit/s the capture contains repeated extended frames:
+
+`0x18FEAE30 [8] FF FF FE FE FF FF FF FF`
+
+J1939 identifier breakdown: priority 6, PGN `0xFEAE`, source address
+`0x30`. This matches the anticipated SAC diagnostic destination address, but
+source identity has not been independently authenticated.
+
+Physical read-only CAN reception at 250 kbit/s is now **PASS**; no correct
+frames were captured at 500 kbit/s. The recorded high repeat rate (~1,575
+frames/s) is consistent with possible missing-ACK retransmissions on a bench
+with the only receiver in LISTEN-ONLY mode; application periodicity is not
+established. Observe behavior in normal/ACK mode separately.
+
+The next proof is the existing bounded, read-only Core V2 request with the
+**250000** bitrate profile, using:
+
+`sudo ./scripts/run_stage3_3a_daf_sac_core_v2_gate.sh 250000`
+
+The gate sends only UDS `0x22` requests for F190, F188, F192 and returns can0
+DOWN on exit. It is not an already completed physical UDS test. Do not change
+Core V2 or Bench Runtime based solely on the preceding passive scan.
 
 ## Gate decision
 
