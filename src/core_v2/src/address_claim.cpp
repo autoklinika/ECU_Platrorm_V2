@@ -1,5 +1,7 @@
 #include "ecu/core_v2/protocol/j1939/address_claim.hpp"
 
+#include "ecu/core_v2/protocol/j1939/request.hpp"
+
 #include <limits>
 
 namespace ecu::core::v2::protocol::j1939 {
@@ -117,10 +119,11 @@ AddressClaimStep AddressClaimEngine::on_frame(
 
   if (pgn == kRequestPgn &&
       addressed_to_us_or_global(fields)) {
-    if (frame.frame.length != 3U) {
+    RequestMessage request{};
+    if (!decode_request(frame.frame, request)) {
       return {AddressClaimStatus::invalid_argument};
     }
-    if (!is_request_for_address_claim(frame.frame, fields)) {
+    if (request.requested_pgn != kAddressClaimedPgn) {
       return {AddressClaimStatus::no_action};
     }
     if (!observe_time(frame.timestamp)) {
@@ -454,27 +457,6 @@ bool AddressClaimEngine::build_claim_frame(
     frame.payload[i] = payload[i];
   }
   return true;
-}
-
-bool AddressClaimEngine::is_request_for_address_claim(
-    const transport::CanFrame& frame,
-    const IdentifierFields& fields) const noexcept {
-  if (!addressed_to_us_or_global(fields) ||
-      frame.length != 3U) {
-    return false;
-  }
-
-  const auto requested =
-      static_cast<std::uint32_t>(
-          std::to_integer<std::uint8_t>(frame.payload[0])) |
-      (static_cast<std::uint32_t>(
-           std::to_integer<std::uint8_t>(frame.payload[1]))
-       << 8U) |
-      (static_cast<std::uint32_t>(
-           std::to_integer<std::uint8_t>(frame.payload[2]))
-       << 16U);
-
-  return requested == kAddressClaimedPgn;
 }
 
 bool AddressClaimEngine::addressed_to_us_or_global(

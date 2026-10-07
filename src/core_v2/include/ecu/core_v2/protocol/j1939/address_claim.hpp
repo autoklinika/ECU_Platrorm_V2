@@ -115,9 +115,6 @@ class AddressClaimEngine {
   [[nodiscard]] bool build_claim_frame(
       std::uint8_t source_address,
       transport::CanFrame& frame) const noexcept;
-  [[nodiscard]] bool is_request_for_address_claim(
-      const transport::CanFrame& frame,
-      const IdentifierFields& fields) const noexcept;
   [[nodiscard]] bool addressed_to_us_or_global(
       const IdentifierFields& fields) const noexcept;
   [[nodiscard]] AddressClaimStep schedule_cannot_claim_response(

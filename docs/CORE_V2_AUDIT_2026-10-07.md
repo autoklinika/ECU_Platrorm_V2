@@ -67,6 +67,10 @@ Resolution: traceability and checkpoint documentation updated.
 
 Resolution: added read-only J1939-73 DM1/DM2 parsing for single-frame and Classical TP-reassembled messages. Current conversion-method DTC decoding is bounded; unsupported legacy conversion method fails closed; no DTC-clear/control operations were introduced.
 
+### A-09 — Request framing duplicated inside Address Claim
+
+Resolution: introduced one generic strict PGN 59904 Request codec with canonical requested-PGN validation. Address Claim now consumes that codec and DM2/on-request diagnostics can use the same boundary.
+
 ## Open items that are not engineering defects
 
 The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939/81, SAE J1939-73 or ISO 11783-6. Independent interoperability evidence is also required before formal protocol-conformance PASS.

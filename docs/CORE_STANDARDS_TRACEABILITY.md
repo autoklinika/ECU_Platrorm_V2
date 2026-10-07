@@ -149,6 +149,7 @@ Mandatory baseline:
 Core V2 now has a technical-gate implementation of:
 - 29-bit identifier/PGN/address model,
 - complete 64-bit NAME representation,
+- generic strict PGN 59904 Request encode/decode,
 - Address Claim subset,
 - opt-in Commanded Address handling after TP reassembly,
 - Classical TP BAM and RTS/CTS receive/transmit state machines,

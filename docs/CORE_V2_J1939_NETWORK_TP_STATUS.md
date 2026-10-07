@@ -35,7 +35,9 @@ It does not broaden product scope to passenger-car-specific behavior.
 ### Address Claim subset
 
 - PGN 60928 Address Claimed / Cannot Claim,
-- PGN 59904 Request for Address Claimed with exact 3-byte requested-PGN payload,
+- generic PGN 59904 Request codec with exact 3-byte little-endian requested PGN,
+- canonical requested-PGN validation for global and destination-specific requests,
+- Request for Address Claimed built/decoded through the shared Request codec,
 - PGN 65240 Commanded Address after Classical TP reassembly, opt-in by policy,
 - Commanded Address targeting by 64-bit NAME with a 9-byte NAME + new-SA payload,
 - preferred address,
@@ -106,6 +108,7 @@ destructor dependencies from deterministic Core.
 Executable gates:
 
 - `ecu.core_v2.j1939.network`
+- `ecu.core_v2.j1939.request`
 - `ecu.core_v2.j1939.tp`
 - `ecu.core_v2.j1939.tp_tx`
 - `ecu.core_v2.j1939.tp_e2e`
