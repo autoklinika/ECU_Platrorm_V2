@@ -3,7 +3,7 @@
 Data: 2026-10-07
 Gałąź: `app/daf-sac-first-ecu`
 Zakres: projekt docelowy oraz implementacja pionowego przekroju Stage 4.0.
-Status: implementacja i testy automatyczne; fizyczny Bench Runtime proof (4.1) wymaga oddzielnego uruchomienia; WebGUI/API (4.2) nie są jeszcze podłączone.
+Status: Stage 4.0 lokalne testy PASS; Stage 4.1 fizyczny Bench Runtime proof PASS na DAF SAC; GitHub CI dla gałęzi pozostaje osobną bramką; WebGUI/API (4.2) nie są jeszcze podłączone.
 
 ## 1. Nieprzekraczalne granice
 
@@ -172,11 +172,12 @@ Stage 4.0 jednostkowo weryfikuje:
 - kompilację i testy Debug/Release/Generic/ASan-UBSan;
 - odrębną budowę Linux SocketCAN runnera, bez automatycznego TX w CI.
 
-Stage 4.1: operator uruchamia fizyczny proof:
+Stage 4.1: operator uruchomił fizyczny proof:
 `sudo ./scripts/run_stage4_daf_sac_bench_gate.sh`.
-Runner weryfikuje docelową ścieżkę z Bench oraz `can0` 250000.
-Nie wykonuje write, diagnostic session control, flash ani output testu.
-Skrypt zostawia CAN DOWN także przy błędzie.
+**PHYSICAL PASS 2026-10-07** — szczegółowe, zanonimizowane dowody poniżej.
+Runner potwierdził docelową ścieżkę z Bench oraz `can0` 250000.
+Nie wykonano write, diagnostic session control, flash ani output testu.
+Skrypt przywrócił CAN DOWN, co sprawdzono niezależnie po uruchomieniu.
 
 Stage 4.2: osobny backend API i rzeczywisty interaktywny WebGUI;
 przed udostępnieniem trzeba domknąć auth, DTO, CSRF/origin,
@@ -210,3 +211,42 @@ Lokalne bramki `bash scripts/validate_daf_sac_application.sh` są
 dostępne od razu. Zgodność całej gałęzi z nowymi jobami GitHub CI
 pozostaje niezatwierdzona do czasu autoryzowanego zastosowania patcha
 i pozytywnego przebiegu. Nie scalać do `main` bez oddzielnej zgody.
+
+## 10. Stage 4.1 — zapis wyniku fizycznego Bench Runtime (PASS)
+
+Data pomiaru: 2026-10-07; źródło: wynik operatora z rzeczywistego DAF SAC
+podłączonego do ECU Platform V2 na stanowisku. Fizyczny runner:
+`sudo ./scripts/run_stage4_daf_sac_bench_gate.sh`.
+
+- `SAC_BENCH_APP=START profile=0xdaf00025 bitrate=250000 tx=0x18da30f9 rx=0x18daf930 service=read-only-0x22`
+- `SAC_BENCH_VIN_LAST4=1236` (pełny VIN nie jest publikowany)
+- `SAC_BENCH_SOFTWARE=1973214`
+- `SAC_BENCH_HARDWARE=K075169` (spacje końcowe pominięte)
+- `SAC_BENCH_RESOURCE_LEASES=0`
+- `SAC_BENCH_APP_PHYSICAL=PASS CORE_V2_BENCH_DUT_PROFILE`
+- `DAF_SAC_STAGE4_BENCH_PHYSICAL_GATE=PASS`
+- `STAGE4_CAN_LINK_AFTER=DOWN`; niezależna kontrola zdalna:
+  `can0 state DOWN, CAN STOPPED`
+
+Kontrola CAN przed i po aktywnej próbie:
+
+| Miara | Przed | Po (przed DOWN) | Różnica |
+|---|---:|---:|---:|
+| RX frames | 12781 | 12801 | +20 |
+| RX bytes | 102221 | 102354 | +133 |
+| TX frames | 6 | 12 | +6 |
+| TX bytes | 21 | 42 | +21 |
+| RX errors | 0 | 0 | 0 |
+| TX errors | 0 | 0 | 0 |
+| TX dropped (total) | 1 | 1 | 0 |
+
+Interfejs w trakcie próby: Classic CAN / 29-bit / 250 kbit/s, normal mode
+(z ACK), ERROR-ACTIVE bez bus-off, liczniki błędów CAN TX 0, RX 0.
+Zakończenie: zwolnione wszystkie logiczne zasoby Bench i zamknięta sesja CAN;
+systemowy interfejs `can0` bezpiecznie przełączony do DOWN przez skrypt.
+
+**Decyzja o bramkach:** Stage 4.1 fizyczny test identyfikacji — PASS.
+Nie oznacza to gotowości WebGUI/API ani zatwierdzenia zmian do `main`.
+Pozostaje sprawdzenie GitHub CI i osobna walidacja Stage 4.2.
+Nie wykonywano programowania, sterowania wyjściami, kasowania błędów
+ani zmian sesji UDS.
