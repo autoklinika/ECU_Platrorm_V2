@@ -15,8 +15,13 @@ option(ECU_BUILD_DAF_SAC_PROFILE "Build Stage 3.3 DAF SAC proof profile" OFF)
 option(ECU_BUILD_SAC_MODULE "Build SAC ECU module" ON)
 option(
   ECU_BUILD_LINUX_SOCKETCAN
-  "Build Linux SocketCAN platform adapter"
+  "Build legacy Linux SocketCAN platform adapter"
   ON
+)
+option(
+  ECU_BUILD_LINUX_V2_PLATFORM
+  "Build Linux Core V2 platform adapters"
+  OFF
 )
 
 if(ECU_BUILD_LEGACY_CORE)
@@ -74,6 +79,17 @@ if(
   AND CMAKE_SYSTEM_NAME STREQUAL "Linux"
 )
   add_subdirectory(src/platform/linux/socketcan)
+endif()
+
+if(
+  ECU_BUILD_LINUX_V2_PLATFORM
+  AND CMAKE_SYSTEM_NAME STREQUAL "Linux"
+)
+  if(NOT TARGET ECU::core_v2)
+    message(FATAL_ERROR
+      "Linux Core V2 platform requires ECU::core_v2; enable ECU_BUILD_CORE_V2 or disable ECU_BUILD_LINUX_V2_PLATFORM")
+  endif()
+  add_subdirectory(src/platform/linux/v2)
 endif()
 
 if(ECU_BUILD_TESTS)

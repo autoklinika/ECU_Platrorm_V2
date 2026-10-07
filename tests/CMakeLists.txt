@@ -1022,3 +1022,60 @@ if(TARGET ECU::daf_sac_profile)
     DEPENDS ecu_daf_sac_profile_tests
   )
 endif()
+
+
+if(TARGET ECU::platform_linux_v2)
+  add_executable(
+    ecu_linux_v2_platform_tests
+    linux_v2_platform_tests.cpp
+  )
+  target_link_libraries(
+    ecu_linux_v2_platform_tests
+    PRIVATE ECU::platform_linux_v2
+  )
+  set_target_properties(
+    ecu_linux_v2_platform_tests
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_linux_v2_platform_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+  add_test(
+    NAME ecu.platform.linux_v2
+    COMMAND ecu_linux_v2_platform_tests
+  )
+  add_custom_target(
+    ecu_linux_v2_platform_tests_target
+    DEPENDS ecu_linux_v2_platform_tests
+  )
+endif()
+
+
+if(
+  TARGET ECU::daf_sac_profile
+  AND TARGET ECU::platform_linux_v2
+)
+  add_executable(
+    ecu_daf_sac_core_v2_probe
+    daf_sac_core_v2_physical_probe.cpp
+  )
+  target_link_libraries(
+    ecu_daf_sac_core_v2_probe
+    PRIVATE
+      ECU::daf_sac_profile
+      ECU::platform_linux_v2
+  )
+  set_target_properties(
+    ecu_daf_sac_core_v2_probe
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_daf_sac_core_v2_probe
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+endif()
