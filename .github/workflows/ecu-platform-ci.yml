@@ -230,7 +230,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake ninja-build g++
       - name: Architecture gate
-        run: python3 scripts/check_dut_profile_architecture.py
+        run: |
+          python3 scripts/check_dut_profile_architecture.py
+          python3 scripts/check_daf_sac_profile_architecture.py
       - name: Configure DUT Profile
         run: >
           cmake -S . -B build/dut-profile-linux -G Ninja
@@ -241,8 +243,9 @@ jobs:
           -DECU_BUILD_CORE_V2=ON
           -DECU_BUILD_BENCH_RUNTIME=ON
           -DECU_BUILD_DUT_PROFILE=ON
+          -DECU_BUILD_DAF_SAC_PROFILE=ON
       - name: Build
-        run: cmake --build build/dut-profile-linux --target ecu_dut_profile_tests
+        run: cmake --build build/dut-profile-linux --target ecu_dut_profile_tests ecu_daf_sac_profile_tests_target
       - name: Test
         run: >
           ctest --test-dir build/dut-profile-linux
@@ -265,7 +268,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake ninja-build clang
       - name: Architecture gate
-        run: python3 scripts/check_dut_profile_architecture.py
+        run: |
+          python3 scripts/check_dut_profile_architecture.py
+          python3 scripts/check_daf_sac_profile_architecture.py
       - name: Configure DUT Profile
         run: >
           cmake -S . -B build/dut-profile-clang -G Ninja
@@ -276,8 +281,9 @@ jobs:
           -DECU_BUILD_CORE_V2=ON
           -DECU_BUILD_BENCH_RUNTIME=ON
           -DECU_BUILD_DUT_PROFILE=ON
+          -DECU_BUILD_DAF_SAC_PROFILE=ON
       - name: Build
-        run: cmake --build build/dut-profile-clang --target ecu_dut_profile_tests
+        run: cmake --build build/dut-profile-clang --target ecu_dut_profile_tests ecu_daf_sac_profile_tests_target
       - name: Test
         run: >
           ctest --test-dir build/dut-profile-clang
@@ -303,7 +309,9 @@ jobs:
         uses: actions/checkout@v4
       - name: Architecture gate
         shell: pwsh
-        run: python scripts/check_dut_profile_architecture.py
+        run: |
+          python scripts/check_dut_profile_architecture.py
+          python scripts/check_daf_sac_profile_architecture.py
       - name: Configure DUT Profile
         shell: pwsh
         run: >
@@ -317,12 +325,13 @@ jobs:
           -DECU_BUILD_CORE_V2=ON
           -DECU_BUILD_BENCH_RUNTIME=ON
           -DECU_BUILD_DUT_PROFILE=ON
+          -DECU_BUILD_DAF_SAC_PROFILE=ON
       - name: Build
         shell: pwsh
         run: >
           cmake --build "build/dut-profile-msvc-${{ matrix.arch }}-${{ matrix.config }}"
           --config "${{ matrix.config }}"
-          --target ecu_dut_profile_tests
+          --target ecu_dut_profile_tests ecu_daf_sac_profile_tests_target
       - name: Test
         shell: pwsh
         run: >
