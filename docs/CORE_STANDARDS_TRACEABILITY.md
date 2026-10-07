@@ -77,6 +77,7 @@ Status levels:
 | WWH-OBD vehicle/tester connection | ISO 27145-4:2016 | NOT_IMPLEMENTED |
 | WWH-OBD external test equipment | ISO 27145-6:2023 | NOT_IMPLEMENTED |
 | AGRI/ISOBUS application, transport and network | ISO 11783-3:2026 | FOUNDATION_COMPATIBLE / MODULE_GATED |
+| AGRI/ISOBUS network management | ISO 11783-5:2019 | CF_REGISTRY_ADDRESS_ASSOCIATION_ENGINEERING_PASS / CLAUSE_AUDIT_REQUIRED |
 | AGRI/ISOBUS implement messages / working set | ISO 11783-7:2022 | WSMSTR_WSMEM_ENGINEERING_PASS / CLAUSE_AUDIT_REQUIRED |
 | AGRI/ISOBUS Virtual Terminal / extended transport | ISO 11783-6:2018 | ETP_TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
 | AGRI/ISOBUS diagnostic services | ISO 11783-12:2019 (Edition 4 FDIS under development in 2026) | MODULE_GATED |
@@ -214,6 +215,26 @@ Detailed evidence is recorded in:
 
 The technical PASS does not imply complete ISOBUS Virtual Terminal, Task
 Controller, diagnostics or application-layer conformance.
+
+### ISO 11783 / ISOBUS network management foundation
+
+Core V2 composes the existing J1939 Address Claim / NetworkManager state machine
+with a bounded ISOBUS remote control-function registry. A shared strict Address
+Claimed decoder validates exact framing, global destination and 64-bit NAME
+validity before either arbitration or topology tracking.
+
+The registry provides fixed-capacity NAME-to-source-address association,
+explicit Cannot Claim state, address-conflict ambiguity detection, malformed
+claim counters and fail-visible capacity exhaustion. It does not duplicate local
+Address Claim arbitration and does not introduce dynamic allocation or worker
+threads.
+
+Detailed evidence is recorded in:
+`docs/CORE_V2_ISOBUS_NETWORK_MANAGEMENT_STATUS.md`.
+
+This is an engineering PASS only. ISO 11783-5:2019 clause mapping, complete
+normative initialization/error-reporting behavior and independent ISOBUS
+interoperability evidence remain open.
 
 ### ISO 11783 / ISOBUS working-set foundation
 

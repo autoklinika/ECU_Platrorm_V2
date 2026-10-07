@@ -653,6 +653,33 @@ int main() {
     failures += require(
         manager.configure(config(name(10U), 0x20U)) &&
             manager.start(reading(0)) == NetworkManagerStatus::ok,
+        "invalid Address Claimed NAME setup");
+    transport::CanFrame tx{};
+    failures += require(
+        manager.try_take_tx(tx),
+        "drain invalid Address Claimed NAME setup claim");
+
+    auto malformed =
+        claimed_frame(name(20U), 0x80U, 1000000);
+    malformed.frame.payload[6U] =
+        static_cast<std::byte>(
+            std::to_integer<std::uint8_t>(
+                malformed.frame.payload[6U]) |
+            0x01U);
+    manager.on_can_frame(malformed);
+    failures += require(
+        manager.status() == NetworkManagerStatus::ok &&
+            manager.counters().malformed_management_frames == 1U &&
+            manager.counters().address_conflicts == 0U &&
+            manager.current_address() == 0x20U,
+        "Address Claimed invalid NAME is rejected before arbitration");
+  }
+
+  {
+    NetworkManager manager;
+    failures += require(
+        manager.configure(config(name(10U), 0x20U)) &&
+            manager.start(reading(0)) == NetworkManagerStatus::ok,
         "queue overflow setup");
     transport::CanFrame tx{};
     failures += require(

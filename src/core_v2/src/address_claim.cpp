@@ -6,6 +6,42 @@
 
 namespace ecu::core::v2::protocol::j1939 {
 
+bool decode_address_claimed(
+    const transport::CanFrame& frame,
+    AddressClaimedMessage& message) noexcept {
+  if (frame.length != 8U) {
+    return false;
+  }
+
+  IdentifierFields fields{};
+  if (!decode_classic_frame_identifier(frame, fields) ||
+      parameter_group_number(fields) != kAddressClaimedPgn) {
+    return false;
+  }
+
+  std::uint8_t destination = 0U;
+  if (!destination_address(fields, destination) ||
+      destination != kGlobalAddress) {
+    return false;
+  }
+
+  std::array<std::byte, 8U> payload{};
+  for (std::size_t index = 0U;
+       index < payload.size();
+       ++index) {
+    payload[index] = frame.payload[index];
+  }
+
+  const auto raw_name = decode_name_payload(payload);
+  if (!is_valid_name(decode_name(raw_name))) {
+    return false;
+  }
+
+  message.source_address = fields.source_address;
+  message.raw_name = raw_name;
+  return true;
+}
+
 bool AddressClaimEngine::configure(
     const AddressClaimConfig& config) noexcept {
   if (configured_ && state_ != AddressClaimState::idle) {
@@ -63,13 +99,8 @@ AddressClaimStep AddressClaimEngine::on_frame(
 
   const auto pgn = parameter_group_number(fields);
   if (pgn == kAddressClaimedPgn) {
-    if (frame.frame.length != 8U) {
-      return {AddressClaimStatus::invalid_argument};
-    }
-
-    std::uint8_t destination = 0U;
-    if (!destination_address(fields, destination) ||
-        destination != kGlobalAddress) {
+    AddressClaimedMessage claimed{};
+    if (!decode_address_claimed(frame.frame, claimed)) {
       return {AddressClaimStatus::invalid_argument};
     }
 
@@ -77,20 +108,14 @@ AddressClaimStep AddressClaimEngine::on_frame(
       return {AddressClaimStatus::invalid_time};
     }
 
-    if (fields.source_address == kNullAddress ||
+    if (claimed.source_address == kNullAddress ||
         state_ == AddressClaimState::idle ||
         state_ == AddressClaimState::cannot_claim ||
-        fields.source_address != current_address_) {
+        claimed.source_address != current_address_) {
       return {AddressClaimStatus::no_action};
     }
 
-    std::array<std::byte, 8U> remote_payload{};
-    for (std::size_t i = 0U; i < remote_payload.size(); ++i) {
-      remote_payload[i] = frame.frame.payload[i];
-    }
-    const auto remote_name =
-        decode_name_payload(remote_payload);
-    if (remote_name == raw_name_) {
+    if (claimed.raw_name == raw_name_) {
       state_ = AddressClaimState::faulted;
       current_address_ = kNullAddress;
       pending_cannot_claim_response_ = false;
@@ -100,7 +125,7 @@ AddressClaimStep AddressClaimEngine::on_frame(
       return result;
     }
 
-    if (name_has_higher_priority(remote_name, raw_name_)) {
+    if (name_has_higher_priority(claimed.raw_name, raw_name_)) {
       auto result = lose_address(frame.timestamp);
       result.conflict_observed = true;
       return result;

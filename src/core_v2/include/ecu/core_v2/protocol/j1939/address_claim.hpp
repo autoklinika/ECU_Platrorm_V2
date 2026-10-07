@@ -34,6 +34,15 @@ enum class AddressClaimTxKind : std::uint8_t {
   cannot_claim,
 };
 
+struct AddressClaimedMessage {
+  std::uint8_t source_address{kNullAddress};
+  std::uint64_t raw_name{0U};
+};
+
+[[nodiscard]] bool decode_address_claimed(
+    const transport::CanFrame& frame,
+    AddressClaimedMessage& message) noexcept;
+
 struct AddressClaimConfig {
   static constexpr std::size_t kMaxAlternativeAddresses = 16U;
 
