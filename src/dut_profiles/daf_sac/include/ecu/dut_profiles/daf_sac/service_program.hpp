@@ -78,6 +78,7 @@ class ServiceProgram final : public ecu::dut_profile::IDutProfileProgram {
   [[nodiscard]] SacVoltage voltage() const noexcept;
   [[nodiscard]] const SacDtcList& dtcs() const noexcept;
   [[nodiscard]] bool clear_acknowledged() const noexcept;
+  [[nodiscard]] bool clear_request_submitted() const noexcept;
 
   [[nodiscard]] std::uint8_t last_nrc() const noexcept;
   [[nodiscard]] ecu::core::v2::protocol::uds::UdsStatus last_uds_status()
@@ -119,6 +120,7 @@ class ServiceProgram final : public ecu::dut_profile::IDutProfileProgram {
   ecu::core::v2::protocol::uds::UdsClient& uds_;
   const ecu::core::v2::time::IMonotonicClock& clock_;
   ecu::bench::BenchComponentExecutionContract execution_{};
+  ecu::core::v2::protocol::uds::UdsTiming initial_timing_{};
   SacService selected_{SacService::identify};
   std::uint8_t mask_{0xFFU};
   Phase phase_{Phase::idle};
@@ -126,6 +128,7 @@ class ServiceProgram final : public ecu::dut_profile::IDutProfileProgram {
   SacVoltage voltage_{};
   SacDtcList dtcs_{};
   bool clear_acknowledged_{false};
+  bool clear_request_submitted_{false};
   std::uint8_t last_nrc_{0U};
   ecu::core::v2::protocol::uds::UdsStatus last_status_{
       ecu::core::v2::protocol::uds::UdsStatus::idle};

@@ -2,6 +2,8 @@
 
 #include "ecu/core_v2/protocol/uds/uds_services.hpp"
 
+#include <chrono>
+
 namespace ecu::dut_profiles::daf_sac {
 namespace {
 namespace uds = ecu::core::v2::protocol::uds;
@@ -122,7 +124,8 @@ ServiceProgram::ServiceProgram(
     const core::time::IMonotonicClock& clock,
     const bench::BenchComponentExecutionContract execution) noexcept
     : identification_(bitrate, uds_client, clock, execution),
-      uds_(uds_client), clock_(clock), execution_(execution) {}
+      uds_(uds_client), clock_(clock), execution_(execution),
+      initial_timing_(uds_client.timing()) {}
 
 bool ServiceProgram::select(
     const SacService service, const std::uint8_t mask) noexcept {
@@ -138,6 +141,7 @@ bool ServiceProgram::select(
   voltage_ = {};
   dtcs_ = {};
   clear_acknowledged_ = false;
+  clear_request_submitted_ = false;
   last_nrc_ = 0U;
   last_status_ = uds::UdsStatus::idle;
   last_transport_failure_ = uds::UdsTransportFailure::none;
@@ -154,6 +158,9 @@ const IdentificationResult& ServiceProgram::identification() const noexcept {
 SacVoltage ServiceProgram::voltage() const noexcept { return voltage_; }
 const SacDtcList& ServiceProgram::dtcs() const noexcept { return dtcs_; }
 bool ServiceProgram::clear_acknowledged() const noexcept { return clear_acknowledged_; }
+bool ServiceProgram::clear_request_submitted() const noexcept {
+  return clear_request_submitted_;
+}
 
 std::uint8_t ServiceProgram::last_nrc() const noexcept {
   return selected_ == SacService::identify
@@ -202,6 +209,9 @@ bench::BenchComponentStatus ServiceProgram::prepare(
     return fail();
   }
   uds_.reset();
+  // A previous clear-specific client timeout must never leak into the
+  // next read/identification session.
+  uds_.set_timing(initial_timing_);
   phase_ = Phase::idle;
   status_ = IdentificationProgramStatus::prepared;
   last_status_ = uds::UdsStatus::idle;
@@ -260,6 +270,9 @@ bench::BenchComponentStatus ServiceProgram::send_request() noexcept {
   if (last_status_ != uds::UdsStatus::in_progress) {
     return fail();
   }
+  if (selected_ == SacService::clear_dtcs && phase_ == Phase::wait_data) {
+    clear_request_submitted_ = true;
+  }
   return bench::BenchComponentStatus::ok;
 }
 
@@ -301,6 +314,26 @@ bench::BenchComponentStatus ServiceProgram::handle_response(
           raw(response.payload[0U]) != 0x50U ||
           raw(response.payload[1U]) != 0x03U) {
         return fail();
+      }
+      if (selected_ == SacService::clear_dtcs) {
+        // ECU may need longer to process ClearDiagnosticInformation than
+        // ordinary ReadDTCInformation. This is a SAC-specific CLIENT wait
+        // allowance, not an assertion that the OEM supports or completed
+        // the operation. Never retry automatically if no reply arrives.
+        auto timing = uds_.timing();
+        constexpr auto kClearClientP2 = std::chrono::milliseconds{3000};
+        constexpr auto kClearClientP2Star = std::chrono::milliseconds{5000};
+        if (timing.p2 < kClearClientP2) {
+          timing.p2 = kClearClientP2;
+        }
+        if (timing.p2_star < kClearClientP2Star) {
+          timing.p2_star = kClearClientP2Star;
+        }
+        uds_.set_timing(timing);
+        if (uds_.timing().p2 != timing.p2 ||
+            uds_.timing().p2_star != timing.p2_star) {
+          return fail();
+        }
       }
       phase_ = Phase::request_data;
       return bench::BenchComponentStatus::ok;
@@ -355,6 +388,7 @@ bench::BenchComponentStatus ServiceProgram::safe_stop(
   }
   const auto cleaned = identification_.safe_stop(plan);
   uds_.reset();
+  uds_.set_timing(initial_timing_);
   phase_ = Phase::idle;
   return cleaned;
 }
@@ -366,6 +400,7 @@ bench::BenchComponentStatus ServiceProgram::stop(
   }
   const auto cleaned = identification_.stop(plan);
   uds_.reset();
+  uds_.set_timing(initial_timing_);
   phase_ = Phase::idle;
   status_ = IdentificationProgramStatus::idle;
   return cleaned;

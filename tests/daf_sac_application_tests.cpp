@@ -178,6 +178,12 @@ class ScriptedTransport final : public transport::IDiagnosticTransport {
   [[nodiscard]] transport::DiagnosticTransportStatus service(
       const core::time::MonotonicClockReading& reading) noexcept override {
     if (!pending_) {
+      if (delayed_reply_ && reading.value >= reply_ready_at_) {
+        delayed_reply_ = false;
+        received_ = reading;
+        ready_ = true;
+        return transport::DiagnosticTransportStatus::ok;
+      }
       return transport::DiagnosticTransportStatus::idle;
     }
     pending_ = false;
@@ -227,6 +233,11 @@ class ScriptedTransport final : public transport::IDiagnosticTransport {
         response_size_ = 3U;
       }
       if (drop_service == sid) {
+        return transport::DiagnosticTransportStatus::ok;
+      }
+      if (sid == 0x14U && clear_reply_delay.count() > 0) {
+        delayed_reply_ = true;
+        reply_ready_at_ = reading.value + clear_reply_delay;
         return transport::DiagnosticTransportStatus::ok;
       }
       received_ = reading;
@@ -322,6 +333,8 @@ class ScriptedTransport final : public transport::IDiagnosticTransport {
   void reset() noexcept override {
     pending_ = false;
     ready_ = false;
+    delayed_reply_ = false;
+    reply_ready_at_ = {};
     response_size_ = 0U;
     tx_completed_ = {};
     received_ = {};
@@ -338,6 +351,7 @@ class ScriptedTransport final : public transport::IDiagnosticTransport {
   bool overflow_dtc{false};
   bool malformed_voltage{false};
   bool invalid_voltage_value{false};
+  std::chrono::milliseconds clear_reply_delay{0};
   int requests{0};
   int clear_requests{0};
   int dtc_requests{0};
@@ -349,6 +363,8 @@ class ScriptedTransport final : public transport::IDiagnosticTransport {
   std::size_t response_size_{0U};
   bool pending_{false};
   bool ready_{false};
+  bool delayed_reply_{false};
+  core::time::MonotonicTime reply_ready_at_{0};
   core::time::MonotonicClockReading tx_completed_{};
   core::time::MonotonicClockReading received_{};
 };
@@ -1001,6 +1017,53 @@ int main() {
         !f.application.snapshot().clear_acknowledged &&
         f.resources.active_count() == 0U,
         "negative UDS 14 response cannot be misreported as erased");
+  }
+
+  {
+    ServicesFixture f;
+    f.script.clear_reply_delay = std::chrono::milliseconds{650};
+    failures += require(
+        f.application.configure({std::chrono::milliseconds{250}}) &&
+        f.application.read_dtcs() == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_ready) == 0,
+        "slow clear simulator: DTC inventory before clear");
+    const auto confirmation = f.application.prepare_clear_dtcs();
+    failures += require(
+        f.application.clear_dtcs(confirmation, true) == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_clear_acknowledged, 1000) == 0 &&
+        f.script.clear_requests == 1 &&
+        f.application.snapshot().clear_acknowledged &&
+        f.uds_client.timing().p2 == std::chrono::milliseconds{100} &&
+        f.resources.active_count() == 0U,
+        "delayed 0x54 at 650 ms accepted; single clear; P2 reset after cleanup");
+  }
+
+  {
+    ServicesFixture f;
+    f.script.drop_service = 0x14U;
+    failures += require(
+        f.application.configure({std::chrono::milliseconds{250}}) &&
+        f.application.read_dtcs() == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_ready) == 0,
+        "no clear reply simulator: DTC inventory before clear");
+    const auto confirmation = f.application.prepare_clear_dtcs();
+    failures += require(
+        f.application.clear_dtcs(confirmation, true) == app::AppStatus::ok,
+        "no clear reply simulator: operator confirmed");
+    for (int i = 0; i < 3400 &&
+             f.application.snapshot().state == app::AppState::clearing_dtcs; ++i) {
+      f.clock.advance(std::chrono::milliseconds{1});
+      (void)f.application.service();
+    }
+    failures += require(
+        f.application.snapshot().state == app::AppState::faulted &&
+        f.application.snapshot().status == app::AppStatus::clear_outcome_unknown &&
+        f.application.snapshot().uds_status == uds::UdsStatus::timeout_p2 &&
+        f.script.clear_requests == 1 &&
+        f.resources.active_count() == 0U &&
+        !f.application.snapshot().clear_acknowledged &&
+        f.uds_client.timing().p2 == std::chrono::milliseconds{100},
+        "no 0x54 even after 3000 ms: fail closed, no retry, retain P2 diagnosis");
   }
 
   if (failures == 0) {

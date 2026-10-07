@@ -307,3 +307,35 @@ i jest synchronizowane na dysk przed zaoferowaniem kasowania.
 
 Odmowa dostępu podczas pierwotnego przygotowania katalogu nastąpiła przed
 wszelką transmisją CAN — **nie skasowano żadnych błędów SAC**.
+
+## Stage 4.2 — niepewny wynik fizycznego kasowania (2026-10-07)
+
+Operator potwierdził usunięcie po odczycie 12 DTC. Żądanie kasowania zostało
+podjęte, lecz nie nadeszła potwierdzona odpowiedź `54`. Zgłoszono
+`SAC_DTC_CLEAR_OUTCOME=UNKNOWN`, `uds=6` (UDS timeout P2), `nrc=0`,
+`can=0`. Nie ma podstaw do twierdzenia, że DTC skasowano albo że kasowanie
+nie zadziałało. Ponownego `14 FF FF FF` NIE wysłano.
+
+Lokalne prywatne archiwum ma tryb `0600`, zawiera 12 kodów/statusów oraz
+`CLEAR_OUTCOME=UNKNOWN`; `can0` po próbie jest DOWN.
+
+Korekta po audycie: tylko dla potwierdzonego przez operatora `0x14`
+klient SAC ma minimum **3000 ms** P2 i **5000 ms** P2*, przy zachowaniu
+większych czasów zgłoszonych przez ECU. Pozostałe usługi zachowują swoje
+oryginalne timingi. Ta zmiana to tolerancja czasu oczekiwania klienta,
+nie dowód poprawności/spełnienia czasów OEM. Testy obejmują opóźnioną
+odpowiedź `54` po 650 ms i całkowity brak odpowiedzi po 3000 ms;
+po braku odpowiedzi wynik pozostaje **UNKNOWN** bez automatycznego retry.
+
+Dodatkowo skrypt fizycznego kasowania blokuje ponowną próbę, jeśli
+zobaczy nierozstrzygnięty `CLEAR_OUTCOME=UNKNOWN` w dotychczasowym
+archiwum — sprawdzenie następuje przed włączeniem CAN.
+
+**Następny dozwolony test fizyczny: WYŁĄCZNIE odczyt**:
+
+`sudo ./scripts/run_stage42_daf_sac_read_gate.sh dtc`
+
+Dopiero po porównaniu aktualnej listy z wcześniej archiwizowaną
+podejmujemy odrębną decyzję o ewentualnej nowej próbie. Taka lista
+nie pozwala jednoznacznie odróżnić „nie skasowano” od „skasowano,
+ale usterki natychmiast powróciły”. Nie kasować archiwum.

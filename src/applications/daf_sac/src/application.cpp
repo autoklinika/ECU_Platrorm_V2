@@ -467,6 +467,9 @@ AppStatus Application::service() noexcept {
   if (!ecu::core::v2::time::is_valid_clock_reading(
           now, clock_.properties().domain) ||
       now.value >= deadline_) {
+    const bool erase_may_have_been_sent =
+        state_ == AppState::clearing_dtcs && services_ != nullptr &&
+        services_->clear_request_submitted();
     const auto stopped = host_.stop();
     record_ = {};
     record_valid_ = false;
@@ -477,7 +480,9 @@ AppStatus Application::service() noexcept {
     status_ =
         (stopped.status == HostStatus::ok ||
          stopped.status == HostStatus::no_action)
-            ? AppStatus::timeout
+            ? (erase_may_have_been_sent
+                   ? AppStatus::clear_outcome_unknown
+                   : AppStatus::timeout)
             : AppStatus::safe_shutdown_failed;
     return status_;
   }
@@ -658,6 +663,10 @@ Application::dtcs() const noexcept {
 
 AppStatus Application::fail(
     const ecu::bench::BenchHostServiceResult& result) noexcept {
+  const bool erase_may_have_been_sent =
+      state_ == AppState::clearing_dtcs && services_ != nullptr &&
+      services_->clear_request_submitted() &&
+      services_->last_nrc() == 0U;
   record_ = {};
   record_valid_ = false;
   voltage_ = {};
@@ -667,7 +676,9 @@ AppStatus Application::fail(
   invalidate_clear_challenge();
   state_ = AppState::faulted;
   if (result.status == HostStatus::deadline_missed) {
-    status_ = AppStatus::timeout;
+    status_ = erase_may_have_been_sent
+                  ? AppStatus::clear_outcome_unknown
+                  : AppStatus::timeout;
   } else if (result.status == HostStatus::safe_shutdown_failed ||
              result.session_status ==
                  ecu::bench::BenchSessionStatus::safe_shutdown_failed) {
@@ -676,7 +687,9 @@ AppStatus Application::fail(
                  ecu::bench::BenchSessionStatus::resource_unavailable) {
     status_ = AppStatus::resource_unavailable;
   } else {
-    status_ = AppStatus::runtime_fault;
+    status_ = erase_may_have_been_sent
+                  ? AppStatus::clear_outcome_unknown
+                  : AppStatus::runtime_fault;
   }
   return status_;
 }

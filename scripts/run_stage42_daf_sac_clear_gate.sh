@@ -25,7 +25,7 @@ PROBE="$ROOT_DIR/build/daf-sac-app-linux/tests/ecu_daf_sac_stage42_clear_probe"
 IFACE="can0"
 TARGET_USER="$SUDO_USER"
 
-for binary in ip runuser getent cut install; do
+for binary in ip runuser getent cut install grep; do
   if ! command -v "$binary" >/dev/null 2>&1; then
     echo "ERROR: missing command: $binary"
     exit 1
@@ -60,6 +60,18 @@ if ! runuser -u "$TARGET_USER" -- test -w "$EVIDENCE_DIR"; then
   echo "ERROR: DTC evidence directory is not writable by $TARGET_USER"
   exit 1
 fi
+
+# Never offer a second erase while a previous destructive request has
+# an unresolved result. This check is BEFORE the CAN interface is enabled.
+for record in "$EVIDENCE_DIR"/sac-dtc-*.txt; do
+  [[ -f "$record" ]] || continue
+  if grep -q '^CLEAR_OUTCOME=UNKNOWN' "$record"; then
+    echo "DTC_CLEAR_BLOCKED=PREVIOUS_OUTCOME_UNKNOWN"
+    echo "Previous uncertain operation: $record"
+    echo "Perform a fresh READ-ONLY DTC check and review the result first."
+    exit 4
+  fi
+done
 
 if ! ip link show "$IFACE" >/dev/null 2>&1; then
   echo "ERROR: missing CAN interface $IFACE"

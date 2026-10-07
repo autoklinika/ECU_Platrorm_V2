@@ -143,6 +143,7 @@ enum class AppStatus : std::uint8_t {
   safe_shutdown_failed,
   confirmation_required,
   unsupported,
+  clear_outcome_unknown,
 };
 
 // One-shot intent token for a destructive action. This is a guard against
