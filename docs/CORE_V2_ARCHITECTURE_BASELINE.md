@@ -370,7 +370,7 @@ Implementation priority after foundation:
    remaining network/application profiles stay module-gated,
 6. J1939 diagnostics — **DM1/DM2 read-only subset DONE / technical gate PASS**,
 7. J1939-22 CAN FD — **FEFF/no-assurance C-PG subset DONE / technical gate PASS**; FBFF, FD.TP and assurance profiles remain gated,
-8. ISO-TP revalidation on shared-bus ports,
+8. ISO-TP revalidation on shared-bus ports — **DONE / engineering gate PASS; normative clause audit open**,
 9. UDS revalidation over transport-neutral interface,
 10. DoIP,
 11. ISO 11992 / WWH-OBD profiles where applicable.

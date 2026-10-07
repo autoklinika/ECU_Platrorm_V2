@@ -81,8 +81,10 @@ https://www.iso.org/standard/71184.html
 
 ### ISO 15765-2:2024
 
-Current published DoCAN transport/network baseline. ISO-TP is explicitly
-module-gated and not part of the foundation claim.
+Current published DoCAN transport/network baseline. Core V2 now contains an
+engineering-gate ISO-TP implementation, but normative ISO-TP conformance remains
+explicitly module-gated and is excluded from the 18-requirement foundation
+conformance claim.
 
 Official source:
 https://www.iso.org/standard/84211.html

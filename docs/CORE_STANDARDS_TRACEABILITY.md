@@ -58,7 +58,7 @@ Status levels:
 |---|---|---|
 | CAN / CAN FD data link | ISO 11898-1:2024 | CORE_V2_FOUNDATION_PASS / PROTOCOL-CONTROLLER CERTIFICATION NOT CLAIMED |
 | High-speed CAN physical layer | ISO 11898-2:2026 | BOUNDARY_ONLY / PLATFORM-HARDWARE QUALIFICATION REQUIRED |
-| DoCAN / ISO-TP | ISO 15765-2:2024 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
+| DoCAN / ISO-TP | ISO 15765-2:2024 | V2_ENGINEERING_GATE_PASS / NORMATIVE_CLAUSE_AUDIT_REQUIRED |
 | UDS application layer | ISO 14229-1:2026 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
 | UDS session layer | ISO 14229-2:2021 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
 | UDS on CAN | ISO 14229-3:2022 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
@@ -110,16 +110,27 @@ Not inherited by this PASS:
 - platform-specific SocketCAN/VCI hardware qualification.
 
 ### ISO-TP / DoCAN
-Legacy/reference implementation exists under the previous Core:
-- portable ISO-TP state machine,
-- diagnostic transport abstraction.
+Core V2 now contains an engineering-gate ISO-TP endpoint on the shared CAN
+runtime:
+- routed RX through `ICanFrameSink`; protocol callbacks never transmit,
+- deferred centralized TX through `CanBusRuntime`,
+- fixed 4095-byte bounded PDU storage with no dynamic allocation,
+- Classic CAN and CAN-FD Single/Multi-Frame paths,
+- Flow Control CTS/Wait/Overflow, Block Size, STmin and timeout handling,
+- 11-bit and 29-bit CAN identifiers using normal-addressing framing,
+- monotonic-domain and timestamp-uncertainty fail-closed checks,
+- malformed-frame, sequence, timeout, queue-pressure and CAN `would_block`
+  regression coverage.
 
-It is not promoted into the Core V2 foundation and does not inherit foundation
-conformance.
+This is an engineering implementation PASS, not a normative
+ISO 15765-2:2024 conformance claim. Extended/mixed addressing, 32-bit FF_DL
+payloads above 4095 bytes, clause-level coverage and independent
+interoperability evidence remain outside the current claim.
 
-Before ISO-TP module PASS:
+Before normative ISO-TP module conformance PASS:
 - clause mapping to ISO 15765-2:2024,
-- timing, flow-control, addressing, CAN FD and malformed-frame matrix,
+- complete timing, flow-control, addressing, CAN FD and malformed-frame matrix,
+- explicit supported/unsupported addressing-profile declaration,
 - independent interoperability vectors.
 
 ### UDS

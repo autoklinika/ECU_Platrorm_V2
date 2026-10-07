@@ -75,18 +75,33 @@ Resolution: introduced one generic strict PGN 59904 Request codec with canonical
 
 Resolution: added a read-only PGN 59392 Acknowledgment decoder covering ACK, NACK, Access Denied and Cannot Respond with strict DLC, reserved-field, address and requested-PGN validation. No automatic response transmission was added.
 
+### A-11 — ISO-TP still depended on the legacy direct CAN interface
+
+Resolution: revalidated ISO-TP on the Core V2 shared-bus contract. RX is routed through
+`ICanFrameSink`; callbacks are bounded and never transmit. Flow Control and data
+TX are deferred to `service()` through `CanBusRuntime`, with at most one CAN TX
+attempt per service call. The V2 implementation uses fixed 4095-byte storage,
+supports Classic CAN and CAN-FD, 11-bit/29-bit CAN identifiers, Single/First/
+Consecutive/Flow-Control frames, Block Size, STmin, Wait/Overflow and fail-closed
+monotonic timing. Regression coverage includes sequence wrap, timeouts,
+`would_block`, malformed CAN input and clock faults.
+
+The engineering gate is PASS. Normative ISO 15765-2:2024 clause conformance,
+extended/mixed addressing, 32-bit FF_DL beyond 4095 bytes and independent
+interoperability evidence remain explicitly open.
+
 ## Open items that are not engineering defects
 
-The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939/81, SAE J1939-73 or ISO 11783-6. Independent interoperability evidence is also required before formal protocol-conformance PASS.
+The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939/81, SAE J1939-73, ISO 11783-6 or ISO 15765-2:2024. Independent interoperability evidence is also required before formal protocol-conformance PASS.
 
 ## Next protocol priorities
 
 1. SAE J1939-22 CAN FD adaptation — FEFF/no-assurance C-PG subset implemented after this audit; FBFF, FD.TP and assurance profiles remain open.
-2. ISO-TP / DoCAN revalidation on the Core V2 shared-bus runtime.
-3. UDS transport-neutral promotion/revalidation.
-4. Broader J1939-73 read-only diagnostics.
-5. ISO 11783 network/application profiles needed by AGRI.
-6. ISO 11992 / WWH-OBD where required by heavy-truck modules.
+2. UDS transport-neutral promotion/revalidation on the new Core V2 ISO-TP boundary.
+3. Broader J1939-73 read-only diagnostics.
+4. ISO 11783 network/application profiles needed by AGRI.
+5. ISO 11992 / WWH-OBD where required by heavy-truck modules.
+6. ISO-TP normative clause mapping and external interoperability evidence.
 
 CORE_V2_ENGINEERING_AUDIT=PASS
 CORE_V2_NORMATIVE_CLAUSE_AUDITS=OPEN

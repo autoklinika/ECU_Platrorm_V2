@@ -64,7 +64,7 @@
     {
       "id": "ISO 15765-2:2024",
       "applicability": "module_gated",
-      "claim": "DoCAN/ISO-TP is not part of Core V2 foundation.",
+      "claim": "Core V2 contains an engineering-gate DoCAN/ISO-TP implementation, but normative ISO 15765-2 conformance remains module-gated and is excluded from the foundation claim.",
       "official_url": "https://www.iso.org/standard/84211.html"
     },
     {

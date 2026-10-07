@@ -293,6 +293,34 @@ if(TARGET ECU::core_v2)
     COMMAND ecu_core_v2_isobus_etp_tests
   )
 
+  add_executable(
+    ecu_core_v2_isotp_tests
+    core_v2_isotp_tests.cpp
+  )
+  target_link_libraries(
+    ecu_core_v2_isotp_tests
+    PRIVATE ECU::core_v2
+  )
+  set_target_properties(
+    ecu_core_v2_isotp_tests
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(MSVC)
+    target_compile_options(
+      ecu_core_v2_isotp_tests
+      PRIVATE /W4 /WX
+    )
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_core_v2_isotp_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+  add_test(
+    NAME ecu.core_v2.isotp
+    COMMAND ecu_core_v2_isotp_tests
+  )
+
   add_custom_target(
     ecu_core_v2_tests
     DEPENDS
@@ -306,6 +334,7 @@ if(TARGET ECU::core_v2)
       ecu_core_v2_j1939_tp_tx_tests
       ecu_core_v2_j1939_tp_e2e_tests
       ecu_core_v2_isobus_etp_tests
+      ecu_core_v2_isotp_tests
   )
 endif()
 

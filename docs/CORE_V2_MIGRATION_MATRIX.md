@@ -16,7 +16,7 @@ Policy values:
 | CAN frame validation/test vectors | RETAIN + REVALIDATE | Valuable regression vectors; move into V2 namespace/contracts only after V2 tests pass. |
 | `ICanInterface` direct RX/TX contract | REBUILD | Split physical driver from central bus runtime. Protocols may not consume driver RX directly. |
 | Linux SocketCAN adapter | RETAIN as reference | Platform adapter only; later implement new `ICanDriver` contract. |
-| ISO-TP state machine | REVALIDATE | Preserve algorithms/test vectors; replace direct CAN-driver dependency with routed RX + centralized TX port. |
+| ISO-TP state machine | REVALIDATE | Revalidated on Core V2: routed RX through `ICanFrameSink`, deferred centralized TX through `CanBusRuntime`, fixed bounded storage, Classic CAN/CAN-FD and negative timing/flow-control tests. Normative ISO 15765-2 conformance remains module-gated. |
 | Diagnostic transport abstraction | REVALIDATE | Direction is correct; rebase on V2 transport/lifecycle semantics. |
 | UDS client/service helpers | REVALIDATE | Keep transport independence; redo lifetime/timing and standards evidence. |
 | J1939 identifier/PGN helpers | REVALIDATE | High-value heavy-duty primitive; expand toward Address Claiming and TP only after clause audit. |
