@@ -2,7 +2,7 @@
 
 Date: 2026-10-07
 Branch: `dut-profile/proof-profiles`
-Status: **PASSIVE CAN RX CONFIRMED AT 250 KBIT/S / STAGE 3.3A ACTIVE UDS PROOF PENDING**
+Status: **STAGE 3.3A PHYSICAL CORE V2 / ISO-TP / UDS GATE PASS AT 250 KBIT/S — FINAL CI PENDING**
 
 ## Scope
 
@@ -101,7 +101,10 @@ This is the intended fail-closed behavior.
 
 The physical read-only proof is executed through:
 
-`sudo ./scripts/run_stage3_3a_daf_sac_core_v2_gate.sh 500000`
+`sudo ./scripts/run_stage3_3a_daf_sac_core_v2_gate.sh 250000`
+
+The first historical attempt used 500000 bit/s and did not receive a UDS response.
+The successful final physical proof used 250000 bit/s.
 
 The script:
 
@@ -208,22 +211,44 @@ frames/s) is consistent with possible missing-ACK retransmissions on a bench
 with the only receiver in LISTEN-ONLY mode; application periodicity is not
 established. Observe behavior in normal/ACK mode separately.
 
-The next proof is the existing bounded, read-only Core V2 request with the
-**250000** bitrate profile, using:
+The bounded, read-only Core V2 request with the **250000** bitrate profile
+was executed with the script described above. Its recorded results follow.
 
-`sudo ./scripts/run_stage3_3a_daf_sac_core_v2_gate.sh 250000`
+## Successful physical proof — 250 kbit/s, 2026-10-07
 
-The gate sends only UDS `0x22` requests for F190, F188, F192 and returns can0
-DOWN on exit. It is not an already completed physical UDS test. Do not change
-Core V2 or Bench Runtime based solely on the preceding passive scan.
+The user-supplied log from the live connected DAF SAC confirms:
+
+- `SAC_LINK status=0 up=1 bus_off=0 bitrate=250000 fd=0 data_bitrate=0 listen_only=0`
+- `SAC_PHYSICAL_PROBE=START tx=0x18da30f9 rx=0x18daf930 bitrate=250000 mode=read-only-identification`
+- UDS `0x22 F190` VIN read: **PASS**, 17-character VIN (intentionally omitted from this public repository)
+- UDS `0x22 F188` software identification: **PASS**, `1973214`
+- UDS `0x22 F192` hardware identification: **PASS**, `K075169` (trailing spaces trimmed)
+- `SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN`
+- `DAF_SAC_STAGE3_3A_PHYSICAL_GATE=PASS`
+
+Before the active probe, CAN state was UP, ERROR-ACTIVE, Classic CAN at
+250000 bit/s. Kernel totals: RX 12759 packets (102072 bytes), TX 0 packets;
+RX/TX errors 0/0. After the active proof and before the EXIT trap: RX 12777
+packets (102189 bytes), TX 6 packets (21 bytes); RX/TX errors remained 0/0,
+no bus-off and no new TX drops. Probe deltas: **RX +18, TX +6**.
+
+The script's EXIT trap returned the interface to **DOWN**, verified separately
+on the CM5 after the user test. No session control, write, reset, security,
+routine, output-control, or flash command was used. The complete physical
+read-only Core V2 / ISO-TP / UDS / DUT Profile chain is now evidenced.
+
+The full vehicle VIN is intentionally not included in the repository,
+command history, or committed test artifacts. Only the fact of successful
+reading and its expected 17-character length are retained here.
 
 ## Gate decision
 
-Stage 3.3A is **not yet marked fully accepted** until:
+- **Physical read-only Stage 3.3A gate: PASS** at 250000 bit/s.
+- **Full Stage 3.3A acceptance: conditional** on GitHub CI passing for the
+  final documentation revision. Do not infer a CI result from the physical test.
+- Core V2 revision: **not needed** based on these results.
+- Bench Runtime revision: **not needed** based on these results.
+- Stage 3.3B actuator/cyclic-CAN proof remains separate and is not covered by
+  this ECU-only read-only acceptance.
 
-- GitHub CI for the final code state passes,
-- the physical Core V2 read-only probe succeeds against the connected SAC.
-
-No Core V2 revision has been required.
-No Bench Runtime revision has been required.
-The actuator/cyclic-CAN proof remains a separate later Stage 3.3B requirement.
+No changes to production `main` without explicit user approval.
