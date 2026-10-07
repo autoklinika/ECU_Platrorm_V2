@@ -525,7 +525,8 @@ int main() {
         "resource reservation config");
 
     std::int64_t session_time = 0;
-    for (std::uint8_t source : {0x90U, 0x91U}) {
+    for (const std::uint8_t source :
+         std::array<std::uint8_t, 2U>{0x90U, 0x91U}) {
       receiver.on_can_frame(cm_frame(
           TpControl::bam,
           source,
