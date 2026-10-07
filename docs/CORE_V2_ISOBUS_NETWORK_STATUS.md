@@ -24,11 +24,14 @@ storage.
 
 ## Explicitly outside this gate
 
-This foundation does not implement:
+This codec foundation by itself does not implement lifecycle semantics. A
+separate bounded read-only lifecycle now verifies declaration/member consistency
+and resolves NAME/source-address state; see
+`docs/CORE_V2_ISOBUS_WORKING_SET_LIFECYCLE_STATUS.md`.
 
-- a working-set membership registry or lifecycle state machine,
-- verification that all declared member messages were observed,
-- member re-assignment or working-set dissolution semantics,
+Still outside the combined engineering scope are:
+
+- normative Working Set timing/ageing and timeout-based dissolution semantics,
 - Virtual Terminal object pools,
 - Task Controller / process-data control,
 - Tractor ECU control messages,

@@ -378,6 +378,34 @@ if(TARGET ECU::core_v2)
   )
 
   add_executable(
+    ecu_core_v2_isobus_working_set_lifecycle_tests
+    core_v2_isobus_working_set_lifecycle_tests.cpp
+  )
+  target_link_libraries(
+    ecu_core_v2_isobus_working_set_lifecycle_tests
+    PRIVATE ECU::core_v2
+  )
+  set_target_properties(
+    ecu_core_v2_isobus_working_set_lifecycle_tests
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(MSVC)
+    target_compile_options(
+      ecu_core_v2_isobus_working_set_lifecycle_tests
+      PRIVATE /W4 /WX
+    )
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_core_v2_isobus_working_set_lifecycle_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+  add_test(
+    NAME ecu.core_v2.isobus.working_set_lifecycle
+    COMMAND ecu_core_v2_isobus_working_set_lifecycle_tests
+  )
+
+  add_executable(
     ecu_core_v2_isotp_tests
     core_v2_isotp_tests.cpp
   )
@@ -477,6 +505,7 @@ if(TARGET ECU::core_v2)
       ecu_core_v2_isobus_etp_tests
       ecu_core_v2_isobus_working_set_tests
       ecu_core_v2_isobus_network_management_tests
+      ecu_core_v2_isobus_working_set_lifecycle_tests
       ecu_core_v2_isotp_tests
       ecu_core_v2_uds_tests
       ecu_core_v2_uds_isotp_e2e_tests

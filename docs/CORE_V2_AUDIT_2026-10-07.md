@@ -168,13 +168,31 @@ or other machine-control behavior was introduced.
 The ISO 11783-5 network-management engineering gate is PASS. Clause-level
 conformance and independent interoperability evidence remain open.
 
+### A-17 — Working Set messages had no lifecycle consistency model
+
+Resolution: added a bounded read-only Working Set lifecycle above the existing
+WSMSTR/WSMEM codecs and Control Function registry. A declaration counts the
+master in its total and therefore requires exactly total-minus-one distinct
+WSMEM NAMEs. Completion additionally requires every declared NAME to resolve to
+one current unambiguous Address Claim.
+
+The model exposes assembling, incomplete, complete, conflict,
+network-incomplete and stale-master-address states. Duplicate WSMEM messages are
+idempotent; excess distinct members, master-as-member and ambiguous member
+addresses fail closed as conflicts. Master source-address migration invalidates
+the old declaration until a fresh WSMSTR starts a new generation. No VT, Task
+Controller, timing scheduler or machine actuation was introduced.
+
+The ISOBUS Working Set lifecycle engineering gate is PASS. Normative timing,
+ageing, clause mapping and independent interoperability evidence remain open.
+
 ## Open items that are not engineering defects
 
 The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939-22, SAE J1939/81, SAE J1939-73, ISO 11783-5:2019, ISO 11783-6, ISO 11783-7:2022, ISO 15765-2:2024 or ISO 14229-1/-2/-3. Independent interoperability evidence is also required before formal protocol-conformance PASS.
 
 ## Next protocol priorities
 
-1. Continue ISO 11783 working-set lifecycle and remaining application profiles after the network-management + working-set codec foundations; keep VT/TC/control behavior separately gated.
+1. Continue remaining ISO 11783 application profiles after the network-management + Working Set lifecycle foundations; keep VT/TC/control behavior separately gated.
 2. ISO 11992 / WWH-OBD where required by heavy-truck modules.
 3. UDS service/profile expansion after the transport-neutral foundation.
 4. Further read-only J1939-73 services selected from actual TRUCK/AGRI/OHV workshop needs.

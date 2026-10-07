@@ -19,6 +19,7 @@ add_library(ecu_core_v2 STATIC
   src/extended_transport.cpp
   src/working_set.cpp
   src/isobus_network_management.cpp
+  src/working_set_lifecycle.cpp
 )
 
 add_library(ECU::core_v2 ALIAS ecu_core_v2)

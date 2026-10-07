@@ -78,7 +78,7 @@ Status levels:
 | WWH-OBD external test equipment | ISO 27145-6:2023 | NOT_IMPLEMENTED |
 | AGRI/ISOBUS application, transport and network | ISO 11783-3:2026 | FOUNDATION_COMPATIBLE / MODULE_GATED |
 | AGRI/ISOBUS network management | ISO 11783-5:2019 | CF_REGISTRY_ADDRESS_ASSOCIATION_ENGINEERING_PASS / CLAUSE_AUDIT_REQUIRED |
-| AGRI/ISOBUS implement messages / working set | ISO 11783-7:2022 | WSMSTR_WSMEM_ENGINEERING_PASS / CLAUSE_AUDIT_REQUIRED |
+| AGRI/ISOBUS implement messages / working set | ISO 11783-7:2022 | WSMSTR_WSMEM_CODEC_AND_READ_ONLY_LIFECYCLE_ENGINEERING_PASS / CLAUSE_AUDIT_REQUIRED |
 | AGRI/ISOBUS Virtual Terminal / extended transport | ISO 11783-6:2018 | ETP_TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
 | AGRI/ISOBUS diagnostic services | ISO 11783-12:2019 (Edition 4 FDIS under development in 2026) | MODULE_GATED |
 | AGRI safety-related controls | ISO 25119-1:2018 and applicable ISO 25119 series | PROCESS_BOUNDARY / PRODUCT-SAFETY CASE REQUIRED |
@@ -238,18 +238,27 @@ interoperability evidence remain open.
 
 ### ISO 11783 / ISOBUS working-set foundation
 
-Core V2 also contains a bounded Working Set Master / Working Set Member codec
-foundation for PGN 65037 and PGN 65036. It enforces exact eight-byte framing,
-default priority 7 on emitted frames, WSMSTR member-count range 1..250,
-reserved-byte validation, claimable master source addresses and reuse of the
-validated 64-bit J1939/ISO 11783 NAME codec. It deliberately does not implement
-a working-set registry, VT/TC behavior or machine actuation.
+Core V2 contains bounded Working Set Master / Working Set Member codecs for
+PGN 65037 and PGN 65036 plus a separate read-only lifecycle layer. The codec
+enforces exact eight-byte framing, priority 7 on emitted frames, declared member
+count validation, reserved-byte validation, claimable master source addresses
+and the validated 64-bit J1939/ISO 11783 NAME encoding.
+
+The lifecycle composes the ISO 11783 network-management Control Function
+registry. It models a declaration as the master plus exactly `total - 1`
+distinct member NAMEs, resolves current member source addresses through Address
+Claim state, and exposes explicit assembling, incomplete, complete, conflict,
+network-incomplete and stale-master-address states. Fresh WSMSTR declarations
+replace the prior generation for that master. It is bounded and read-only; it
+does not introduce VT/TC behavior or machine actuation.
 
 Detailed evidence is recorded in:
-`docs/CORE_V2_ISOBUS_NETWORK_STATUS.md`.
+- `docs/CORE_V2_ISOBUS_NETWORK_STATUS.md`,
+- `docs/CORE_V2_ISOBUS_WORKING_SET_LIFECYCLE_STATUS.md`.
 
-This is an engineering PASS only. ISO 11783-7:2022 clause mapping and
-independent ISOBUS interoperability evidence remain open.
+This is an engineering PASS only. ISO 11783-7:2022 clause mapping, normative
+Working Set timing/ageing behavior and independent ISOBUS interoperability
+evidence remain open.
 
 Before ISO 11783-6 module standards PASS:
 - clause-by-clause audit against ISO 11783-6:2018,
