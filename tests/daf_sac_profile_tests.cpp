@@ -64,8 +64,7 @@ class TestClock final : public core::time::IMonotonicClock {
 class ScriptedDiagnosticTransport final
     : public transport::IDiagnosticTransport {
  public:
-  explicit ScriptedDiagnosticTransport(TestClock& clock) noexcept
-      : clock_(clock) {}
+  ScriptedDiagnosticTransport() noexcept = default;
 
   [[nodiscard]] bool valid() const noexcept override {
     return true;
@@ -219,7 +218,6 @@ class ScriptedDiagnosticTransport final
     }
   }
 
-  TestClock& clock_;
   std::array<std::byte, 8U> request_{};
   std::size_t request_length_{0U};
   std::array<std::byte, 128U> response_{};
@@ -358,7 +356,7 @@ int main() {
 
   {
     TestClock clock;
-    ScriptedDiagnosticTransport diagnostic_transport{clock};
+    ScriptedDiagnosticTransport diagnostic_transport{};
     uds::UdsClient client{diagnostic_transport, uds_config()};
     daf::IdentificationProgram program{
         daf::CanBitrateProfile::k500k,
@@ -402,7 +400,7 @@ int main() {
 
   {
     TestClock clock;
-    ScriptedDiagnosticTransport diagnostic_transport{clock};
+    ScriptedDiagnosticTransport diagnostic_transport{};
     diagnostic_transport.reject_did(daf::kDidSoftware, 0x31U);
     uds::UdsClient client{diagnostic_transport, uds_config()};
     daf::IdentificationProgram program{
