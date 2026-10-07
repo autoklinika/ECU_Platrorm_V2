@@ -618,8 +618,10 @@ int main() {
           (segment - 1U) * 60U;
       const auto data =
           pattern_segment(offset);
-      const auto valid =
-          segment == 3U ? 1U : 60U;
+      const std::uint8_t valid =
+          segment == 3U
+              ? static_cast<std::uint8_t>(1U)
+              : static_cast<std::uint8_t>(60U);
       (void)build_fd_tp_dt(
           kTxAddress,
           kGlobalAddress,
