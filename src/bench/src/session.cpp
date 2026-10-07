@@ -53,6 +53,146 @@ BenchSession::BenchSession(
       environment_(environment),
       events_(events) {}
 
+BenchSessionConfigValidationStatus
+BenchSession::validate_configuration(
+    const BenchSessionConfig& config) const noexcept {
+  if (config.session_owner == 0U) {
+    return BenchSessionConfigValidationStatus::invalid_session_owner;
+  }
+  if (!config.dut.valid()) {
+    return BenchSessionConfigValidationStatus::invalid_dut_handle;
+  }
+  if (duts_.configuration_state() !=
+      ecu::core::v2::runtime::ConfigurationState::frozen) {
+    return BenchSessionConfigValidationStatus::dut_registry_not_frozen;
+  }
+  if (config.additional_resource_count >
+      config.additional_resources.size()) {
+    return BenchSessionConfigValidationStatus::too_many_resources;
+  }
+
+  const auto* dut = duts_.get(config.dut);
+  if (dut == nullptr) {
+    return BenchSessionConfigValidationStatus::dut_not_found;
+  }
+
+  for (std::size_t index = 0U;
+       index <
+           static_cast<std::size_t>(
+               config.additional_resource_count);
+       ++index) {
+    const auto resource = config.additional_resources[index];
+    if (resource.resource_class ==
+        ecu::core::v2::runtime::ResourceClass::device_under_test) {
+      return BenchSessionConfigValidationStatus::forbidden_dut_resource;
+    }
+
+    for (std::size_t other = index + 1U;
+         other <
+             static_cast<std::size_t>(
+                 config.additional_resource_count);
+         ++other) {
+      if (resource == config.additional_resources[other]) {
+        return BenchSessionConfigValidationStatus::duplicate_resource;
+      }
+    }
+  }
+
+  if (!config.use_electrical_control) {
+    if (config.run_electrical_state != BenchElectricalState{} ||
+        config.use_wake_pulse ||
+        config.wake_pulse_width.count() != 0 ||
+        config.verify_electrical_state) {
+      return BenchSessionConfigValidationStatus::
+          electrical_request_without_control;
+    }
+  } else {
+    if (electrical_ == nullptr) {
+      return BenchSessionConfigValidationStatus::
+          electrical_control_unavailable;
+    }
+    if (!is_valid_electrical_state(
+            config.run_electrical_state)) {
+      return BenchSessionConfigValidationStatus::
+          invalid_electrical_state;
+    }
+
+    const auto capabilities = electrical_->capabilities();
+
+    if ((config.run_electrical_state.power &&
+         !has_bench_electrical_capability(
+             capabilities,
+             BenchElectricalCapability::power)) ||
+        (config.run_electrical_state.ignition &&
+         !has_bench_electrical_capability(
+             capabilities,
+             BenchElectricalCapability::ignition)) ||
+        (config.run_electrical_state.wake &&
+         !has_bench_electrical_capability(
+             capabilities,
+             BenchElectricalCapability::wake_level))) {
+      return BenchSessionConfigValidationStatus::
+          electrical_capability_missing;
+    }
+
+    if (config.use_wake_pulse) {
+      if (!config.run_electrical_state.power ||
+          config.wake_pulse_width.count() <= 0) {
+        return BenchSessionConfigValidationStatus::invalid_wake_pulse;
+      }
+      if (!has_bench_electrical_capability(
+              capabilities,
+              BenchElectricalCapability::wake_pulse)) {
+        return BenchSessionConfigValidationStatus::
+            electrical_capability_missing;
+      }
+    } else if (config.wake_pulse_width.count() != 0) {
+      return BenchSessionConfigValidationStatus::invalid_wake_pulse;
+    }
+
+    if (config.verify_electrical_state &&
+        !has_bench_electrical_capability(
+            capabilities,
+            BenchElectricalCapability::state_feedback)) {
+      return BenchSessionConfigValidationStatus::
+          electrical_feedback_unsupported;
+    }
+  }
+
+  if (config.environment_mode ==
+          EnvironmentMode::minimal_profile_environment &&
+      environment_ == nullptr) {
+    return BenchSessionConfigValidationStatus::environment_unavailable;
+  }
+
+  if (ecu::core::v2::domain::has_dut_capability(
+          dut->capabilities,
+          ecu::core::v2::domain::DutCapability::requires_environment) &&
+      config.environment_mode !=
+          EnvironmentMode::minimal_profile_environment) {
+    return BenchSessionConfigValidationStatus::environment_required;
+  }
+
+  if (ecu::core::v2::domain::has_dut_capability(
+          dut->capabilities,
+          ecu::core::v2::domain::DutCapability::requires_power_control) &&
+      (!config.use_electrical_control ||
+       !config.run_electrical_state.power)) {
+    return BenchSessionConfigValidationStatus::power_control_required;
+  }
+
+  if (ecu::core::v2::domain::has_dut_capability(
+          dut->capabilities,
+          ecu::core::v2::domain::DutCapability::requires_wake) &&
+      (!config.use_electrical_control ||
+       (!config.run_electrical_state.wake &&
+        !config.use_wake_pulse))) {
+    return BenchSessionConfigValidationStatus::wake_required;
+  }
+
+  return BenchSessionConfigValidationStatus::valid;
+}
+
 bool BenchSession::configure(
     const BenchSessionConfig& config) noexcept {
   if (busy_) {
@@ -71,9 +211,13 @@ bool BenchSession::configure(
     return false;
   }
 
-  if (duts_.configuration_state() !=
-      ecu::core::v2::runtime::ConfigurationState::frozen) {
-    status_ = BenchSessionStatus::invalid_state;
+  const auto validation = validate_configuration(config);
+  if (validation != BenchSessionConfigValidationStatus::valid) {
+    status_ =
+        validation ==
+                BenchSessionConfigValidationStatus::dut_registry_not_frozen
+            ? BenchSessionStatus::invalid_state
+            : BenchSessionStatus::invalid_argument;
     observe(
         previous_state,
         BenchSessionReason::configuration_rejected,
@@ -82,17 +226,6 @@ bool BenchSession::configure(
   }
 
   const auto* dut = duts_.get(config.dut);
-  if (dut == nullptr ||
-      !valid_config(config, *dut) ||
-      !resource_list_valid(config)) {
-    status_ = BenchSessionStatus::invalid_argument;
-    observe(
-        previous_state,
-        BenchSessionReason::configuration_rejected,
-        false);
-    return false;
-  }
-
   config_ = config;
   dut_ = dut;
 
@@ -512,142 +645,6 @@ bool BenchSession::cleanup_required() const noexcept {
 const ecu::core::v2::domain::DutDescriptor*
 BenchSession::dut_descriptor() const noexcept {
   return dut_;
-}
-
-bool BenchSession::valid_config(
-    const BenchSessionConfig& config,
-    const ecu::core::v2::domain::DutDescriptor& dut) const noexcept {
-  if (config.session_owner == 0U ||
-      !config.dut.valid() ||
-      config.additional_resource_count >
-          config.additional_resources.size()) {
-    return false;
-  }
-
-  if (!electrical_configuration_supported(config)) {
-    return false;
-  }
-
-  if (config.environment_mode ==
-          EnvironmentMode::minimal_profile_environment &&
-      environment_ == nullptr) {
-    return false;
-  }
-
-  if (ecu::core::v2::domain::has_dut_capability(
-          dut.capabilities,
-          ecu::core::v2::domain::DutCapability::requires_environment) &&
-      config.environment_mode !=
-          EnvironmentMode::minimal_profile_environment) {
-    return false;
-  }
-
-  if (ecu::core::v2::domain::has_dut_capability(
-          dut.capabilities,
-          ecu::core::v2::domain::DutCapability::requires_power_control) &&
-      (!config.use_electrical_control ||
-       !config.run_electrical_state.power)) {
-    return false;
-  }
-
-  if (ecu::core::v2::domain::has_dut_capability(
-          dut.capabilities,
-          ecu::core::v2::domain::DutCapability::requires_wake) &&
-      (!config.use_electrical_control ||
-       (!config.run_electrical_state.wake &&
-        !config.use_wake_pulse))) {
-    return false;
-  }
-
-  return true;
-}
-
-bool BenchSession::resource_list_valid(
-    const BenchSessionConfig& config) const noexcept {
-  for (std::size_t index = 0U;
-       index <
-           static_cast<std::size_t>(
-               config.additional_resource_count);
-       ++index) {
-    const auto resource = config.additional_resources[index];
-    if (resource.resource_class ==
-        ecu::core::v2::runtime::ResourceClass::device_under_test) {
-      return false;
-    }
-
-    for (std::size_t other = index + 1U;
-         other <
-             static_cast<std::size_t>(
-                 config.additional_resource_count);
-         ++other) {
-      if (resource == config.additional_resources[other]) {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-bool BenchSession::electrical_configuration_supported(
-    const BenchSessionConfig& config) const noexcept {
-  if (!config.use_electrical_control) {
-    return config.run_electrical_state ==
-               BenchElectricalState{} &&
-           !config.use_wake_pulse &&
-           config.wake_pulse_width.count() == 0 &&
-           !config.verify_electrical_state;
-  }
-
-  if (electrical_ == nullptr ||
-      !is_valid_electrical_state(
-          config.run_electrical_state)) {
-    return false;
-  }
-
-  const auto capabilities = electrical_->capabilities();
-
-  if (config.run_electrical_state.power &&
-      !has_bench_electrical_capability(
-          capabilities,
-          BenchElectricalCapability::power)) {
-    return false;
-  }
-
-  if (config.run_electrical_state.ignition &&
-      !has_bench_electrical_capability(
-          capabilities,
-          BenchElectricalCapability::ignition)) {
-    return false;
-  }
-
-  if (config.run_electrical_state.wake &&
-      !has_bench_electrical_capability(
-          capabilities,
-          BenchElectricalCapability::wake_level)) {
-    return false;
-  }
-
-  if (config.use_wake_pulse) {
-    if (!config.run_electrical_state.power ||
-        config.wake_pulse_width.count() <= 0 ||
-        !has_bench_electrical_capability(
-            capabilities,
-            BenchElectricalCapability::wake_pulse)) {
-      return false;
-    }
-  } else if (config.wake_pulse_width.count() != 0) {
-    return false;
-  }
-
-  if (config.verify_electrical_state &&
-      !has_bench_electrical_capability(
-          capabilities,
-          BenchElectricalCapability::state_feedback)) {
-    return false;
-  }
-
-  return true;
 }
 
 bool BenchSession::component_contracts_valid() const noexcept {

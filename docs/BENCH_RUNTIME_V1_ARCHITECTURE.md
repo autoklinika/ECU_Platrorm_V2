@@ -258,6 +258,26 @@ The list is fixed-capacity and duplicate resource requests are rejected.
 A profile cannot smuggle a second `device_under_test` resource through the
 additional-resource list.
 
+## 7.1 Resolved configuration handoff
+
+Stage 2 deliberately does not define a persistent DUT Profile schema.
+
+The future Stage 3 profile resolver produces a resolved `BenchSessionConfig`
+for one session. The configuration contains only runtime requirements already
+understood by Bench Runtime: selected DUT handle, resource keys,
+power/ignition/wake request, optional feedback verification and optional minimal
+environment mode.
+
+`validate_configuration()` is a side-effect-free preflight. It returns a
+specific `BenchSessionConfigValidationStatus` and does not acquire hardware or
+resources. This lets a future application service/Profile resolver reject an
+impossible plan before any physical DUT action occurs.
+
+Exclusive resource availability is intentionally not claimed during preflight;
+`ResourceManager` ownership is still acquired transactionally by `start()`,
+so a configuration that was structurally valid can still return
+`resource_unavailable` if another owner acquired the resource in the meantime.
+
 ## 8. Minimal environment rule
 
 `EnvironmentMode::minimal_profile_environment` exists only for DUTs that need
@@ -315,14 +335,22 @@ as generic Core behavior.
 - reentrant lifecycle calls from event callbacks return bounded `busy`,
 - no GUI dependency.
 
-**Implementation PASS locally; cross-platform CI is the remaining gate for this increment.**
+**Engineering PASS. Cross-platform CI run `37632940664`: 12/12 PASS.**
 
 ### 2.3 — Session configuration handoff
 
-- define the neutral handoff from future DUT Profile resolution into
-  `BenchSessionConfig`,
-- validate required resources/capabilities before start,
-- keep concrete profile schema in Stage 3.
+- `BenchSessionConfig` is the neutral resolved handoff from future DUT Profile
+  resolution into Bench Runtime,
+- public `validate_configuration()` performs deterministic preflight before
+  session ownership starts,
+- explicit validation statuses cover DUT topology/handle, resource list,
+  electrical boundary/capabilities, wake pulse, feedback and environment,
+- DUT capability requirements for environment/power/wake are enforced before
+  `start()`,
+- resource availability/contention remains a start-time ownership check,
+- concrete OEM/profile schema remains Stage 3.
+
+**Implementation PASS locally; cross-platform CI is the remaining gate for this increment.**
 
 ### 2.4 — Host/platform service contract
 

@@ -163,6 +163,27 @@ enum class EnvironmentMode : std::uint8_t {
   minimal_profile_environment,
 };
 
+enum class BenchSessionConfigValidationStatus : std::uint8_t {
+  valid,
+  invalid_session_owner,
+  invalid_dut_handle,
+  dut_registry_not_frozen,
+  dut_not_found,
+  too_many_resources,
+  duplicate_resource,
+  forbidden_dut_resource,
+  electrical_request_without_control,
+  electrical_control_unavailable,
+  invalid_electrical_state,
+  electrical_capability_missing,
+  invalid_wake_pulse,
+  electrical_feedback_unsupported,
+  environment_unavailable,
+  environment_required,
+  power_control_required,
+  wake_required,
+};
+
 struct BenchSessionConfig {
   static constexpr std::size_t kMaxAdditionalResources = 8U;
 
@@ -347,6 +368,10 @@ class BenchSession final {
   BenchSession(BenchSession&&) = delete;
   BenchSession& operator=(BenchSession&&) = delete;
 
+  [[nodiscard]] BenchSessionConfigValidationStatus
+  validate_configuration(
+      const BenchSessionConfig& config) const noexcept;
+
   [[nodiscard]] bool configure(
       const BenchSessionConfig& config) noexcept;
 
@@ -375,13 +400,6 @@ class BenchSession final {
   dut_descriptor() const noexcept;
 
  private:
-  [[nodiscard]] bool valid_config(
-      const BenchSessionConfig& config,
-      const ecu::core::v2::domain::DutDescriptor& dut) const noexcept;
-  [[nodiscard]] bool resource_list_valid(
-      const BenchSessionConfig& config) const noexcept;
-  [[nodiscard]] bool electrical_configuration_supported(
-      const BenchSessionConfig& config) const noexcept;
   [[nodiscard]] bool component_contracts_valid() const noexcept;
   [[nodiscard]] bool execution_budget_valid(
       BenchSessionExecutionBudget& budget) const noexcept;
