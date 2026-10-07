@@ -3,6 +3,12 @@ add_library(ecu_core_v2 STATIC
   src/can_bus_runtime.cpp
   src/deadline_watchdog.cpp
   src/cyclic_can_actuator_runtime.cpp
+  src/resource_manager.cpp
+  src/command_dispatcher.cpp
+  src/state_registry.cpp
+  src/event_bus.cpp
+  src/module_registry.cpp
+  src/dut_registry.cpp
   src/j1939_identifier.cpp
   src/j1939_name.cpp
   src/address_claim.cpp

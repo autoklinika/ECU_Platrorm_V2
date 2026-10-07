@@ -172,14 +172,14 @@ The legacy `IActuator` contract is reference evidence only. Core V2 must rebuild
 
 ## 8. Core freeze implications
 
-Core V2 must not be frozen until the following laboratory foundations are closed:
+Core V2 freeze gate requires the following laboratory foundations:
 
-1. DUT-neutral identity/class/capability contract.
-2. Deterministic bounded cyclic CAN execution primitive for raw/proprietary devices.
-3. Actuator safe-stop / timeout / interlock ownership contract.
-4. Clear boundary between Core and Bench Session.
-5. Regression evidence that raw CAN actuation can coexist with J1939/ISO-TP/UDS consumers on one shared bus runtime without direct driver access.
-6. Multiplatform CI and sanitizer validation.
+1. DUT-neutral identity/class/capability contract — **ENGINEERING PASS**.
+2. Deterministic bounded cyclic CAN execution primitive for raw/proprietary devices — **ENGINEERING PASS**.
+3. Actuator safe-stop / timeout / interlock ownership contract — **ENGINEERING PASS**.
+4. Clear boundary between Core and Bench Session — **ARCHITECTURE PASS**.
+5. Regression evidence that raw CAN actuation can coexist with J1939/ISO-TP/UDS consumers on one shared bus runtime without direct driver access — **LOCAL ENGINEERING PASS**.
+6. Multiplatform CI and sanitizer validation — **local sanitizers PASS; branch CI pending**.
 
 Full implementations of individual EGR/VGT/ECU profiles are not required to freeze generic Core, but at least one real actuator-class profile and one ECU-class profile must be used as architecture proof cases before production promotion.
 
@@ -213,4 +213,6 @@ CORE_V2_PRIMARY_ABSTRACTION=DUT
 CORE_V2_RAW_CAN=FIRST_CLASS
 CORE_V2_DIAGNOSTICS=OPTIONAL_CAPABILITY
 CORE_V2_ACTUATOR_RUNTIME=ENGINEERING_PASS
-CORE_V2_FREEZE_GATE=DUT_NEUTRAL_RUNTIME_AUDIT_PENDING
+CORE_V2_RUNTIME_FOUNDATION=ENGINEERING_PASS
+CORE_V2_SHARED_BUS_DUT_PROOF=LOCAL_PASS
+CORE_V2_FREEZE_GATE=CROSS_PLATFORM_CI_AND_FINAL_AUDIT_PENDING

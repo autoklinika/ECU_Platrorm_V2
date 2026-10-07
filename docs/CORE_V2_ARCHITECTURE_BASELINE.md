@@ -175,12 +175,21 @@ Responsibilities:
 - command dispatch,
 - authoritative state,
 - event sequencing,
-- stable module registration,
-- resource ownership,
+- stable module and DUT registration,
+- generation-safe resource ownership,
 - lifecycle,
-- cancellation.
+- generation-safe cancellation.
 
-Runtime topology is configured before RUNNING and then frozen.
+Core V2 now implements this as a bounded single-executor runtime foundation.
+Runtime topology is configured before RUNNING and then frozen. Runtime
+registration/removal, hidden worker threads and mutex-owned execution are not
+part of the Core V2 contract.
+
+The DUT-neutral shared-bus proof runs J1939, ISO-TP and a proprietary cyclic CAN
+actuator on the same authoritative `CanBusRuntime` without direct protocol or
+profile access to the physical CAN driver.
+
+Detailed evidence is in `docs/CORE_V2_RUNTIME_FOUNDATION_STATUS.md`.
 
 ### L7 — Safety and deterministic laboratory actuation
 
