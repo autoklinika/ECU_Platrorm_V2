@@ -220,3 +220,73 @@ Full analog pressure scaling and DAF OEM fault-code interpretation remain
 separate follow-up verification tasks.
 
 The VIN was not written into this public evidence file.
+
+## Stage 4.2 — opcja kasowania DTC z terminala (operator CLI)
+
+Gałąź: `stage4.2/sac-dtc-clear-cli`. To **osobny, fizyczny**
+punkt wejścia; wcześniejsze `run_stage42_daf_sac_read_gate.sh`
+pozostaje wyłącznie do odczytów i nadal nie oferuje `clear`.
+Ciśnienie pozostaje do późniejszej walidacji — bez zmian w dekoderze.
+
+Po świadomej decyzji operatora uruchomienie na ECU Platform:
+
+```bash
+cd ~/ECU_Platrorm_V2
+sudo ./scripts/run_stage42_daf_sac_clear_gate.sh
+```
+
+Jest to potencjalnie **destrukcyjna operacja serwisowa**, która usuwa
+informacje diagnostyczne zapisane w SAC. Narzędzie wymaga interaktywnego
+terminala (TTY), odmawia uruchomienia przez stdin/pipe i nie działa
+automatycznie ani podczas CI.
+
+Przebieg w jednej aplikacji SAC, przez te same neutralne Bench Runtime
+oraz Core V2 co już fizycznie sprawdzone odczyty:
+
+1. Konfiguracja `can0` Classic CAN 250000 normal i start sesji Bench.
+2. UDS `10 03` -> `19 02 FF`: ponowne odczytanie pełnej listy DTC,
+   ich 24-bitowych kodów, statusów i maski dostępności.
+3. Trwały lokalny zapis listy PRZED kasowaniem w katalogu
+   `~/.local/state/ecu-platform/daf-sac/dtc-clear/`, z dostępem
+   tylko dla operatora (katalog `0700`, plik `0600`). Plik zapisany
+   i zsynchronizowany przed wystawieniem możliwości kasowania.
+   Jest to *kopia kodów/statusów*, a nie całej diagnostyki ECU
+   (nie obejmuje freeze frames / rozszerzonych danych OEM).
+4. Operator w ciągu 120 s wpisuje dokładnie tekst podany na ekranie,
+   np. `KASUJ SAC 12 DTC`. Niepoprawny tekst, brak TTY, brak zapisu
+   lub brak potwierdzenia => **zero żądań ClearDiagnosticInformation**.
+5. Aplikacja konsumuje jednorazowe wyzwanie powiązane z bieżącym
+   profilem SAC i liczbą właśnie odczytanych DTC. Dopiero teraz
+   wykonuje `10 03` -> `14 FF FF FF`. Nie ma automatycznego retry.
+6. Gdy przyjdzie poprawne `54`, operator widzi
+   `SAC_DTC_CLEAR_UDS_ACK=YES`; to **potwierdzenie przyjęcia
+   żądania**, nie dowód braku usterek.
+7. Następuje ponowny odczyt `10 03` -> `19 02 FF`: drukowana
+   i archiwizowana jest lista DTC pozostałych lub ponownie aktywnych.
+   Błąd ponownego odczytu jest raportowany osobno, bez ukrywania ACK.
+8. Każde zakończenie (również NRC, błąd, anulowanie) przełącza
+   systemowe `can0` na DOWN. Stan błędu z nieznanym efektem
+   kasowania **nie powoduje automatycznego ponowienia**.
+
+Logi w `~/.local/state` nie są kopiowane do publicznego repozytorium.
+Nie zmieniono CORE V2, ogólnego Bench Runtime, API ani WebGUI.
+
+### Walidacja bez kasowania fizycznego
+
+- Linux builder `ecu_daf_sac_stage42_clear_probe`: kompilacja PASS.
+- `ecu.sac.clear_operator`: PASS — dokładna fraza operatora,
+  zapis oryginalnych DTC z uprawnieniami `0600`, odmowa użycia
+  niebezpiecznego katalogu i ochrony przed nadpisaniem istniejącego
+  archiwum.
+- `DTC_CLEAR_NONINTERACTIVE_DENIAL=PASS`: CLI uruchomione bez TTY
+  odrzuca operację jeszcze przed otwarciem CAN.
+- Istniejące testy SAC: syntetyczne `10 03`/`14`/`54`,
+  NRC, timeouty, błędne odpowiedzi, rezerwacje, stop/recover.
+- Testy portable Debug/Release/Generic/ASan-UBSan: PASS.
+- Na rzeczywistym SAC: **kasowania nie uruchamiano**.
+  Potwierdzony fizyczny odczyt 12 DTC pozostaje niezniszczony.
+- Dedykowane CI Stage 4.2 nadal wymaga zaakceptowanego patcha
+  workflow; nie zmienia się `main`.
+
+Fizyczna akceptacja procedury kasowania wymaga przyszłego
+świadomego uruchomienia przez operatora i obserwacji odpowiedzi ECU.

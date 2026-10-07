@@ -9,6 +9,7 @@ python3 "$ROOT_DIR/scripts/check_daf_sac_profile_architecture.py"
 python3 "$ROOT_DIR/scripts/check_daf_sac_application_architecture.py"
 bash -n "$ROOT_DIR/scripts/run_stage4_daf_sac_bench_gate.sh"
 bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_read_gate.sh"
+bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_clear_gate.sh"
 
 common=(
   -DECU_BUILD_TESTS=ON
@@ -48,5 +49,30 @@ test_configuration stage4-sanitize Debug \
   -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
 
+if [[ "$(uname -s)" == "Linux" ]]; then
+  echo "=== DAF SAC clear operator: Linux-only, no real CAN transmissions ==="
+  linux_build="$ROOT_DIR/build/daf-sac-app-linux"
+  cmake -S "$ROOT_DIR" -B "$linux_build" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Debug "${common[@]}" \
+    -DECU_BUILD_LINUX_V2_PLATFORM=ON
+  cmake --build "$linux_build" --target \
+    ecu_daf_sac_clear_operator_tests \
+    ecu_daf_sac_stage42_clear_probe
+  ctest --test-dir "$linux_build" \
+    -R '^ecu\.sac\.clear_operator$' \
+    --output-on-failure --no-tests=error
+
+  if refusal_output="$("$linux_build/tests/ecu_daf_sac_stage42_clear_probe" \
+       can0 clear-dtc /tmp </dev/null 2>&1)"; then
+    echo "ERROR: noninteractive DTC clear runner was not rejected"
+    exit 1
+  fi
+  case "$refusal_output" in
+    *"interactive operator TTY"*) echo "DTC_CLEAR_NONINTERACTIVE_DENIAL=PASS" ;;
+    *) echo "ERROR: DTC clear CLI failed for unexpected reason: $refusal_output"; exit 1 ;;
+  esac
+fi
+
 echo "DAF_SAC_APPLICATION_STAGE4_LOCAL_GATE=PASS"
 echo "DAF_SAC_APPLICATION_STAGE42_LOCAL_GATE=PASS"
+echo "DAF_SAC_DTC_CLEAR_CLI_SOFTWARE_GATE=PASS"

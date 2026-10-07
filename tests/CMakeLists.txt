@@ -1116,12 +1116,29 @@ if(TARGET ECU::app_daf_sac AND TARGET ECU::platform_linux_v2)
     daf_sac_bench_app_physical_probe.cpp)
   add_executable(ecu_daf_sac_stage42_read_probe
     daf_sac_stage42_read_probe.cpp)
+  add_executable(ecu_daf_sac_stage42_clear_probe
+    daf_sac_stage42_clear_probe.cpp)
+  add_executable(ecu_daf_sac_clear_operator_tests
+    daf_sac_clear_operator_tests.cpp)
+  target_link_libraries(ecu_daf_sac_clear_operator_tests
+    PRIVATE ECU::app_daf_sac)
+  set_target_properties(ecu_daf_sac_clear_operator_tests
+    PROPERTIES CXX_EXTENSIONS OFF)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(ecu_daf_sac_clear_operator_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  endif()
+  add_test(NAME ecu.sac.clear_operator
+    COMMAND ecu_daf_sac_clear_operator_tests)
   target_link_libraries(ecu_daf_sac_bench_app_probe
     PRIVATE ECU::app_daf_sac ECU::platform_linux_v2)
   target_link_libraries(ecu_daf_sac_stage42_read_probe
     PRIVATE ECU::app_daf_sac ECU::platform_linux_v2)
+  target_link_libraries(ecu_daf_sac_stage42_clear_probe
+    PRIVATE ECU::app_daf_sac ECU::platform_linux_v2)
   foreach(target_name IN ITEMS
-      ecu_daf_sac_bench_app_probe ecu_daf_sac_stage42_read_probe)
+      ecu_daf_sac_bench_app_probe ecu_daf_sac_stage42_read_probe
+      ecu_daf_sac_stage42_clear_probe)
     set_target_properties(${target_name} PROPERTIES CXX_EXTENSIONS OFF)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
       target_compile_options(${target_name}
