@@ -199,7 +199,7 @@ case, not only diagnostic actuator tests routed through UDS/J1939.
 
 Core V2 now includes a bounded cyclic raw-CAN actuator runtime implementing this contract at engineering-foundation level. Detailed evidence is in `docs/CORE_V2_CYCLIC_ACTUATOR_RUNTIME_STATUS.md`.
 
-A generic watchdog and cyclic runtime are engineering primitives. Product safety claims still require domain-specific analysis, hardware/platform guarantees and evidence.
+A generic watchdog is only a primitive. The cyclic actuator runtime is likewise an engineering primitive, not a product-level safety claim. Safety claims require domain-specific analysis and evidence, including the necessary hardware/platform guarantees.
 
 ### L8 — API facade
 
