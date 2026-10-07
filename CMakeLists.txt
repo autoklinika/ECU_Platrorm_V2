@@ -12,6 +12,7 @@ option(ECU_BUILD_CORE_V2 "Build rebuilt TRUCK/AGRI/OHV Core V2" ON)
 option(ECU_BUILD_BENCH_RUNTIME "Build DUT-neutral Bench Runtime" ON)
 option(ECU_BUILD_DUT_PROFILE "Build Stage 3 DUT Profile foundation" OFF)
 option(ECU_BUILD_DAF_SAC_PROFILE "Build Stage 3.3 DAF SAC proof profile" OFF)
+option(ECU_BUILD_DAF_SAC_APPLICATION "Build isolated DAF SAC application module" OFF)
 option(ECU_BUILD_SAC_MODULE "Build SAC ECU module" ON)
 option(
   ECU_BUILD_LINUX_SOCKETCAN
@@ -68,6 +69,14 @@ if(ECU_BUILD_DAF_SAC_PROFILE)
       "DAF SAC proof profile requires ECU::dut_profile; enable ECU_BUILD_DUT_PROFILE or disable ECU_BUILD_DAF_SAC_PROFILE")
   endif()
   add_subdirectory(src/dut_profiles/daf_sac)
+endif()
+
+if(ECU_BUILD_DAF_SAC_APPLICATION)
+  if(NOT TARGET ECU::daf_sac_profile OR NOT TARGET ECU::bench)
+    message(FATAL_ERROR
+      "DAF SAC application requires ECU_BUILD_DAF_SAC_PROFILE and ECU_BUILD_BENCH_RUNTIME")
+  endif()
+  add_subdirectory(src/applications/daf_sac)
 endif()
 
 if(ECU_BUILD_SAC_MODULE)

@@ -1079,3 +1079,47 @@ if(
     )
   endif()
 endif()
+
+if(TARGET ECU::app_daf_sac)
+  add_executable(
+    ecu_daf_sac_application_tests
+    daf_sac_application_tests.cpp
+  )
+  target_link_libraries(
+    ecu_daf_sac_application_tests
+    PRIVATE ECU::app_daf_sac
+  )
+  set_target_properties(
+    ecu_daf_sac_application_tests
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(MSVC)
+    target_compile_options(ecu_daf_sac_application_tests PRIVATE /W4 /WX)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_daf_sac_application_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+  add_test(
+    NAME ecu.applications.daf_sac
+    COMMAND ecu_daf_sac_application_tests
+  )
+  add_custom_target(
+    ecu_daf_sac_application_tests_target
+    DEPENDS ecu_daf_sac_application_tests
+  )
+endif()
+
+if(TARGET ECU::app_daf_sac AND TARGET ECU::platform_linux_v2)
+  add_executable(ecu_daf_sac_bench_app_probe
+    daf_sac_bench_app_physical_probe.cpp)
+  target_link_libraries(ecu_daf_sac_bench_app_probe
+    PRIVATE ECU::app_daf_sac ECU::platform_linux_v2)
+  set_target_properties(ecu_daf_sac_bench_app_probe
+    PROPERTIES CXX_EXTENSIONS OFF)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(ecu_daf_sac_bench_app_probe
+      PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  endif()
+endif()
