@@ -77,6 +77,7 @@ Status levels:
 | WWH-OBD vehicle/tester connection | ISO 27145-4:2016 | NOT_IMPLEMENTED |
 | WWH-OBD external test equipment | ISO 27145-6:2023 | NOT_IMPLEMENTED |
 | AGRI/ISOBUS application, transport and network | ISO 11783-3:2026 | FOUNDATION_COMPATIBLE / MODULE_GATED |
+| AGRI/ISOBUS Virtual Terminal / extended transport | ISO 11783-6:2018 | ETP_TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
 | AGRI/ISOBUS diagnostic services | ISO 11783-12:2019 (Edition 4 FDIS under development in 2026) | MODULE_GATED |
 | AGRI safety-related controls | ISO 25119-1:2018 and applicable ISO 25119 series | PROCESS_BOUNDARY / PRODUCT-SAFETY CASE REQUIRED |
 | OHV earth-moving functional safety | ISO 19014-1:2018 and applicable ISO 19014 series; Edition 2 under publication in 2026 | PROCESS_BOUNDARY / PRODUCT-SAFETY CASE REQUIRED |
@@ -161,10 +162,34 @@ gated.
 Before J1939 module standards PASS:
 - clause audit against SAE J1939/21_202205,
 - interoperability evidence for implemented Classical TP,
-- ETP/ISOBUS extended transport as its separately scoped ISO 11783 layer,
 - CAN FD rules per SAE J1939-22_202209,
 - Address Claiming/network management per SAE J1939/81_202504,
 - diagnostics per SAE J1939-73_202609 when implemented.
+
+### ISO 11783 / ISOBUS extended transport
+
+Core V2 now has a streaming ETP technical-gate implementation:
+
+- ETP.CM / ETP.DT codec,
+- RTS / CTS / DPO / EOMA / Abort,
+- 32-bit message length,
+- 24-bit absolute packet numbering,
+- destination-specific transfer only,
+- 1786..117,440,505 byte range,
+- bounded deferred TX queues,
+- streaming receive sink and transmit source,
+- end-to-end test crossing packet 255 / second DPO offset 255.
+
+Detailed evidence is recorded in:
+`docs/CORE_V2_ISOBUS_ETP_STATUS.md`.
+
+The technical PASS does not imply complete ISOBUS Virtual Terminal, Task
+Controller, diagnostics or application-layer conformance.
+
+Before ISO 11783-6 module standards PASS:
+- clause-by-clause audit against ISO 11783-6:2018,
+- independent ISOBUS interoperability evidence,
+- explicit supported/unsupported Virtual Terminal transport behavior.
 
 ## Heavy-duty / AGRI / OHV profile
 

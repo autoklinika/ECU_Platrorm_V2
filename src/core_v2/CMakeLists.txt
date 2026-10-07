@@ -7,6 +7,7 @@ add_library(ecu_core_v2 STATIC
   src/address_claim.cpp
   src/network_manager.cpp
   src/transport_protocol.cpp
+  src/extended_transport.cpp
 )
 
 add_library(ECU::core_v2 ALIAS ecu_core_v2)

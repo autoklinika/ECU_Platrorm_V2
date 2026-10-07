@@ -636,7 +636,7 @@
         {
           "path": "docs/CORE_V2_ARCHITECTURE_BASELINE.md",
           "markers": [
-            "ISO 11783 / ISOBUS network/application foundations"
+            "ISO 11783 / ISOBUS,"
           ]
         }
       ]

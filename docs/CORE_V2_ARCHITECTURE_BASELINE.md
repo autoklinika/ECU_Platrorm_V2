@@ -362,7 +362,8 @@ Implementation priority after foundation:
 3. J1939 Address Claiming — **subset DONE / technical gate PASS**,
 4. J1939 Classical TP — **DONE / technical gate PASS**; ETP moves to the
    ISO 11783/ISOBUS extended-transport layer,
-5. ISO 11783 / ISOBUS network/application foundations — **NEXT**,
+5. ISO 11783 / ISOBUS extended transport — **DONE / ETP technical gate PASS**;
+   remaining network/application profiles stay module-gated,
 6. J1939 diagnostics,
 7. ISO-TP revalidation on shared-bus ports,
 8. UDS revalidation over transport-neutral interface,
