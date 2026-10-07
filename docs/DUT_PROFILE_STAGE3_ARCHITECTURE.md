@@ -244,9 +244,21 @@ plugin/service framework.
 
 ### 3.2 — Profile registration / selection
 
-- minimal fixed-capacity discovery/selection mechanism if required by the
-  application boundary,
-- no dynamic plugin framework unless a real product requirement justifies it.
+Implemented as a deliberately small static registry:
+
+- `DutProfileRegistry` stores validated profile definitions by value,
+- fixed capacity: 32 profiles,
+- profile identity is unique by `profile_id`,
+- registration is allowed only while configuration is open,
+- `freeze_configuration()` makes the profile topology immutable,
+- runtime selection is allowed only from a frozen registry,
+- selection is by stable `profile_id`,
+- bounded index access supports application/UI enumeration,
+- no filesystem discovery, shared-library loading, heap ownership or dynamic
+  plugin framework.
+
+Concrete runtime-program construction remains outside the registry so selecting
+a profile definition does not introduce hidden driver/protocol ownership.
 
 ### 3.3 — Real proof profiles
 

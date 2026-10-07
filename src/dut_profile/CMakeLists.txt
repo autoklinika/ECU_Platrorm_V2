@@ -1,5 +1,6 @@
 add_library(ecu_dut_profile STATIC
   src/profile.cpp
+  src/registry.cpp
   src/runtime.cpp
 )
 
