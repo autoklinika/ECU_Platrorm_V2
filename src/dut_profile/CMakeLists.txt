@@ -1,5 +1,6 @@
 add_library(ecu_dut_profile STATIC
   src/profile.cpp
+  src/runtime.cpp
 )
 
 add_library(ECU::dut_profile ALIAS ecu_dut_profile)

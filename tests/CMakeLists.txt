@@ -919,8 +919,39 @@ if(TARGET ECU::dut_profile)
     COMMAND ecu_dut_profile_foundation_tests
   )
 
+  add_executable(
+    ecu_dut_profile_runtime_tests
+    dut_profile_runtime_tests.cpp
+  )
+  target_link_libraries(
+    ecu_dut_profile_runtime_tests
+    PRIVATE ECU::dut_profile
+  )
+  set_target_properties(
+    ecu_dut_profile_runtime_tests
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(MSVC)
+    target_compile_options(
+      ecu_dut_profile_runtime_tests
+      PRIVATE /W4 /WX
+    )
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_dut_profile_runtime_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+
+  add_test(
+    NAME ecu.dut_profile.runtime
+    COMMAND ecu_dut_profile_runtime_tests
+  )
+
   add_custom_target(
     ecu_dut_profile_tests
-    DEPENDS ecu_dut_profile_foundation_tests
+    DEPENDS
+      ecu_dut_profile_foundation_tests
+      ecu_dut_profile_runtime_tests
   )
 endif()

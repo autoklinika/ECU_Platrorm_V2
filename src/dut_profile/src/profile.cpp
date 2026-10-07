@@ -505,6 +505,13 @@ ProfileResolveStatus resolve_profile_session(
   plan.bench.environment_mode =
       definition.environment_mode;
 
+  plan.rx_expectation_count = definition.rx_expectation_count;
+  for (std::size_t index = 0U;
+       index < definition.rx_expectation_count;
+       ++index) {
+    plan.rx_expectations[index] = definition.rx_expectations[index];
+  }
+
   plan.can_link_count = definition.can_link_count;
   for (std::size_t index = 0U;
        index < definition.can_link_count;

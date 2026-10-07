@@ -373,6 +373,10 @@ int main() {
             plan.bench.environment_mode ==
                 bench::EnvironmentMode::none &&
             plan.can_link_count == 1U &&
+            plan.rx_expectation_count == 1U &&
+            plan.rx_expectations[0U].link_id == 1U &&
+            plan.rx_expectations[0U].identifier == 0x7E8U &&
+            plan.rx_expectations[0U].mask == 0x7FFU &&
             plan.can_links[0U].link_id == 1U &&
             plan.can_links[0U].resource ==
                 runtime::ResourceKey{

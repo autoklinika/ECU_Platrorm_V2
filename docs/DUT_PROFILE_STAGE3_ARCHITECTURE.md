@@ -215,11 +215,32 @@ the proof cases after the common contract is accepted.
 
 ### 3.1 — Runtime profile contract
 
-- bind a concrete profile runtime to `IDutSessionEndpoint`,
-- define profile-owned startup/shutdown behavior,
-- bind required protocol modules and cyclic program without direct driver
-  access,
-- preserve bounded execution contracts.
+Stage 3.1 keeps the common layer DUT-neutral and deliberately avoids a generic
+service locator for protocol runtimes.
+
+Implemented contract:
+
+- `DutProfileSessionEndpoint` adapts a profile program to
+  `IDutSessionEndpoint`,
+- `IDutProfileProgram` owns only profile/DUT semantics and receives an
+  immutable resolved-plan snapshot,
+- schema version, profile revision and profile identity must match before any
+  profile code can execute,
+- the endpoint freezes the program execution contract at construction time,
+- lifecycle is fail-closed: prepare -> activate -> service -> safe-stop -> stop,
+- a program fault is latched, while the Bench cleanup path can still execute
+  safe-stop and stop,
+- resolved RX expectations are carried into `ResolvedDutSessionPlan` so a
+  runtime can configure reception from the same validated profile,
+- protocol objects (for example ISO-TP/UDS/J1939) and
+  `CyclicCanActuatorRuntime` are injected into a concrete profile program by
+  the application/profile composition boundary; they are not discovered
+  dynamically by the common DUT Profile layer,
+- physical CAN drivers remain below `CanBusRuntime` and are never exposed by
+  the DUT Profile contract.
+
+This keeps dependency binding explicit and testable without adding a speculative
+plugin/service framework.
 
 ### 3.2 — Profile registration / selection
 

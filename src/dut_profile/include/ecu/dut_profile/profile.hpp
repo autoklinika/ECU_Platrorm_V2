@@ -166,6 +166,8 @@ struct ResolvedCanLink {
 struct ResolvedDutSessionPlan {
   static constexpr std::size_t kMaxCanLinks =
       DutProfileDefinition::kMaxCanLinks;
+  static constexpr std::size_t kMaxRxExpectations =
+      DutProfileDefinition::kMaxRxExpectations;
 
   std::uint16_t schema_version{
       DutProfileDefinition::kSchemaVersion};
@@ -176,6 +178,8 @@ struct ResolvedDutSessionPlan {
   ecu::bench::BenchSessionConfig bench{};
   std::array<ResolvedCanLink, kMaxCanLinks> can_links{};
   std::uint8_t can_link_count{0U};
+  std::array<CanRxExpectation, kMaxRxExpectations> rx_expectations{};
+  std::uint8_t rx_expectation_count{0U};
   CyclicControlRequirement cyclic_control{};
 };
 
