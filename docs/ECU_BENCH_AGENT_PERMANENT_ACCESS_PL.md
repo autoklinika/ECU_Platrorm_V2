@@ -168,3 +168,31 @@ uruchomić lokalnie `sudo bash scripts/install_ecu_bench_agent.sh`.
 Zdalne narzędzie nie ma prawa wprowadzać tej zmiany za operatora.
 Dopiero pozytywny wynik `python3 scripts/ecu_bench.py status` na żywym
 systemie pozwala uznać stałego agenta za uruchomionego.
+
+## Druga bramka uruchomienia: brak efektywnego CAP_SETUID (2026-10-07)
+
+Po poprawnym uruchomieniu systemd i utworzeniu gniazda `root:ecu 0660`
+operator zweryfikował wynik `ECU_BENCH_AGENT_STATUS=READY`.
+Zdalny, **wyłącznie odczytowy** test `sac-dtc` został jednak odrzucony
+`Operation not permitted` zanim doszło do odczytu DTC. Archiwum
+sprzed wcześniejszego kasowania jest zachowane, a `can0` został
+wyłączony. Weryfikacja aktywnego procesu usługi pokazała
+`CapEff=0x1040` (SETGID + NET_ADMIN) i `CapBnd=0x10c0` —
+`CAP_SETUID` było dozwolone przez bounding set, ale **nieaktywne**.
+Uruchomienie diagnostycznego probe pod UID `ecu` potrzebuje
+jednorazowej redukcji uprawnień przez `setuid`.
+
+Poprawka Stage Bench Agent:
+- `AmbientCapabilities=CAP_SETUID` w jednostce systemd;
+- bounding set bez zmian: `CAP_NET_ADMIN CAP_SETUID CAP_SETGID`;
+- probe nadal wykonuje się z UID/GID `ecu`, bez nadanych uprawnień
+  do root oraz bez możliwości kasowania DTC;
+- agent weryfikuje wymagane bity `CapEff` **przed** otwarciem
+  gniazda i ogłoszeniem gotowości; brak prawa => fail-closed;
+- nowy test regresyjny dla `CapEff=0x1040` (odmowa) i
+  `CapEff=0x10c0` (dopuszczone).
+
+Powyższa konfiguracja wymaga jeszcze autoryzowanej reinstalacji przez
+operatora; statyczne testy same w sobie nie potwierdzają fizycznego
+uruchomienia. Nie jest nadawany `CAP_SETUID` całemu kontu `ecu`,
+nie ma reguły `NOPASSWD` dla dowolnych programów.

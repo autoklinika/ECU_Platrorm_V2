@@ -27,6 +27,19 @@ IP_PATH = "/usr/sbin/ip"
 MODES = {"sac.read_dtc": "dtc", "sac.read_parameters": "parameters"}
 MAX_REQUEST_BYTES = 512
 PROBE_TIMEOUT_SECONDS = 14
+# CAP_SETGID=6, CAP_SETUID=7, CAP_NET_ADMIN=12.
+REQUIRED_EFFECTIVE_CAPS = (1 << 6) | (1 << 7) | (1 << 12)
+
+
+def effective_caps_ready() -> bool:
+    # Fail before opening the socket or touching can0, rather than letting
+    # an operator believe the agent can drop privileges for read-only probes.
+    with open('/proc/self/status', encoding='ascii') as status:
+        for line in status:
+            if line.startswith('CapEff:'):
+                mask = int(line.split(':', 1)[1].strip(), 16)
+                return (mask & REQUIRED_EFFECTIVE_CAPS) == REQUIRED_EFFECTIVE_CAPS
+    return False
 
 
 def can_info() -> dict:
@@ -167,6 +180,11 @@ def serve(operator_name: str) -> None:
     operator = pwd.getpwnam(operator_name)
     if operator.pw_uid == 0:
         raise RuntimeError("Cannot expose bench service to root identity")
+    if not effective_caps_ready():
+        raise RuntimeError(
+            "Missing CAP_SETUID/CAP_SETGID/CAP_NET_ADMIN effective capabilities; "
+            "cannot safely drop read probe privileges"
+        )
     runtime_dir = SOCKET_PATH.parent
     info = runtime_dir.lstat()
     # systemd creates root:ecu, 0750 using the unit User/Group fields.

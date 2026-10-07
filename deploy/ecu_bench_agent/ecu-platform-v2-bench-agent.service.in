@@ -18,7 +18,12 @@ UMask=0077
 
 # Narrow capabilities: only CAN link admin + changing UID/GID for the
 # immutable read-only probe. No root shell or arbitrary command endpoint.
+# User=root, Group=ecu: systemd grants NET_ADMIN and SETGID effective,
+# but SETUID can be absent from CapEff even though bounded/allowed.
+# Explicitly retain SETUID while the daemon drops its read-probe child to ecu.
+# The UID transition clears the ambient set on the unprivileged probe.
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_SETUID CAP_SETGID
+AmbientCapabilities=CAP_SETUID
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

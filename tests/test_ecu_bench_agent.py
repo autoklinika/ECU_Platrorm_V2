@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -30,9 +31,19 @@ class BenchAgentTests(unittest.TestCase):
         self.assertIn('Group=@OPERATOR@', template)
         self.assertIn('RuntimeDirectoryMode=0750', template)
         self.assertIn('CapabilityBoundingSet=CAP_NET_ADMIN CAP_SETUID CAP_SETGID', template)
+        self.assertIn('AmbientCapabilities=CAP_SETUID', template)
         self.assertNotIn('CAP_CHOWN', template)
         source = MODULE.read_text()
         self.assertNotIn('os.chown(', source)
+
+    def test_required_effective_setuid_preflight(self):
+        # The live unit was READY on Unix socket but could not drop UID:
+        # CapEff=0x1040 (SETGID+NET_ADMIN), missing SETUID (0x80).
+        for mask, expected in ((0x1040, False), (0x10C0, True), (0, False)):
+            with self.subTest(cap_eff=hex(mask)):
+                fake = io.StringIO('Name: python3\nCapEff:\t%016x\n' % mask)
+                with mock.patch('builtins.open', return_value=fake):
+                    self.assertEqual(agent.effective_caps_ready(), expected)
 
     def test_systemd_runtime_directory_and_socket_permissions(self):
         folder = types.SimpleNamespace(st_mode=stat.S_IFDIR | 0o750, st_uid=0, st_gid=1000)
