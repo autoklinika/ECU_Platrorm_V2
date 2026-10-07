@@ -100,7 +100,7 @@ Final local marker:
 
 `BENCH_RUNTIME_STAGE2_LOCAL_GATE=PASS`
 
-## 5. Cross-platform evidence before final acceptance commit
+## 5. Cross-platform evidence
 
 Accepted increments:
 
@@ -109,8 +109,11 @@ Accepted increments:
 - Stage 2.3 resolved config preflight: CI `37633720909` — 12/12 PASS,
 - Stage 2.4 host service deadline guard: CI `37634511394` — 12/12 PASS.
 
-The final Stage 2 acceptance commit must also pass the same current
-cross-platform CI matrix before the branch is treated as the Stage 2 baseline.
+Final Stage 2 acceptance commit `fb76892`:
+
+- CI `37635299544` — **12/12 PASS**.
+
+This closes the Stage 2 engineering-foundation gate.
 
 ## 6. What Stage 2 does not claim
 
@@ -149,4 +152,5 @@ BENCH_RUNTIME_STAGE2_CORE_REVISION=NO
 BENCH_RUNTIME_STAGE2_PRIMARY_TOPOLOGY=ONE_PHYSICAL_DUT
 BENCH_RUNTIME_STAGE2_POWER_HARDWARE_SELECTED=NO
 BENCH_RUNTIME_STAGE2_LOCAL_GATE=PASS
-BENCH_RUNTIME_STAGE2_ENGINEERING_FOUNDATION=PASS_PENDING_FINAL_CI
+BENCH_RUNTIME_STAGE2_FINAL_CI=37635299544_12_OF_12_PASS
+BENCH_RUNTIME_STAGE2_ENGINEERING_FOUNDATION=PASS
