@@ -1,0 +1,36 @@
+[Unit]
+Description=ECU Platform V2 restricted SocketCAN bench agent
+Documentation=man:systemd.service(5)
+After=systemd-udevd.service
+# Listen after boot even if CAN device enumeration is delayed.
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 -I -S /usr/local/libexec/ecu-platform-v2/agent_server.py --operator @OPERATOR@
+Restart=on-failure
+RestartSec=3s
+RuntimeDirectory=ecu-platform-v2-bench
+RuntimeDirectoryMode=0750
+UMask=0077
+
+# Narrow capabilities: only CAN link admin + changing UID/GID for the
+# immutable read-only probe. No root shell or arbitrary command endpoint.
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SETUID CAP_SETGID
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_CAN
+ReadWritePaths=/run/ecu-platform-v2-bench
+KillMode=mixed
+TimeoutStopSec=15s
+
+[Install]
+WantedBy=multi-user.target

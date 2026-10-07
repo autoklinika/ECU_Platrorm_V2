@@ -10,6 +10,9 @@ python3 "$ROOT_DIR/scripts/check_daf_sac_application_architecture.py"
 bash -n "$ROOT_DIR/scripts/run_stage4_daf_sac_bench_gate.sh"
 bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_read_gate.sh"
 bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_clear_gate.sh"
+bash -n "$ROOT_DIR/scripts/install_ecu_bench_agent.sh"
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+  -s "$ROOT_DIR/tests" -p "test_ecu_bench_agent.py" -v
 
 common=(
   -DECU_BUILD_TESTS=ON
