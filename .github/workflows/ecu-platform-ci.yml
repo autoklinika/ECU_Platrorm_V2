@@ -101,7 +101,7 @@ jobs:
         run: >
           cmake --build "build/core-v2-msvc-${{ matrix.arch }}-${{ matrix.config }}"
           --config "${{ matrix.config }}"
-          --target ecu_core_v2_foundation_tests
+          --target ecu_core_v2_tests
 
       - name: Test
         shell: pwsh
