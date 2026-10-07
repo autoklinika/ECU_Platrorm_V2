@@ -792,8 +792,39 @@ if(TARGET ECU::bench)
     COMMAND ecu_bench_session_tests
   )
 
+  add_executable(
+    ecu_bench_observability_tests
+    bench_observability_tests.cpp
+  )
+  target_link_libraries(
+    ecu_bench_observability_tests
+    PRIVATE ECU::bench
+  )
+  set_target_properties(
+    ecu_bench_observability_tests
+    PROPERTIES CXX_EXTENSIONS OFF
+  )
+  if(MSVC)
+    target_compile_options(
+      ecu_bench_observability_tests
+      PRIVATE /W4 /WX
+    )
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      ecu_bench_observability_tests
+      PRIVATE -Wall -Wextra -Wpedantic -Werror
+    )
+  endif()
+
+  add_test(
+    NAME ecu.bench.observability
+    COMMAND ecu_bench_observability_tests
+  )
+
   add_custom_target(
     ecu_bench_tests
-    DEPENDS ecu_bench_session_tests
+    DEPENDS
+      ecu_bench_session_tests
+      ecu_bench_observability_tests
   )
 endif()

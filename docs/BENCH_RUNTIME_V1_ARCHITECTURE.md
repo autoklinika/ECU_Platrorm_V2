@@ -217,6 +217,29 @@ Bench Session aggregates conservative worst-case budgets for:
 The current foundation does not claim hard real-time execution. Platform and
 host scheduling guarantees remain separate acceptance gates.
 
+## 6.1 Observability contract
+
+Bench observability is not allowed to become the owner of session execution.
+
+`BenchSessionSnapshot` is a source-level typed snapshot with schema version,
+lifecycle revision, state/status/reason, fault source, DUT profile ID, resource
+count, active/last-completed operation generation, counters and degradation
+flags.
+
+Bench lifecycle events are published through `IBenchSessionEventPublisher`.
+The Core integration is a thin `BenchSessionEventBusPublisher` adapter over the
+already-frozen Core `EventBus`; Bench Session does not implement a second
+generic event bus.
+
+The Core event payload uses a fixed v1 byte encoding. C++ object layout is never
+used as event/wire ABI. Reserved bytes and unknown enum values fail closed in
+the decoder.
+
+Event publication time is included in the Bench execution budgets. A failed
+event publication increments an explicit failure counter and latches
+`observability_degraded`, but it does not roll back a completed safe lifecycle
+transition. Safety/control remains authoritative over telemetry delivery.
+
 ## 7. Resource model
 
 Bench Session always acquires an exclusive logical DUT resource plus all
@@ -277,14 +300,22 @@ as generic Core behavior.
 - execution budgets,
 - unit tests without hardware.
 
-**Implementation started in this branch.**
+**Engineering foundation PASS on this branch.**
 
 ### 2.2 — Bench observability
 
-- stable session snapshot,
-- reason/status model suitable for API use,
-- bounded event publication for transitions/faults,
+- stable versioned `BenchSessionSnapshot`,
+- explicit lifecycle revision and reason/fault model,
+- active and last-completed cancellation generation visibility,
+- typed `IBenchSessionEventPublisher` boundary,
+- bounded Core `EventBus` adapter,
+- explicit versioned byte encoding for event payloads,
+- transition/fault/operation events,
+- observability degradation is fail-visible but does not corrupt safe lifecycle,
+- reentrant lifecycle calls from event callbacks return bounded `busy`,
 - no GUI dependency.
+
+**Implementation PASS locally; cross-platform CI is the remaining gate for this increment.**
 
 ### 2.3 — Session configuration handoff
 

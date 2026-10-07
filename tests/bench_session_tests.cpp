@@ -317,7 +317,8 @@ int main() {
         budget.valid &&
             budget.max_start_duration.count() == 790 &&
             budget.max_service_duration.count() == 380 &&
-            budget.max_stop_duration.count() == 280,
+            budget.max_stop_duration.count() == 280 &&
+            budget.max_recover_duration.count() == 280,
         "session publishes conservative bounded execution budget");
 
     failures += require(
@@ -544,7 +545,7 @@ int main() {
     failures += require(
         first.valid() &&
             session.request_cancel(first) ==
-                runtime::CancellationRequestStatus::requested &&
+                ecu::bench::BenchSessionCancelRequestStatus::requested &&
             session.service() == BenchSessionStatus::cancelled &&
             session.state() == BenchSessionState::ready &&
             resources.active_count() == 0U,
@@ -559,7 +560,7 @@ int main() {
         second.valid() &&
             second.generation != first.generation &&
             session.request_cancel(first) ==
-                runtime::CancellationRequestStatus::stale_token &&
+                ecu::bench::BenchSessionCancelRequestStatus::stale_token &&
             session.stop() == BenchSessionStatus::ok,
         "stale cancellation token cannot stop a later session generation");
   }

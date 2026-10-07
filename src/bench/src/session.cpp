@@ -44,30 +44,40 @@ BenchSession::BenchSession(
     const ecu::core::v2::runtime::DutRegistry& duts,
     IDutSessionEndpoint& endpoint,
     IBenchElectricalControl* electrical,
-    IEnvironmentSession* environment) noexcept
+    IEnvironmentSession* environment,
+    IBenchSessionEventPublisher* events) noexcept
     : resources_(resources),
       duts_(duts),
       endpoint_(endpoint),
       electrical_(electrical),
-      environment_(environment) {}
+      environment_(environment),
+      events_(events) {}
 
 bool BenchSession::configure(
     const BenchSessionConfig& config) noexcept {
   if (busy_) {
-    status_ = BenchSessionStatus::busy;
     return false;
   }
   ScopedBusy guard{busy_};
+  const auto previous_state = state_;
 
   if (state_ != BenchSessionState::unconfigured &&
       state_ != BenchSessionState::ready) {
     status_ = BenchSessionStatus::invalid_state;
+    observe(
+        previous_state,
+        BenchSessionReason::invalid_state,
+        false);
     return false;
   }
 
   if (duts_.configuration_state() !=
       ecu::core::v2::runtime::ConfigurationState::frozen) {
     status_ = BenchSessionStatus::invalid_state;
+    observe(
+        previous_state,
+        BenchSessionReason::configuration_rejected,
+        false);
     return false;
   }
 
@@ -76,6 +86,10 @@ bool BenchSession::configure(
       !valid_config(config, *dut) ||
       !resource_list_valid(config)) {
     status_ = BenchSessionStatus::invalid_argument;
+    observe(
+        previous_state,
+        BenchSessionReason::configuration_rejected,
+        false);
     return false;
   }
 
@@ -90,6 +104,11 @@ bool BenchSession::configure(
     configured_ = false;
     state_ = BenchSessionState::unconfigured;
     status_ = BenchSessionStatus::execution_contract_invalid;
+    fault_source_ = BenchFaultSource::none;
+    observe(
+        previous_state,
+        BenchSessionReason::execution_contract_invalid,
+        false);
     return false;
   }
 
@@ -103,23 +122,32 @@ bool BenchSession::configure(
   electrical_cleanup_needed_ = false;
   environment_started_ = false;
   cleanup_required_ = false;
+  observability_degraded_ = false;
   fault_source_ = BenchFaultSource::none;
   state_ = BenchSessionState::ready;
   status_ = BenchSessionStatus::ok;
+  observe(
+      previous_state,
+      BenchSessionReason::configured,
+      true);
   return true;
 }
 
 BenchSessionStatus BenchSession::start() noexcept {
   if (busy_) {
-    status_ = BenchSessionStatus::busy;
-    return status_;
+    return BenchSessionStatus::busy;
   }
   ScopedBusy guard{busy_};
+  const auto previous_state = state_;
 
   if (!configured_ ||
       state_ != BenchSessionState::ready ||
       dut_ == nullptr) {
     status_ = BenchSessionStatus::invalid_state;
+    observe(
+        previous_state,
+        BenchSessionReason::invalid_state,
+        false);
     return status_;
   }
 
@@ -129,6 +157,10 @@ BenchSessionStatus BenchSession::start() noexcept {
   if (cancellation.status !=
       ecu::core::v2::runtime::CancellationBeginStatus::started) {
     status_ = BenchSessionStatus::cancellation_unavailable;
+    observe(
+        previous_state,
+        BenchSessionReason::cancellation_unavailable,
+        true);
     return status_;
   }
   operation_token_ = cancellation.token;
@@ -146,12 +178,20 @@ BenchSessionStatus BenchSession::start() noexcept {
       fault_source_ = BenchFaultSource::safe_shutdown;
       status_ = acquired;
       saturating_increment(counters_.faults);
+      observe(
+          previous_state,
+          BenchSessionReason::safe_shutdown_failed,
+          true);
       return status_;
     }
 
     state_ = BenchSessionState::ready;
     fault_source_ = BenchFaultSource::resources;
     status_ = acquired;
+    observe(
+        previous_state,
+        BenchSessionReason::resource_unavailable,
+        true);
     return status_;
   }
 
@@ -221,20 +261,29 @@ BenchSessionStatus BenchSession::start() noexcept {
 
   state_ = BenchSessionState::running;
   status_ = BenchSessionStatus::ok;
+  fault_source_ = BenchFaultSource::none;
   saturating_increment(counters_.successful_starts);
+  observe(
+      previous_state,
+      BenchSessionReason::started,
+      true);
   return status_;
 }
 
 BenchSessionStatus BenchSession::service() noexcept {
   if (busy_) {
-    status_ = BenchSessionStatus::busy;
-    return status_;
+    return BenchSessionStatus::busy;
   }
   ScopedBusy guard{busy_};
+  const auto previous_state = state_;
 
   if (!configured_ ||
       state_ != BenchSessionState::running) {
     status_ = BenchSessionStatus::invalid_state;
+    observe(
+        previous_state,
+        BenchSessionReason::invalid_state,
+        false);
     return status_;
   }
 
@@ -270,26 +319,36 @@ BenchSessionStatus BenchSession::service() noexcept {
   status_ = endpoint_did_work || environment_did_work
                 ? BenchSessionStatus::ok
                 : BenchSessionStatus::no_action;
+  observe(previous_state, reason_, false);
   return status_;
 }
 
 BenchSessionStatus BenchSession::stop() noexcept {
   if (busy_) {
-    status_ = BenchSessionStatus::busy;
-    return status_;
+    return BenchSessionStatus::busy;
   }
   ScopedBusy guard{busy_};
+  const auto previous_state = state_;
 
   if (!configured_) {
     status_ = BenchSessionStatus::invalid_state;
+    observe(
+        previous_state,
+        BenchSessionReason::invalid_state,
+        false);
     return status_;
   }
   if (state_ == BenchSessionState::ready) {
     status_ = BenchSessionStatus::no_action;
+    observe(previous_state, reason_, false);
     return status_;
   }
   if (state_ != BenchSessionState::running) {
     status_ = BenchSessionStatus::invalid_state;
+    observe(
+        previous_state,
+        BenchSessionReason::invalid_state,
+        false);
     return status_;
   }
 
@@ -304,30 +363,43 @@ BenchSessionStatus BenchSession::stop() noexcept {
     fault_source_ = BenchFaultSource::safe_shutdown;
     status_ = BenchSessionStatus::safe_shutdown_failed;
     saturating_increment(counters_.faults);
+    observe(
+        previous_state,
+        BenchSessionReason::safe_shutdown_failed,
+        true);
     return status_;
   }
 
   state_ = BenchSessionState::ready;
   fault_source_ = BenchFaultSource::none;
   status_ = BenchSessionStatus::ok;
+  observe(
+      previous_state,
+      BenchSessionReason::stopped,
+      true);
   return status_;
 }
 
 BenchSessionStatus BenchSession::recover() noexcept {
   if (busy_) {
-    status_ = BenchSessionStatus::busy;
-    return status_;
+    return BenchSessionStatus::busy;
   }
   ScopedBusy guard{busy_};
+  const auto previous_state = state_;
 
   if (!configured_ ||
       state_ != BenchSessionState::faulted) {
     status_ = BenchSessionStatus::invalid_state;
+    observe(
+        previous_state,
+        BenchSessionReason::invalid_state,
+        false);
     return status_;
   }
 
   saturating_increment(counters_.recoveries);
   state_ = BenchSessionState::recovering;
+  reason_ = BenchSessionReason::recovery_started;
 
   const bool recovered = safe_shutdown();
   complete_operation();
@@ -336,6 +408,10 @@ BenchSessionStatus BenchSession::recover() noexcept {
     state_ = BenchSessionState::faulted;
     fault_source_ = BenchFaultSource::safe_shutdown;
     status_ = BenchSessionStatus::safe_shutdown_failed;
+    observe(
+        previous_state,
+        BenchSessionReason::safe_shutdown_failed,
+        true);
     return status_;
   }
 
@@ -343,13 +419,38 @@ BenchSessionStatus BenchSession::recover() noexcept {
   fault_source_ = BenchFaultSource::none;
   status_ = BenchSessionStatus::ok;
   cleanup_required_ = false;
+  observe(
+      previous_state,
+      BenchSessionReason::recovered,
+      true);
   return status_;
 }
 
-ecu::core::v2::runtime::CancellationRequestStatus
-BenchSession::request_cancel(
+BenchSessionCancelRequestStatus BenchSession::request_cancel(
     const ecu::core::v2::runtime::CancellationToken token) noexcept {
-  return cancellation_.request(token);
+  if (busy_) {
+    return BenchSessionCancelRequestStatus::busy;
+  }
+
+  const auto requested = cancellation_.request(token);
+  switch (requested) {
+    case ecu::core::v2::runtime::CancellationRequestStatus::requested:
+      observe(
+          state_,
+          BenchSessionReason::cancellation_requested,
+          false);
+      return BenchSessionCancelRequestStatus::requested;
+    case ecu::core::v2::runtime::CancellationRequestStatus::already_requested:
+      return BenchSessionCancelRequestStatus::already_requested;
+    case ecu::core::v2::runtime::CancellationRequestStatus::invalid_token:
+      return BenchSessionCancelRequestStatus::invalid_token;
+    case ecu::core::v2::runtime::CancellationRequestStatus::stale_token:
+      return BenchSessionCancelRequestStatus::stale_token;
+    case ecu::core::v2::runtime::CancellationRequestStatus::no_active_operation:
+      return BenchSessionCancelRequestStatus::no_active_operation;
+  }
+
+  return BenchSessionCancelRequestStatus::no_active_operation;
 }
 
 ecu::core::v2::runtime::CancellationToken
@@ -367,6 +468,32 @@ BenchSessionStatus BenchSession::status() const noexcept {
 
 BenchFaultSource BenchSession::fault_source() const noexcept {
   return fault_source_;
+}
+
+BenchSessionReason BenchSession::reason() const noexcept {
+  return reason_;
+}
+
+BenchSessionSnapshot BenchSession::snapshot() const noexcept {
+  BenchSessionSnapshot result{};
+  result.lifecycle_revision = lifecycle_revision_;
+  result.state = state_;
+  result.status = status_;
+  result.reason = reason_;
+  result.fault_source = fault_source_;
+  result.dut_profile_id =
+      dut_ != nullptr ? dut_->profile_id : 0U;
+  result.operation_generation = operation_token_.generation;
+  result.last_completed_operation_generation =
+      last_completed_operation_generation_;
+  result.counters = counters_;
+  result.active_resource_count = lease_count_;
+  result.configured = configured_;
+  result.cleanup_required = cleanup_required_;
+  result.cancellation_requested =
+      cancellation_.requested(operation_token_);
+  result.observability_degraded = observability_degraded_;
+  return result;
 }
 
 BenchSessionCounters BenchSession::counters() const noexcept {
@@ -561,6 +688,14 @@ bool BenchSession::component_contracts_valid() const noexcept {
     }
   }
 
+  if (events_ != nullptr) {
+    const auto events = events_->execution_contract();
+    if (!events_->ready() ||
+        events.max_publish_duration.count() <= 0) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -674,10 +809,36 @@ bool BenchSession::execution_budget_valid(
     return false;
   }
 
+  auto stop = cleanup;
+  auto recover = cleanup;
+
+  if (events_ != nullptr) {
+    const auto events = events_->execution_contract();
+    if (!add_duration(
+            start,
+            events.max_publish_duration,
+            start) ||
+        !add_duration(
+            service,
+            events.max_publish_duration,
+            service) ||
+        !add_duration(
+            stop,
+            events.max_publish_duration,
+            stop) ||
+        !add_duration(
+            recover,
+            events.max_publish_duration,
+            recover)) {
+      return false;
+    }
+  }
+
   budget.valid = true;
   budget.max_start_duration = start;
   budget.max_service_duration = service;
-  budget.max_stop_duration = cleanup;
+  budget.max_stop_duration = stop;
+  budget.max_recover_duration = recover;
   return true;
 }
 
@@ -778,10 +939,18 @@ BenchSessionStatus BenchSession::fail_start(
   if (!stopped_safely) {
     fault_source_ = BenchFaultSource::safe_shutdown;
     status_ = BenchSessionStatus::safe_shutdown_failed;
+    observe(
+        BenchSessionState::ready,
+        BenchSessionReason::safe_shutdown_failed,
+        true);
     return status_;
   }
 
   status_ = failure_status;
+  observe(
+      BenchSessionState::ready,
+      failure_reason(failure_status, source),
+      true);
   return status_;
 }
 
@@ -799,10 +968,18 @@ BenchSessionStatus BenchSession::trip_runtime_fault(
   if (!stopped_safely) {
     fault_source_ = BenchFaultSource::safe_shutdown;
     status_ = BenchSessionStatus::safe_shutdown_failed;
+    observe(
+        BenchSessionState::running,
+        BenchSessionReason::safe_shutdown_failed,
+        true);
     return status_;
   }
 
   status_ = failure_status;
+  observe(
+      BenchSessionState::running,
+      failure_reason(failure_status, source),
+      true);
   return status_;
 }
 
@@ -818,12 +995,20 @@ BenchSessionStatus BenchSession::cancel_running() noexcept {
     state_ = BenchSessionState::faulted;
     fault_source_ = BenchFaultSource::safe_shutdown;
     status_ = BenchSessionStatus::safe_shutdown_failed;
+    observe(
+        BenchSessionState::running,
+        BenchSessionReason::safe_shutdown_failed,
+        true);
     return status_;
   }
 
   state_ = BenchSessionState::ready;
   fault_source_ = BenchFaultSource::none;
   status_ = BenchSessionStatus::cancelled;
+  observe(
+      BenchSessionState::running,
+      BenchSessionReason::cancelled,
+      true);
   return status_;
 }
 
@@ -884,6 +1069,8 @@ bool BenchSession::safe_shutdown() noexcept {
 
 void BenchSession::complete_operation() noexcept {
   if (operation_token_.valid()) {
+    last_completed_operation_generation_ =
+        operation_token_.generation;
     (void)cancellation_.complete(operation_token_);
     operation_token_ = {};
   }
@@ -908,6 +1095,80 @@ bool BenchSession::verify_electrical_feedback(
   }
 
   return true;
+}
+
+void BenchSession::observe(
+    const BenchSessionState previous_state,
+    const BenchSessionReason reason,
+    const bool publish_event) noexcept {
+  lifecycle_revision_ =
+      ecu::core::v2::runtime::next_state_revision(
+          lifecycle_revision_);
+  reason_ = reason;
+
+  if (!publish_event || events_ == nullptr) {
+    return;
+  }
+
+  BenchSessionEvent event{};
+  event.kind = state_ == BenchSessionState::faulted
+                   ? BenchSessionEventKind::fault
+                   : previous_state != state_
+                         ? BenchSessionEventKind::state_transition
+                         : BenchSessionEventKind::operation;
+  event.previous_state = previous_state;
+  event.snapshot = snapshot();
+
+  const auto published = events_->publish(event);
+  if (published == BenchSessionEventPublishStatus::published ||
+      published == BenchSessionEventPublishStatus::no_subscribers) {
+    return;
+  }
+
+  saturating_increment(counters_.event_publish_failures);
+  observability_degraded_ = true;
+  lifecycle_revision_ =
+      ecu::core::v2::runtime::next_state_revision(
+          lifecycle_revision_);
+}
+
+BenchSessionReason BenchSession::failure_reason(
+    const BenchSessionStatus status,
+    const BenchFaultSource source) const noexcept {
+  if (status == BenchSessionStatus::safe_shutdown_failed ||
+      source == BenchFaultSource::safe_shutdown) {
+    return BenchSessionReason::safe_shutdown_failed;
+  }
+
+  switch (source) {
+    case BenchFaultSource::resources:
+      return BenchSessionReason::resource_unavailable;
+    case BenchFaultSource::electrical:
+      return BenchSessionReason::electrical_fault;
+    case BenchFaultSource::environment:
+      return BenchSessionReason::environment_fault;
+    case BenchFaultSource::dut:
+      return BenchSessionReason::dut_fault;
+    case BenchFaultSource::safe_shutdown:
+      return BenchSessionReason::safe_shutdown_failed;
+    case BenchFaultSource::none:
+      break;
+  }
+
+  switch (status) {
+    case BenchSessionStatus::resource_unavailable:
+      return BenchSessionReason::resource_unavailable;
+    case BenchSessionStatus::electrical_fault:
+      return BenchSessionReason::electrical_fault;
+    case BenchSessionStatus::environment_fault:
+      return BenchSessionReason::environment_fault;
+    case BenchSessionStatus::dut_fault:
+      return BenchSessionReason::dut_fault;
+    case BenchSessionStatus::safe_shutdown_failed:
+      return BenchSessionReason::safe_shutdown_failed;
+    default:
+      return BenchSessionReason::none;
+  }
 }
 
 }  // namespace ecu::bench
