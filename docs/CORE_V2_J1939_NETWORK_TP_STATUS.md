@@ -149,8 +149,9 @@ mandatory before module-level standards PASS.
 ISO 11783 / ISOBUS ETP is now implemented as a separate streaming transport
 module and has its own technical gate in `CORE_V2_ISOBUS_ETP_STATUS.md`.
 
-J1939-73 diagnostics now has a separate read-only DM1/DM2 foundation and its
-own module gate in `CORE_V2_J1939_DIAGNOSTICS_STATUS.md`.
+J1939-73 diagnostics now has a separate read-only
+DM1/DM2/DM4/DM5/DM6/DM12 foundation and its own module gate in
+`CORE_V2_J1939_DIAGNOSTICS_STATUS.md`.
 
 J1939_NETWORK_TECHNICAL_GATE=PASS
 J1939_COMMANDED_ADDRESS_TECHNICAL_GATE=PASS

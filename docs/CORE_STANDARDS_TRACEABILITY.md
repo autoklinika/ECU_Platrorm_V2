@@ -59,9 +59,9 @@ Status levels:
 | CAN / CAN FD data link | ISO 11898-1:2024 | CORE_V2_FOUNDATION_PASS / PROTOCOL-CONTROLLER CERTIFICATION NOT CLAIMED |
 | High-speed CAN physical layer | ISO 11898-2:2026 | BOUNDARY_ONLY / PLATFORM-HARDWARE QUALIFICATION REQUIRED |
 | DoCAN / ISO-TP | ISO 15765-2:2024 | V2_ENGINEERING_GATE_PASS / NORMATIVE_CLAUSE_AUDIT_REQUIRED |
-| UDS application layer | ISO 14229-1:2026 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
-| UDS session layer | ISO 14229-2:2021 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
-| UDS on CAN | ISO 14229-3:2022 | MODULE_GATED / LEGACY REFERENCE NOT PROMOTED |
+| UDS application layer | ISO 14229-1:2026 | V2_ENGINEERING_GATE_PASS / NORMATIVE_CLAUSE_AUDIT_REQUIRED |
+| UDS session layer | ISO 14229-2:2021 | V2_P2_P2STAR_ENGINEERING_PASS / NORMATIVE_CLAUSE_AUDIT_REQUIRED |
+| UDS on CAN | ISO 14229-3:2022 | V2_ISOTP_ADAPTER_E2E_PASS / NORMATIVE_CLAUSE_AUDIT_REQUIRED |
 | AUTOSAR diagnostic cross-check | AUTOSAR Classic Platform DCM R24-11 or newer verified release | REFERENCE_ONLY |
 | DoIP transport/network | ISO 13400-2:2025 | NOT_IMPLEMENTED |
 | DoIP wired interface | ISO 13400-3:2016 | NOT_IMPLEMENTED |
@@ -69,7 +69,7 @@ Status levels:
 | J1939 Classical data link / transport | SAE J1939/21_202205 | TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
 | J1939 CAN FD | SAE J1939-22_202209 | FEFF_CPG_NO_ASSURANCE_TECHNICAL_PASS / FD_TP_FBFF_ASSURANCE_NOT_IMPLEMENTED / CLAUSE_AUDIT_REQUIRED |
 | J1939 network management | SAE J1939/81_202504 | ADDRESS_CLAIM_COMMANDED_ADDRESS_TECHNICAL_PASS / CLAUSE_AUDIT_REQUIRED |
-| J1939 diagnostics | SAE J1939-73_202609 | DM1_DM2_READ_ONLY_TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
+| J1939 diagnostics | SAE J1939-73_202609 | DM1_DM2_DM4_DM5_DM6_DM12_READ_ONLY_TECHNICAL_GATE_PASS / CLAUSE_AUDIT_REQUIRED |
 | J1939 top-level heavy-duty network | SAE J1939_202603 | BASELINE_VERIFIED |
 | J1939 vehicle application layer | SAE J1939/71_202502 | CLAUSE_AUDIT_REQUIRED |
 | Truck/trailer diagnostic communication | ISO 11992-4:2023 | NOT_IMPLEMENTED |
@@ -174,11 +174,12 @@ Core V2 now has a technical-gate implementation of:
 - Address Claim subset,
 - opt-in Commanded Address handling after TP reassembly,
 - Classical TP BAM and RTS/CTS receive/transmit state machines,
-- read-only J1939-73 DM1/DM2 diagnostic decoding,
+- read-only J1939-73 DM1/DM2/DM4/DM5/DM6/DM12 diagnostic decoding,
 - narrow J1939-22 FEFF Multi-PG / no-assurance C-PG encode/decode.
 
 Detailed evidence is recorded in:
-`docs/CORE_V2_J1939_NETWORK_TP_STATUS.md`.
+- `docs/CORE_V2_J1939_NETWORK_TP_STATUS.md`,
+- `docs/CORE_V2_J1939_DIAGNOSTICS_STATUS.md`.
 
 This is a technical PASS only. Remaining network-management behavior,
 broader J1939-22 CAN FD services and diagnostic/application services are
@@ -190,7 +191,7 @@ Before J1939 module standards PASS:
 - interoperability evidence for implemented Classical TP,
 - remaining CAN FD rules per SAE J1939-22_202209 beyond the declared FEFF/no-assurance C-PG subset,
 - Address Claiming/network management per SAE J1939/81_202504,
-- diagnostics per SAE J1939-73_202609 for the declared DM1/DM2 subset.
+- diagnostics per SAE J1939-73_202609 for the declared read-only DM1/DM2/DM4/DM5/DM6/DM12 subset.
 
 ### ISO 11783 / ISOBUS extended transport
 
