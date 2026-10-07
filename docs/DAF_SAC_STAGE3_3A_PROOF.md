@@ -2,7 +2,7 @@
 
 Date: 2026-10-07
 Branch: `dut-profile/proof-profiles`
-Status: **SOFTWARE + CI PASS / FIRST 500 KBIT/S PHYSICAL READ ATTEMPT NO RESPONSE / PASSIVE BITRATE DISCOVERY NEXT**
+Status: **PREVIOUS SOFTWARE + CI PASS / FIRST 500 KBIT/S ACTIVE READ NO RESPONSE / PASSIVE CAPTURE RERUN REQUIRED**
 
 ## Scope
 
@@ -161,6 +161,29 @@ mode at both evidence-backed rates before another diagnostic request is sent.
 The passive gate is `scripts/run_stage3_3a_daf_sac_passive_bitrate_gate.sh`.
 It requires administrative link configuration, sends no diagnostic or CAN
 data frames, and returns `can0` to DOWN on exit.
+
+## First passive scan — capture-tool defect
+
+The first passive scan was executed at 250 and 500 kbit/s on 2026-10-07.
+Both configurations were correctly set to Classic CAN LISTEN-ONLY.
+Kernel statistics from the user-provided report were:
+
+- 250 kbit/s: RX packets delta 14, RX errors delta 0, CAN RX error counter 0;
+- 500 kbit/s: RX packets delta 0, RX errors delta 0, CAN RX error counter 0.
+
+However, the script incorrectly combined `candump -L -e`. The installed
+`candump` refuses this combination with `Log file format selected: Please
+disable ASCII/BINARY/SWAP/RAWDLC options!` and returns exit code 0.
+The script mistakenly recorded zero captured frames for both candidates.
+**These zero-frame readings are invalid and the bitrate is not verified.**
+
+The corrective version uses `candump -D -ta -e` with the monitor armed before
+the link is brought UP, an 8-second capture window, detection of premature
+monitor termination, kernel RX/TX deltas, and raw output excerpts. It continues
+to transmit no frames and leaves `can0` DOWN on exit.
+
+Repeat the passive scan before selecting a bitrate for another UDS request.
+No change to Core V2 or Bench Runtime is justified by this defect.
 
 ## Gate decision
 
