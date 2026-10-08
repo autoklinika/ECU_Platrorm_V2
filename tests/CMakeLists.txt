@@ -1147,3 +1147,24 @@ if(TARGET ECU::app_daf_sac AND TARGET ECU::platform_linux_v2)
   endforeach()
   # Physical probe binaries are never registered as CTest tests.
 endif()
+
+if(TARGET ECU::application_api)
+  add_executable(ecu_application_api_tests api/router_tests.cpp)
+  target_link_libraries(ecu_application_api_tests PRIVATE ECU::application_api)
+  target_compile_features(ecu_application_api_tests PRIVATE cxx_std_17)
+  if(MSVC)
+    target_compile_options(ecu_application_api_tests PRIVATE /W4 /WX)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(ecu_application_api_tests PRIVATE
+      -Wall -Wextra -Wpedantic -Werror)
+  endif()
+  add_test(NAME ecu.api.router COMMAND ecu_application_api_tests)
+  if(TARGET ecu_api_http)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME ecu.api.http_security
+      COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/api/http_integration.py"
+        "$<TARGET_FILE:ecu_api_http>")
+    set_tests_properties(ecu.api.http_security PROPERTIES TIMEOUT 20)
+  endif()
+endif()

@@ -1,0 +1,32 @@
+[Unit]
+Description=ECU Platform V2 Application API V1 (read-only)
+After=network.target
+# Staged example only. Do not enable as part of repository build/tests.
+
+[Service]
+Type=simple
+User=ecu-api
+Group=ecu-api
+ExecStart=/usr/local/libexec/ecu-platform-v2/ecu_api_http --token-file /etc/ecu-platform-v2/api/token --port 8878 --can-interface can0
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectProc=invisible
+LockPersonality=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_NETLINK
+SystemCallArchitectures=native
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=multi-user.target
