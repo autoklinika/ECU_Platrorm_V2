@@ -11,11 +11,13 @@ fi
 MODE="${1:-all}"
 PUBLISH_READOUT=0
 READOUT_DIR=/var/lib/ecu-platform-v2/api-readouts
-if [[ "$#" -eq 2 && "$MODE" == all &&
+# Targeted parameter publication preserves the existing DTC evidence.
+# Same operator-only gate, passive CAN check, DUT identity and cleanup.
+if [[ "$#" -eq 2 && ( "$MODE" == all || "$MODE" == parameters ) &&
       "$2" == "--publish-readout" ]]; then
   PUBLISH_READOUT=1
 elif [[ "$#" -gt 1 || ( "$MODE" != all && "$MODE" != passive ) ]]; then
-  echo "Usage: sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh [passive|all] [--publish-readout (all only)]" >&2
+  echo "Usage: sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh [passive|all] [--publish-readout] | parameters --publish-readout" >&2
   exit 2
 fi
 TARGET_USER="${SUDO_USER:-}"
@@ -30,9 +32,23 @@ BITRATE=500000
 ID_PROBE="$ROOT/build/daf-sac-core-v2-probe/tests/ecu_daf_sac_core_v2_probe"
 READ_PROBE="$ROOT/build/daf-sac-app-linux/tests/ecu_daf_sac_stage42_read_probe"
 if [[ "$PUBLISH_READOUT" == 1 ]]; then
-  # Never replace the installed restricted agent's legacy binaries.
-  ID_PROBE="$ROOT/build/api-readout-linux/tests/ecu_daf_sac_core_v2_probe"
-  READ_PROBE="$ROOT/build/api-readout-linux/tests/ecu_daf_sac_stage42_read_probe"
+  # The same new native Application Layer probes; not the old 250k agent
+  # nor a stale build from API V1 that cannot publish parameters.
+  PROBE_BUILD="$ROOT/build/params-linux"
+  ID_PROBE="$PROBE_BUILD/tests/ecu_daf_sac_core_v2_probe"
+  READ_PROBE="$PROBE_BUILD/tests/ecu_daf_sac_stage42_read_probe"
+  CANDIDATE_STAMP="$PROBE_BUILD/api_parameters_candidate.sha"
+  if [[ ! -f "$CANDIDATE_STAMP" || -L "$CANDIDATE_STAMP" ]]; then
+    echo "SAC_500K_READ_GATE=FAIL missing-current-prepared-probe" >&2
+    exit 4
+  fi
+  read -r stamp_revision stamp_sha < "$CANDIDATE_STAMP"
+  if [[ "$stamp_revision" != "$(runuser -u "$TARGET_USER" -- git -C "$ROOT" rev-parse --short=12 HEAD)" ||
+        ! "$stamp_sha" =~ ^[0-9a-f]{64}$ ||
+        "$stamp_sha" != "$(sha256sum "$PROBE_BUILD/src/api/ecu_api_http" | cut -d ' ' -f1)" ]]; then
+    echo "SAC_500K_READ_GATE=FAIL stale-candidate-binaries" >&2
+    exit 4
+  fi
 fi
 for tool in ip candump runuser getent cut install grep sed tee date stat chown sha256sum; do
   command -v "$tool" >/dev/null 2>&1 || {
@@ -40,7 +56,7 @@ for tool in ip candump runuser getent cut install grep sed tee date stat chown s
     exit 1
   }
 done
-if [[ "$MODE" == all && ( ! -x "$ID_PROBE" || ! -x "$READ_PROBE" ) ]]; then
+if [[ "$MODE" != passive && ( ! -x "$ID_PROBE" || ! -x "$READ_PROBE" ) ]]; then
   echo "SAC_500K_READ_GATE=FAIL missing-compiled-read-only-probes" >&2
   exit 1
 fi
@@ -211,7 +227,11 @@ fi
 echo "SAC_500K_IDENTIFY=PASS" | tee -a "$SUMMARY"
 
 READ_FAILURES=0
-for mode in parameters dtc; do
+READ_MODES=(parameters dtc)
+if [[ "$MODE" == parameters ]]; then
+  READ_MODES=(parameters)
+fi
+for mode in "${READ_MODES[@]}"; do
   echo "SAC_500K_READ_STAGE=$mode" | tee -a "$SUMMARY"
   PROBE_ARGS=("$IFACE" "$mode" "$BITRATE")
   if [[ "$PUBLISH_READOUT" == 1 ]]; then
@@ -243,4 +263,8 @@ if (( READ_FAILURES != 0 )); then
   echo "SAC_500K_READ_GATE=PARTIAL identify-pass-read-failures=$READ_FAILURES" | tee -a "$SUMMARY"
   exit 1
 fi
-echo "SAC_500K_READ_GATE=PASS identity-voltage-DTC" | tee -a "$SUMMARY"
+if [[ "$MODE" == parameters ]]; then
+  echo "SAC_500K_READ_GATE=PASS identity-parameters-only-no-DTC" | tee -a "$SUMMARY"
+else
+  echo "SAC_500K_READ_GATE=PASS identity-voltage-DTC" | tee -a "$SUMMARY"
+fi

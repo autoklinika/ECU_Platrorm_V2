@@ -16,7 +16,10 @@ class UpgradeSafety(unittest.TestCase):
     def test_readout_uses_existing_probe_and_native_app_snapshot(self):
         for item in ('if [[ "$PUBLISH_READOUT" == 1 ]]',
                      'PROBE_ARGS+=("$READOUT_DIR")',
-                     "for mode in parameters dtc"):
+                     "READ_MODES=(parameters dtc)",
+                     "READ_MODES=(parameters)",
+                     'for mode in "$' + '{READ_MODES[@]}"; do',
+                     "SAC_500K_READ_GATE=PASS identity-parameters-only-no-DTC"):
             self.assertIn(item, PROBE)
         for item in ("capture_daf_sac_completed_parameters",
                      "publish_linux_sac_parameters", "application.voltage()",
@@ -24,6 +27,11 @@ class UpgradeSafety(unittest.TestCase):
                      "completed-parameters-export"):
             self.assertIn(item, STAGE42)
         self.assertIn("/api/v1/readouts/daf-sac/parameters/latest", ROUTER)
+        self.assertIn('"$MODE" == parameters )', PROBE)
+        self.assertIn('api_parameters_candidate.sha', PROBE)
+        self.assertIn('stale-candidate-binaries', PROBE)
+        self.assertIn('build/params-linux', PROBE)
+        self.assertIn('if [[ "$MODE" == parameters ]]; then', PROBE)
         for text in (STAGE42, ROUTER, PROBE):
             self.assertNotIn("cansend ", text)
             self.assertNotIn("systemctl restart ecu-platform", text)

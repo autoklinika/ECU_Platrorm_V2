@@ -93,13 +93,28 @@ Recovery, after this upgrade:
 
     sudo /usr/local/sbin/ecu-api-parameters-rollback
 
-For future measurements, ONLY when the operator explicitly chooses:
+For just the first actual measurement snapshot after this software update,
+the operator can explicitly choose the existing physical runner with the
+new targeted mode (requires the current prepared and hashed build):
 
     cd ~/ECU_API_PARAMS_V1
+    bash scripts/prepare_cm5_api_parameters_v1.sh
+    sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh parameters --publish-readout
+
+It uses the same read-only Stage 4.3 hardware/Application Layer composition:
+passive listen-only phase, DUT identification, one completed read of
+parameters and mandatory CAN cleanup. The existing published DTC list is
+neither queried nor overwritten. After publication, the GUI shows the
+historical capture time, the actual two supply voltages, and null pressure
+where FE/FF is decoded as unavailable.
+
+To intentionally refresh BOTH parameter and DTC snapshots later, the
+separate explicit choice remains:
+
     sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh all --publish-readout
 
-This uses the existing read-only Stage 4.3 physical runner and publishes
-both completed parameters and DTC; no DTC erase, actuation or flashing.
+Neither mode performs erase, actuation or programming. Do not run a probe
+just for deployment or CI; this is a real ECU operation.
 Do not run physical probing automatically after deploying WebGUI/API,
 do not present archival measurements as live, and do not merge to main
 without explicit owner approval.
