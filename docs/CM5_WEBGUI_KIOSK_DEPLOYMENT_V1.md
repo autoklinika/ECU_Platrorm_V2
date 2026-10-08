@@ -247,3 +247,54 @@ still fails closed on nonzero exit; the installer retains process identity,
 running kiosk, denied Bench-agent socket, denied operator filesystem and
 local-only static HTTP checks. No security permission was relaxed.
 Physical touch and reboot acceptance remain outstanding.
+
+## CM5 stationary cursor after CSS-only fix (2026-10-08)
+
+The CSS change is deployed and the HTTP server returns cursor: none for
+all WebGUI elements. Touch controls continue to work, but a stationary
+cursor is still visible in the middle of the physical display.
+
+Host inspection confirms the source: input vc4-hdmi-0 (event2) and
+vc4-hdmi-1 (event4) are both categorized by udev as
+ID_INPUT_POINTINGSTICK=1, even though they are HDMI-CEC devices rather
+than real mice. WaveShare touch is separate (event1,
+ID_VENDOR_ID=0712, ID_MODEL_ID=0009, ID_INPUT_TOUCHSCREEN=1).
+
+The Cage compositor's upstream recommendation is to ignore falsely
+categorized pointer devices via libinput, not to hide the graphics of
+a ghost mouse pointer.
+
+Read-only diagnostic evidence:
+- Both HDMI input node names verified through /sys/class/input.
+- Both HDMI nodes report ID_INPUT_POINTINGSTICK=1.
+- No real USB mouse appears in /proc/bus/input/devices.
+- The existing kiosk runs as ecu-kiosk; no API or Bench changes.
+
+Remediation: deploy/webgui/90-ecu-kiosk-ignore-hdmi-pointer.rules sets
+LIBINPUT_IGNORE_DEVICE=1 on only those two named HDMI events.
+WaveShare, power button, attached real USB peripherals, and CAN
+interfaces are not matched. Note: this also excludes HDMI-CEC keys
+from libinput for those two devices; this is a touchscreen-only kiosk.
+
+Installation from a terminal on the CM5 (one local sudo operation):
+
+    cd /home/ecu/ECU_WebGUI_Home_V1
+    sudo bash scripts/fix_cm5_ghost_pointer.sh
+
+The script validates the two HDMI device identities and a separate
+WaveShare touchscreen before installing the narrow rule. It reloads
+udev properties only for the matching HDMI devices, asserts
+LIBINPUT_IGNORE_DEVICE=1, then restarts only ecu-kiosk.service once.
+It does not rewrite Cage, Chromium, the static frontend,
+Bench Runtime, the API or CORE.
+
+If installation fails, the script removes its new udev rule, reapplies
+the prior HDMI properties and restarts the kiosk. The operator can
+also undo the change with:
+
+    sudo bash scripts/fix_cm5_ghost_pointer.sh --rollback
+
+Acceptance: pointer disappears from the physical screen, while
+WaveShare touch and Settings -> Language navigation remain functional.
+A reboot should preserve this narrow libinput rule. Human observation
+is required before declaring the pointer visibility gate PASS.

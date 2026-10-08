@@ -73,6 +73,34 @@ class SecurityContractTest(unittest.TestCase):
             self.assertIn(expected, text)
         self.assertNotIn('GROUP="input"', text)
 
+    def test_hdmi_ghost_pointer_rule_is_narrow(self):
+        rule = (DEPLOY / "90-ecu-kiosk-ignore-hdmi-pointer.rules").read_text()
+        statements = [line for line in rule.splitlines()
+                      if line.strip() and not line.startswith("#")]
+        self.assertEqual(len(statements), 2)
+        for key in ('SUBSYSTEM=="input"', 'KERNEL=="event[0-9]*"',
+                    'ENV{ID_INPUT_POINTINGSTICK}=="1"',
+                    'ENV{LIBINPUT_IGNORE_DEVICE}="1"'):
+            self.assertTrue(all(key in line for line in statements), key)
+        self.assertIn('ATTRS{name}=="vc4-hdmi-0"', statements[0])
+        self.assertIn('ATTRS{name}=="vc4-hdmi-1"', statements[1])
+        self.assertNotIn('WaveShare', "\\n".join(statements))
+        self.assertNotIn('ATTRS{idVendor}', "\\n".join(statements))
+
+    def test_hdmi_pointer_fix_preserves_touch_and_can(self):
+        script = (BASE / "scripts/fix_cm5_ghost_pointer.sh").read_text()
+        self.assertIn("ID_INPUT_TOUCHSCREEN=1", script)
+        self.assertIn("ID_VENDOR_ID=0712", script)
+        self.assertIn("ID_MODEL_ID=0009", script)
+        self.assertIn('LIBINPUT_IGNORE_DEVICE=1', script)
+        self.assertIn('udevadm trigger --action=change "/sys/class/input/', script)
+        self.assertIn("systemctl restart ecu-kiosk.service", script)
+        self.assertIn("HDMI_POINTER_FIX=AUTO_ROLLBACK", script)
+        self.assertNotIn("systemctl restart ecu-webgui-static.service", script)
+        self.assertNotIn("systemctl restart ecu-platform-v2-bench", script)
+        self.assertNotIn("ip link set", script)
+        self.assertNotIn("can0", script)
+
     def test_headless_regression_probe_cannot_change_physical_kiosk(self):
         probe = (BASE / "scripts/probe_cm5_wayland_sandbox.sh").read_text()
         self.assertIn("--setenv=WLR_BACKENDS=headless", probe)

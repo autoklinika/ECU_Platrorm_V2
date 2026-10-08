@@ -9,6 +9,7 @@ on:
       - "deploy/webgui/**"
       - "scripts/install_cm5_webgui_v1.sh"
       - "scripts/deploy_cursor_css_cm5.sh"
+      - "scripts/fix_cm5_ghost_pointer.sh"
       - "scripts/probe_cm5_wayland_sandbox.sh"
       - "tests/test_webgui_install_contract.py"
       - ".github/workflows/webgui-ui.yml"
@@ -20,6 +21,7 @@ on:
       - "deploy/webgui/**"
       - "scripts/install_cm5_webgui_v1.sh"
       - "scripts/deploy_cursor_css_cm5.sh"
+      - "scripts/fix_cm5_ghost_pointer.sh"
       - "scripts/probe_cm5_wayland_sandbox.sh"
       - "tests/test_webgui_install_contract.py"
       - ".github/workflows/webgui-ui.yml"
@@ -57,6 +59,7 @@ jobs:
         run: |
           bash -n scripts/install_cm5_webgui_v1.sh
           bash -n scripts/deploy_cursor_css_cm5.sh
+          bash -n scripts/fix_cm5_ghost_pointer.sh
           bash -n scripts/probe_cm5_wayland_sandbox.sh
           bash -n deploy/webgui/rollback_kiosk.sh
           bash -n deploy/webgui/ecu-kiosk-v1-launcher
