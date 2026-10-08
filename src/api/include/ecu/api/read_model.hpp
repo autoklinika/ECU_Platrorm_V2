@@ -26,6 +26,7 @@ struct PlatformInfo {
 struct CanInterfaceInfo {
   std::string name;
   bool up{false};
+  bool bus_off{false};
   bool fd_enabled{false};
   bool listen_only{false};
   std::uint32_t bitrate{0};

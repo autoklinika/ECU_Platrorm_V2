@@ -129,6 +129,27 @@ def run(binary):
             check(raw_request(port, b"GET /api/v1/about?tx=1 HTTP/1.1\r\n" +
                               b"Host: " + host.encode() + b"\r\n\r\n") == 400,
                   "query blocked")
+            for method in ("PUT", "DELETE", "PATCH", "HEAD"):
+                status, _, _ = request(port, method, "/api/v1/about", authorized)
+                check(status in (400, 405), f"{method} rejected")
+            check(raw_request(
+                port, line + b"Host: " + host.encode() +
+                b"\r\nAuthorization: Bearer " + token.encode() +
+                b"\r\n\r\n") == 400, "duplicate Host rejected")
+            check(raw_request(
+                port, line + b"Origin: http://127.0.0.1:8877\r\n" +
+                b"Origin: http://127.0.0.1:8877\r\n" +
+                b"Authorization: Bearer " + token.encode() +
+                b"\r\n\r\n") == 400, "duplicate Origin rejected")
+            check(raw_request(
+                port, b"GET /api/v1/about HTTP/1.0\r\nHost: " +
+                host.encode() + b"\r\n\r\n") == 400, "legacy HTTP rejected")
+            status, headers, body = request(
+                port, "GET", "/api/v1/about", {"Origin": origin})
+            check(status == 401 and
+                  headers.get("Access-Control-Allow-Origin") == origin and
+                  json.loads(body)["error"]["code"] == "unauthorized",
+                  "same-origin authentication required")
             print("ECU_API_HTTP_SECURITY=PASS")
         finally:
             process.terminate()

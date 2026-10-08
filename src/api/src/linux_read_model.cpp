@@ -21,6 +21,7 @@ ReadResult<InterfacesInfo> LinuxLinkReadModel::interfaces() const {
   CanInterfaceInfo info{};
   info.name = interface_name_;
   info.up = result.info.up;
+  info.bus_off = result.info.bus_off;
   info.fd_enabled = result.info.fd_enabled;
   info.listen_only = result.info.listen_only_enabled;
   info.bitrate = result.info.nominal_bitrate;

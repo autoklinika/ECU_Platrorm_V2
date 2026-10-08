@@ -2,30 +2,32 @@
 
 namespace ecu::api::v1 {
 namespace {
-BenchPhase phase(ecu::bench::BenchSessionState state) {
+bool map_phase(ecu::bench::BenchSessionState state,
+               BenchPhase& destination) noexcept {
   using State = ecu::bench::BenchSessionState;
   switch (state) {
-    case State::unconfigured: return BenchPhase::unconfigured;
-    case State::ready: return BenchPhase::ready;
-    case State::starting: return BenchPhase::starting;
-    case State::running: return BenchPhase::running;
-    case State::stopping: return BenchPhase::stopping;
-    case State::recovering: return BenchPhase::recovering;
-    case State::faulted: return BenchPhase::faulted;
+    case State::unconfigured: destination = BenchPhase::unconfigured; return true;
+    case State::ready: destination = BenchPhase::ready; return true;
+    case State::starting: destination = BenchPhase::starting; return true;
+    case State::running: destination = BenchPhase::running; return true;
+    case State::stopping: destination = BenchPhase::stopping; return true;
+    case State::recovering: destination = BenchPhase::recovering; return true;
+    case State::faulted: destination = BenchPhase::faulted; return true;
   }
-  return BenchPhase::faulted;
+  return false;
 }
-DutKind kind(ecu::core::v2::domain::DutClass dut_class) {
+bool map_kind(ecu::core::v2::domain::DutClass dut_class,
+              DutKind& destination) noexcept {
   using Class = ecu::core::v2::domain::DutClass;
   switch (dut_class) {
-    case Class::ecu: return DutKind::ecu;
-    case Class::actuator: return DutKind::actuator;
-    case Class::sensor: return DutKind::sensor;
-    case Class::gateway: return DutKind::gateway;
-    case Class::network_node: return DutKind::network_node;
-    case Class::other: return DutKind::other;
+    case Class::ecu: destination = DutKind::ecu; return true;
+    case Class::actuator: destination = DutKind::actuator; return true;
+    case Class::sensor: destination = DutKind::sensor; return true;
+    case Class::gateway: destination = DutKind::gateway; return true;
+    case Class::network_node: destination = DutKind::network_node; return true;
+    case Class::other: destination = DutKind::other; return true;
   }
-  return DutKind::other;
+  return false;
 }
 }  // namespace
 
@@ -40,7 +42,9 @@ ReadResult<BenchInfo> project_bench(
   if (source.dut_profile_id == 0U)
     return {ReadStatus::invalid_snapshot, {}};
   BenchInfo data{};
-  data.phase = phase(source.state);
+  if (!map_phase(source.state, data.phase) ||
+      data.phase == BenchPhase::unconfigured)
+    return {ReadStatus::invalid_snapshot, {}};
   data.profile_id = source.dut_profile_id;
   data.revision = source.lifecycle_revision;
   data.configured = source.configured;
@@ -54,7 +58,8 @@ ReadResult<DutInfo> project_selected_dut(
     return {ReadStatus::invalid_snapshot, {}};
   DutInfo result{};
   result.profile_id = selected.dut.profile_id;
-  result.kind = kind(selected.dut.dut_class);
+  if (!map_kind(selected.dut.dut_class, result.kind))
+    return {ReadStatus::invalid_snapshot, {}};
   // DutDescriptor has no vendor/model; do not infer physical presence.
   return {ReadStatus::ok, result};
 }

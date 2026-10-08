@@ -23,7 +23,7 @@ All paths use `/api/v1`; all responses are `application/json` with `schema_versi
 | --- | --- |
 | `/about` | `api_version`, `read_only`, `build_revision` — running API binary only |
 | `/platform` | backend-owned platform `product` and `version` |
-| `/interfaces` | `interfaces[]`: name, up, FD, listen-only, nominal/data bitrates |
+| `/interfaces` | `interfaces[]`: name, up, bus-off, FD, listen-only, nominal/data bitrates |
 | `/bench/session` | state, profile ID, revision, configured, cleanup required |
 | `/dut` | **selected** profile ID and kind; physical presence unverified |
 | `/dut/capabilities` | allowlisted **read-only** operations only |
@@ -59,6 +59,18 @@ ctest --test-dir build/api -R '^ecu[.]api[.]' --output-on-failure
 ```
 
 The ordinary production build graph is unchanged because `ECU_BUILD_APPLICATION_API` defaults OFF. CI additionally runs Linux GCC/Clang and Windows MSVC x64/Win32 Debug/Release. No physical DUT is needed.
+
+## Second code audit and first SAC-oriented tests — 2026-10-08
+
+- Native Bench state conversion now rejects unknown enum values, rather than silently mapping them to `faulted`. A configured, but unconfigured-phase snapshot is invalid.
+- Strict bounds, UTF-8 validation, unique interfaces and read capabilities, and DTC identifier limits make malformed backend DTOs return `502 invalid_snapshot`.
+- CAN response now explicitly carries `bus_off` from the existing Linux netlink adapter. A link that is DOWN with zero bitrate **does not mean this CAN-FD controller lacks capabilities or that an ECU is healthy**.
+- Expanded HTTP negative tests: unsupported methods, duplicate Host/Origin, obsolete HTTP versions, untrusted origins and unauthenticated same-origin requests.
+- Read-only smoke on CM5: authenticated API `/about` and kernel `/interfaces` succeed; `/bench/session` and `/dut/dtcs` return 503; missing Bearer returns 401; CAN state and RX/TX/error counters unchanged. This is **not** a new physical SAC DTC read.
+- Previous **operator-validated** SAC 500k evidence `read-500k-20261008T081749Z-422826.active-uds.log` was reverified offline (SHA-256 `423cd78e64f6e797e22d6acaf742802c87d5d45737411a688baee06559dcb5ad`); 32 diagnostic frames, 0 parse errors, 13 DTC entries, 0 ClearDiagnosticInformation commands. Private raw trace is not committed.
+- Physical test of attached SAC at 500k needs an operator with an interactive sudo terminal to bring CAN into listen-only/active modes. The Application API process neither has nor requests CAP_NET_ADMIN and must not perform this transition; the already validated Stage 4.3 proof runner is maintained separately, outside PR #20.
+
+Remaining architecture gate for actual SAC -> API DTC: add an **authorized, freshness-checked application-owned read snapshot publisher** without exposing Bench Agent commands or letting HTTP dispatch diagnostic operations. Keep WebGUI disconnected until this gate is complete.
 
 ## Staged deployment procedure (not executed by this PR)
 

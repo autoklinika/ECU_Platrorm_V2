@@ -73,40 +73,112 @@ const char* json_bool(bool value) {
   return value ? "true" : "false";
 }
 
+// Application snapshots may be invalid or untrusted. Reject malformed or
+// unbounded DTOs before JSON serialization (rather than presenting them as
+// a real ECU / session state).
+bool bounded_utf8(const std::string_view value, std::size_t maximum) noexcept {
+  if (value.empty() || value.size() > maximum) return false;
+  std::size_t i = 0U;
+  while (i < value.size()) {
+    const auto lead = static_cast<unsigned char>(value[i++]);
+    if (lead <= 0x7fU) {
+      if (lead == 0U || lead == 0x7fU ||
+          (lead < 0x20U && lead != '\n' && lead != '\r' && lead != '\t'))
+        return false;
+      continue;
+    }
+    unsigned int continuation_count = 0U;
+    std::uint32_t point = 0U;
+    std::uint32_t minimum = 0U;
+    if (lead >= 0xc2U && lead <= 0xdfU) {
+      continuation_count = 1U; point = lead & 0x1fU; minimum = 0x80U;
+    } else if (lead >= 0xe0U && lead <= 0xefU) {
+      continuation_count = 2U; point = lead & 0x0fU; minimum = 0x800U;
+    } else if (lead >= 0xf0U && lead <= 0xf4U) {
+      continuation_count = 3U; point = lead & 0x07U; minimum = 0x10000U;
+    } else {
+      return false;
+    }
+    if (value.size() - i < continuation_count) return false;
+    for (unsigned int j = 0U; j < continuation_count; ++j) {
+      const auto byte = static_cast<unsigned char>(value[i++]);
+      if ((byte & 0xc0U) != 0x80U) return false;
+      point = (point << 6U) | static_cast<std::uint32_t>(byte & 0x3fU);
+    }
+    if (point < minimum || point > 0x10ffffU ||
+        (point >= 0xd800U && point <= 0xdfffU))
+      return false;
+  }
+  return true;
+}
+
+bool identifier(const std::string_view value, const std::size_t maximum,
+                const bool allow_colon = false) noexcept {
+  if (value.empty() || value.size() > maximum) return false;
+  for (const char ch : value) {
+    if ((ch >= 'A' && ch <= 'Z') ||
+        (ch >= 'a' && ch <= 'z') ||
+        (ch >= '0' && ch <= '9') ||
+        ch == '_' || ch == '-' || ch == '.' ||
+        (allow_colon && (ch == ':' || ch == '/')))
+      continue;
+    return false;
+  }
+  return true;
+}
+
 bool valid(const PlatformInfo& value) {
-  return !value.product.empty() && !value.version.empty();
+  return bounded_utf8(value.product, 128U) &&
+         bounded_utf8(value.version, 64U);
 }
 
 bool valid(const InterfacesInfo& value) {
-  for (const auto& item : value.interfaces) {
-    if (item.name.empty() || (item.fd_enabled && item.data_bitrate == 0U)) {
+  if (value.interfaces.size() > 32U) return false;
+  for (std::size_t i = 0; i < value.interfaces.size(); ++i) {
+    const auto& item = value.interfaces[i];
+    if (!identifier(item.name, 15U) ||
+        (item.up && item.bitrate == 0U) ||
+        (item.fd_enabled && (item.bitrate == 0U || item.data_bitrate == 0U)))
       return false;
-    }
+    for (std::size_t j = 0; j < i; ++j)
+      if (value.interfaces[j].name == item.name) return false;
   }
   return true;
 }
 
 bool valid(const BenchInfo& value) {
-  return !value.configured || value.profile_id != 0U;
+  return value.configured && value.profile_id != 0U &&
+         value.phase != BenchPhase::unconfigured &&
+         static_cast<unsigned int>(value.phase) <=
+             static_cast<unsigned int>(BenchPhase::faulted);
 }
 
 bool valid(const DutInfo& value) {
-  return value.profile_id != 0U;
+  return value.profile_id != 0U &&
+         static_cast<unsigned int>(value.kind) <=
+             static_cast<unsigned int>(DutKind::other) &&
+         (value.profile_label.empty() ||
+          bounded_utf8(value.profile_label, 128U));
 }
 
-bool valid(const CapabilitiesInfo&) {
+bool valid(const CapabilitiesInfo& value) {
+  if (value.available_read_operations.size() > 3U) return false;
+  for (std::size_t i = 0; i < value.available_read_operations.size(); ++i) {
+    if (static_cast<unsigned int>(value.available_read_operations[i]) >
+        static_cast<unsigned int>(ReadCapability::live_parameters))
+      return false;
+    for (std::size_t j = 0; j < i; ++j)
+      if (value.available_read_operations[j] ==
+          value.available_read_operations[i]) return false;
+  }
   return true;
 }
 
 bool valid(const DtcInfo& value) {
-  if (value.protocol.empty()) {
+  if (!identifier(value.protocol, 32U) || value.entries.size() > 256U)
     return false;
-  }
-  for (const auto& entry : value.entries) {
-    if (entry.code.empty()) {
-      return false;
-    }
-  }
+  for (const auto& entry : value.entries)
+    if (!identifier(entry.code, 32U, true)) return false;
   return true;
 }
 
@@ -122,6 +194,8 @@ std::string serialize(const InterfacesInfo& value) {
     out += "{\"name\":" + json_string(item.name);
     out += ",\"up\":";
     out += json_bool(item.up);
+    out += ",\"bus_off\":";
+    out += json_bool(item.bus_off);
     out += ",\"fd_enabled\":";
     out += json_bool(item.fd_enabled);
     out += ",\"listen_only\":";

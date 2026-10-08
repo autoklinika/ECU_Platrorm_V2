@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <utility>
 
 using namespace ecu::api::v1;
 
@@ -24,7 +25,7 @@ struct TestModel final : IReadModel {
   }
   ReadResult<InterfacesInfo> interfaces() const override {
     ++calls;
-    return {ReadStatus::ok, {{{"can-test", true, true, false, 500000U, 2000000U}}}};
+    return {ReadStatus::ok, {{{"can-test", true, false, true, false, 500000U, 2000000U}}}};
   }
   ReadResult<BenchInfo> bench() const override {
     ++calls;
@@ -41,6 +42,47 @@ struct TestModel final : IReadModel {
   ReadResult<DtcInfo> dtcs() const override {
     ++calls;
     return {ReadStatus::ok, {"uds", {{"ABC", 0x8bU}}}};
+  }
+};
+
+// Corrupt snapshots represent a buggy backend, not synthetic ECU state.
+// The router must never reinterpret them as successful observation.
+struct InvalidModel final : IReadModel {
+  ReadResult<PlatformInfo> platform() const override {
+    return {ReadStatus::ok, {std::string(1U, static_cast<char>(0xff)), "1"}};
+  }
+  ReadResult<InterfacesInfo> interfaces() const override {
+    return {ReadStatus::ok, {{{"can0", true, false, false, false, 0U, 0U}}}};
+  }
+  ReadResult<BenchInfo> bench() const override {
+    return {ReadStatus::ok, {static_cast<BenchPhase>(255U), 42U, 1U, true, false}};
+  }
+  ReadResult<DutInfo> dut() const override {
+    return {ReadStatus::ok, {42U, static_cast<DutKind>(255U), "undefined-kind"}};
+  }
+  ReadResult<CapabilitiesInfo> capabilities() const override {
+    return {ReadStatus::ok, {{static_cast<ReadCapability>(255U)}}};
+  }
+  ReadResult<DtcInfo> dtcs() const override {
+    return {ReadStatus::ok, {"uds", {{"<script>", 0x01U}}}};
+  }
+};
+
+struct OversizedModel final : IReadModel {
+  ReadResult<PlatformInfo> platform() const override {
+    return {ReadStatus::ok, {std::string(129U, 'x'), "v1"}};
+  }
+  ReadResult<InterfacesInfo> interfaces() const override {
+    return {ReadStatus::ok, {{{"can0", true, false, false, false, 500000U, 0U},
+                              {"can0", true, false, false, false, 500000U, 0U}}}};
+  }
+  ReadResult<CapabilitiesInfo> capabilities() const override {
+    return {ReadStatus::ok, {{ReadCapability::dtc_read, ReadCapability::dtc_read}}};
+  }
+  ReadResult<DtcInfo> dtcs() const override {
+    DtcInfo value{"uds", {}};
+    value.entries.resize(257U, {"P0001", 1U});
+    return {ReadStatus::ok, std::move(value)};
   }
 };
 
@@ -110,6 +152,28 @@ int main() {
   }
   check(model.calls == 6U, "provider-dispatch-count");
   test = good;
+  test.target = "/api/v1/interfaces";
+  check(router.route(test).body.find("\"bus_off\":false") !=
+        std::string::npos, "bus-off-preserved");
+  InvalidModel invalid{};
+  const Router invalid_router{invalid, token, 8878U};
+  for (const auto& path : paths) {
+    test = good;
+    test.target = path;
+    check(invalid_router.route(test).status == 502,
+          "corrupt-model-must-fail-closed");
+  }
+  OversizedModel oversized{};
+  const Router oversized_router{oversized, token, 8878U};
+  for (const auto* path : {"/api/v1/platform", "/api/v1/interfaces",
+                           "/api/v1/dut/capabilities", "/api/v1/dut/dtcs"}) {
+    test = good;
+    test.target = path;
+    check(oversized_router.route(test).status == 502,
+          "unbounded-or-duplicate-model-must-fail-closed");
+  }
+
+  test = good;
   test.target = "/api/v1/platform";
   check(router.route(test).body.find("\\n") != std::string::npos,
         "json-string-escaping");
@@ -137,6 +201,14 @@ int main() {
   existing.schema_version = 999U;
   check(project_bench(existing).status == ReadStatus::invalid_snapshot,
         "native-version-rejected");
+  existing.schema_version =
+      ecu::bench::BenchSessionSnapshot::kSchemaVersion;
+  existing.state = static_cast<ecu::bench::BenchSessionState>(255U);
+  check(project_bench(existing).status == ReadStatus::invalid_snapshot,
+        "unknown-native-state-rejected");
+  existing.state = ecu::bench::BenchSessionState::unconfigured;
+  check(project_bench(existing).status == ReadStatus::invalid_snapshot,
+        "invalid-native-lifecycle-rejected");
   std::cout << "ECU_API_ROUTER=PASS\n";
   return 0;
 }
