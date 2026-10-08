@@ -35,9 +35,10 @@ symulowany CMake Generic i sanitizery ASan/UBSan.
 | A-005 | MEDIUM | Z CAN passive PGN FEAE jest widoczny, ale podczas odczytu napięć monitor go nie obserwował | Status ciśnień pozostaje niepotwierdzony; nie dopisywać fikcyjnych wartości |
 | A-006 | HIGH dla WebGUI | Brak produkcyjnej warstwy API z autoryzacją, a kiosk wciąż korzysta z pliku placeholder | Nie podłączać GUI do agenta; przygotować osobną warstwę API po akceptacji architektury |
 | A-007 | WYMÓG | `main` ma osobną bramkę właściciela | RC na oddzielnym branchu, ewentualny draft PR; bez automatycznego merge |
-| A-008 | HIGH portability | Pierwszy GitHub MSVC build DUT Profile 4/4 FAIL na C4244 (konwersja `unsigned int` na `uint8_t` w wektorach testowych) | Wymuszony typ `std::array<std::uint8_t, 3U>`; powtórzenie CI dla Windows wymagane |
+| A-008 | HIGH portability | Pierwszy GitHub MSVC build DUT Profile 4/4 FAIL na C4244 (konwersja `unsigned int` na `uint8_t` w wektorach testowych) | Wymuszony typ `std::array<std::uint8_t, 3U>`; ponowny Windows MSVC x64/Win32 Debug/Release **4/4 PASS**, workflow `37755575051` **18/18 PASS** |
 | A-009 | MEDIUM DTO | Snapshot identyfikacji nie przenosił jawnie informacji o niezaprogramowanym VIN F190/FF17 | `vin_unprogrammed` w AppSnapshot, schema 2, testy 250k/500k i pustego suffix |
 | A-010 | BLOCKER CI | GitHub OAuth CLI ma `repo`, ale nie `workflow`; push zmiany `.github/workflows` odrzucony | Pełne CI tylko w lokalnej gałęzi audytowej do autoryzacji; wypchnięta oddzielna gałąź przeglądowa bez edycji workflow |
+| A-011 | HIGH API safety | `kOperationCatalog` publikował `clear_dtc` jako dostępne, choć fizycznego skutku kasowania nie potwierdzono | Publiczna dostępność `clear_dtc=false`, osobna ręczna procedura z ograniczeniami bez zmian; dodatkowy test katalogu |
 
 ## Zmiany bez naruszenia CORE freeze
 
@@ -69,8 +70,8 @@ ani transmisji do fizycznego DUT w ramach audytu.
 | CM5 ARM64 GCC: Core V2 Debug/Release/Generic/ASan+UBSan | PASS, 20/20 Core V2 testów |
 | CM5 ARM64 GCC: Bench + DUT + Application | PASS: Bench Stage 2, DUT i Application Debug/Release/Generic/ASan+UBSan |
 | Symulowany non-Linux Generic CMake | PASS: domyślna konfiguracja + kompilacja i CTest |
-| Linux x86_64 GCC / Clang GitHub CI | **PASS** — powtórny workflow 37754552656, istniejące zadania CORE/Bench/DUT |
-| Windows MSVC x64 + Win32 / Debug + Release | **PASS** dla istniejącego CORE/Bench/DUT 18/18 całego workflow 37754552656; **Application MSVC nadal oczekuje** na opublikowanie rozszerzonego workflow |
+| Linux x86_64 GCC / Clang GitHub CI | **PASS** — workflow `37755575051` (commit `46c55eb`), istniejące CORE/Bench/DUT |
+| Windows MSVC x64 + Win32 / Debug + Release | **PASS** dla istniejącego CORE/Bench/DUT, workflow `37755575051`: 18/18 zadań CI; **Application MSVC nadal oczekuje** na opublikowanie rozszerzonego workflow |
 | WebGUI security isolation kiosk vs agent | **BLOCKED dla uruchomienia WebGUI** |
 | Hardware CAN/UDS 250/500 read-only | PASS we wcześniejszych, zachowanych dowodach; bez nowego TX |
 | DTC clear / EGR-VGT / flash / output control | poza zakresem release read-only |

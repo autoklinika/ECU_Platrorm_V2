@@ -39,7 +39,10 @@ inline constexpr std::array<OperationDescriptor, 6U> kOperationCatalog{{
     {AppOperation::identify, "identify", true, true, true},
     // Physically read via 19 02 FF on both 250k and 500k SAC DUTs.
     {AppOperation::read_dtc, "read_dtc", true, true, true},
-    {AppOperation::clear_dtc, "clear_dtc", true, false, false},
+    // Not a publishable API/WebGUI capability: the one physical 0x14 ACK
+    // did not prove erasure. Isolated local operator proof stays separately
+    // guarded; never expose it through the capability catalog.
+    {AppOperation::clear_dtc, "clear_dtc", false, false, false},
     {AppOperation::live_parameters, "live_parameters", true, true, false},
     {AppOperation::actuator_test, "actuator_test", false, false, false},
     {AppOperation::program_ecu, "program_ecu", false, false, false},
