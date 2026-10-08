@@ -59,7 +59,7 @@
           </div>
         </section>
 
-        <section class="page legacy-page legacy-page--catalog" data-page="tests" hidden>
+        <section class="page catalog-page catalog-page--selection" data-page="tests" hidden>
           <h1 data-i18n="pages.tests">Tests</h1>
           <div class="tiles tiles--category">
             <button type="button" class="tile" data-route="test-truck">TRUCK</button>
@@ -69,7 +69,7 @@
           <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--catalog" data-page="test-truck" hidden>
+        <section class="page catalog-page catalog-page--selection" data-page="test-truck" hidden>
           <h1>TRUCK</h1>
           <div class="tiles tiles--manufacturer">
             <button type="button" class="tile" data-route="truck-man">MAN</button>
@@ -81,43 +81,43 @@
           <button type="button" class="back-button" data-route="tests" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--catalog" data-page="test-agri" hidden>
+        <section class="page catalog-page catalog-page--selection" data-page="test-agri" hidden>
           <h1>AGRI</h1>
           <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
           <button type="button" class="back-button" data-route="tests" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--catalog" data-page="test-ohv" hidden>
+        <section class="page catalog-page catalog-page--selection" data-page="test-ohv" hidden>
           <h1>OHV</h1>
           <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
           <button type="button" class="back-button" data-route="tests" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--catalog" data-page="truck-man" hidden>
+        <section class="page catalog-page catalog-page--selection" data-page="truck-man" hidden>
           <h1>MAN</h1>
           <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
           <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--catalog" data-page="truck-scania" hidden>
+        <section class="page catalog-page catalog-page--selection" data-page="truck-scania" hidden>
           <h1>SCANIA</h1>
           <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
           <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--catalog" data-page="truck-iveco" hidden>
+        <section class="page catalog-page catalog-page--selection" data-page="truck-iveco" hidden>
           <h1>IVECO</h1>
           <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
           <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--catalog" data-page="truck-mb" hidden>
+        <section class="page catalog-page catalog-page--selection" data-page="truck-mb" hidden>
           <h1>MB</h1>
           <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
           <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--catalog" data-page="truck-daf" hidden>
+        <section class="page catalog-page catalog-page--selection" data-page="truck-daf" hidden>
           <h1>DAF</h1>
           <div class="tiles tiles--modules">
             <button type="button" class="tile" data-route="daf-sac">SAC</button>
@@ -125,30 +125,30 @@
           <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--sac" data-page="daf-sac" hidden>
+        <section class="page catalog-page catalog-page--sac" data-page="daf-sac" hidden>
           <h1>DAF SAC</h1>
           <p class="field-label" data-i18n="sac.parameterExplanation">Four laboratory parameters: values remain unavailable until an authoritative, completed measurement is published by the application.</p>
           <p id="sac-parameters-status" class="data-state" role="status"
              aria-live="polite" data-i18n="sac.noReadout">No verified SAC parameter readout available.</p>
-          <section class="legacy-parameter-panel" aria-label="SAC parameters"
+          <section class="sac-parameter-panel" aria-label="SAC parameters"
                    data-i18n-aria-label="sac.parameters">
             <h2 data-i18n="sac.parametersTitle">PARAMETERS</h2>
-            <div class="legacy-parameter-list">
-              <div class="legacy-parameter-row">
+            <div class="sac-parameter-list">
+              <div class="sac-parameter-row">
                 <span data-i18n="sac.pressure1">Pressure 1</span>
-                <output id="sac-pressure-1">—</output><span class="legacy-parameter-unit">bar</span>
+                <output id="sac-pressure-1">—</output><span class="sac-parameter-unit">bar</span>
               </div>
-              <div class="legacy-parameter-row">
+              <div class="sac-parameter-row">
                 <span data-i18n="sac.pressure2">Pressure 2</span>
-                <output id="sac-pressure-2">—</output><span class="legacy-parameter-unit">bar</span>
+                <output id="sac-pressure-2">—</output><span class="sac-parameter-unit">bar</span>
               </div>
-              <div class="legacy-parameter-row">
+              <div class="sac-parameter-row">
                 <span data-i18n="sac.permanentVoltage">Battery Permanent</span>
-                <output id="sac-permanent-voltage">—</output><span class="legacy-parameter-unit">V</span>
+                <output id="sac-permanent-voltage">—</output><span class="sac-parameter-unit">V</span>
               </div>
-              <div class="legacy-parameter-row">
+              <div class="sac-parameter-row">
                 <span data-i18n="sac.ignitionVoltage">Battery Ignition</span>
-                <output id="sac-ignition-voltage">—</output><span class="legacy-parameter-unit">V</span>
+                <output id="sac-ignition-voltage">—</output><span class="sac-parameter-unit">V</span>
               </div>
             </div>
           </section>
@@ -156,7 +156,7 @@
           <button type="button" class="back-button" data-route="truck-daf" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--sac" data-page="sac-dtc" hidden>
+        <section class="page catalog-page catalog-page--sac" data-page="sac-dtc" hidden>
           <h1 data-i18n="sac.dtcTitle">DAF SAC — DTC</h1>
           <p class="field-label" data-i18n="dtc.historical">Last completed DTC readout (historical, not live)</p>
           <p class="data-state" id="dtc-status" role="status" aria-live="polite" data-i18n="api.signInRequired">Sign in under Settings to read API data.</p>
@@ -184,13 +184,13 @@
           </div>
         </div>
 
-        <section class="page legacy-page legacy-page--sac" data-page="sac-activations" hidden>
+        <section class="page catalog-page catalog-page--sac" data-page="sac-activations" hidden>
           <h1 data-i18n="sac.activationsTitle">DAF SAC — Activations</h1>
           <p class="data-state" data-i18n="sac.restricted">Unavailable: no authorized backend operation or safety gate has been implemented.</p>
           <button type="button" class="back-button" data-route="daf-sac" data-i18n="navigation.back">Back</button>
         </section>
 
-        <section class="page legacy-page legacy-page--sac" data-page="sac-programming" hidden>
+        <section class="page catalog-page catalog-page--sac" data-page="sac-programming" hidden>
           <h1 data-i18n="sac.programmingTitle">DAF SAC — Programming</h1>
           <p class="data-state" data-i18n="sac.restricted">Unavailable: no authorized backend operation or safety gate has been implemented.</p>
           <button type="button" class="back-button" data-route="daf-sac" data-i18n="navigation.back">Back</button>

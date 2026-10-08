@@ -8,6 +8,8 @@ on:
       - "docs/CM5_WEBGUI_KIOSK_DEPLOYMENT_V1.md"
       - "docs/WEBGUI_API_V1_CLIENT_GATE.md"
       - "docs/WEBGUI_TEST_CATALOG_DAF_SAC_LEGACY_REFERENCE.md"
+      - "docs/WEBGUI_V1_INDUSTRIAL_SKIN_TEST_CATALOG.md"
+      - "docs/previews/ecu-v2-v1-*.png"
       - "deploy/webgui/**"
       - "scripts/install_cm5_webgui_v1.sh"
       - "scripts/deploy_cursor_css_cm5.sh"
@@ -16,8 +18,10 @@ on:
       - "tests/test_webgui_install_contract.py"
       - "tests/test_webgui_api_deploy_contract.py"
       - "tests/test_webgui_test_catalog_deploy.py"
+      - "tests/test_webgui_v1_skin_deploy.py"
       - "scripts/deploy_cm5_webgui_api_v1.sh"
       - "scripts/deploy_cm5_webgui_test_catalog_v1.sh"
+      - "scripts/deploy_cm5_webgui_v1_skin.sh"
       - ".github/workflows/webgui-ui.yml"
   pull_request:
     paths:
@@ -26,6 +30,8 @@ on:
       - "docs/CM5_WEBGUI_KIOSK_DEPLOYMENT_V1.md"
       - "docs/WEBGUI_API_V1_CLIENT_GATE.md"
       - "docs/WEBGUI_TEST_CATALOG_DAF_SAC_LEGACY_REFERENCE.md"
+      - "docs/WEBGUI_V1_INDUSTRIAL_SKIN_TEST_CATALOG.md"
+      - "docs/previews/ecu-v2-v1-*.png"
       - "deploy/webgui/**"
       - "scripts/install_cm5_webgui_v1.sh"
       - "scripts/deploy_cursor_css_cm5.sh"
@@ -34,8 +40,10 @@ on:
       - "tests/test_webgui_install_contract.py"
       - "tests/test_webgui_api_deploy_contract.py"
       - "tests/test_webgui_test_catalog_deploy.py"
+      - "tests/test_webgui_v1_skin_deploy.py"
       - "scripts/deploy_cm5_webgui_api_v1.sh"
       - "scripts/deploy_cm5_webgui_test_catalog_v1.sh"
+      - "scripts/deploy_cm5_webgui_v1_skin.sh"
       - ".github/workflows/webgui-ui.yml"
 
 permissions:
@@ -61,7 +69,7 @@ jobs:
           node --check webgui/src/i18n.mjs
           node --check webgui/src/domain-text.mjs
       - name: Client-only, navigation and translation tests
-        run: node --test webgui/tests/i18n.test.mjs webgui/tests/contract.test.mjs webgui/tests/api-client.test.mjs
+        run: node --test webgui/tests/i18n.test.mjs webgui/tests/contract.test.mjs webgui/tests/api-client.test.mjs webgui/tests/v1-skin.test.mjs
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -71,9 +79,12 @@ jobs:
         run: python -m unittest discover -s tests -p test_webgui_api_deploy_contract.py -v
       - name: Read-only TESTS catalog candidate safety checks
         run: python -m unittest discover -s tests -p test_webgui_test_catalog_deploy.py -v
+      - name: V1 industrial skin candidate safety checks
+        run: python -m unittest discover -s tests -p test_webgui_v1_skin_deploy.py -v
       - name: Bash installer syntax
         if: runner.os == 'Linux'
         run: |
+          bash -n scripts/deploy_cm5_webgui_v1_skin.sh
           bash -n scripts/deploy_cm5_webgui_test_catalog_v1.sh
           bash -n scripts/deploy_cm5_webgui_api_v1.sh
           bash -n scripts/install_cm5_webgui_v1.sh

@@ -146,14 +146,14 @@ test("legacy-inspired TESTS / TRUCK / DAF / SAC hierarchy and independent placeh
 });
 
 test("SAC parameters follow legacy four-row presentation and stay fail-closed", () => {
-  const match = html.match(/<section class="page legacy-page legacy-page--sac" data-page="daf-sac" hidden>([\s\S]*?)<\/section>/);
+  const match = html.match(/<section class="page catalog-page catalog-page--sac" data-page="daf-sac" hidden>([\s\S]*?)<\/section>/);
   assert.ok(match);
   const parameterIds = [...match[1].matchAll(/<output id="([^"]+)">—<\/output>/g)]
     .map((entry) => entry[1]);
   assert.deepEqual(parameterIds, [
     "sac-pressure-1", "sac-pressure-2", "sac-permanent-voltage", "sac-ignition-voltage"
   ]);
-  assert.match(match[1], /legacy-parameter-panel/);
+  assert.match(match[1], /sac-parameter-panel/);
   assert.match(match[1], /sac.noReadout/);
   assert.match(app, /SAC_DTC_PROFILES/);
   assert.match(app, /readout\.dtcs\.protocol\.toLowerCase\(\) !== "uds"/);
