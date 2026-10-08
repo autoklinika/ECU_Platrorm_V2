@@ -669,6 +669,7 @@ AppSnapshot Application::snapshot() const noexcept {
   out.transport_failure = endpoint_.last_transport_failure();
   out.nrc = endpoint_.last_nrc();
   out.identification_available = record_valid_;
+  out.vin_unprogrammed = record_valid_ && record_.vin_unprogrammed_ff17;
   out.voltage_available = voltage_.valid;
   out.pressure_received = pressure_sample_.received;
   out.pressure1_valid = pressure_sample_.pressure1_valid;

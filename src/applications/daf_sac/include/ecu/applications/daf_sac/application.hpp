@@ -156,7 +156,7 @@ struct ClearDtcChallenge {
 };
 
 struct AppSnapshot {
-  static constexpr std::uint16_t kSchemaVersion = 1U;
+  static constexpr std::uint16_t kSchemaVersion = 2U;
   std::uint16_t schema_version{kSchemaVersion};
   AppState state{AppState::unconfigured};
   AppStatus status{AppStatus::invalid_state};
@@ -171,6 +171,9 @@ struct AppSnapshot {
       ecu::core::v2::protocol::uds::UdsTransportFailure::none};
   std::uint8_t nrc{0U};
   bool identification_available{false};
+  // A verified F190 FF17 marker is not a real VIN. Backend-owned state;
+  // clients must not derive a VIN presence decision from an empty string.
+  bool vin_unprogrammed{false};
   bool voltage_available{false};
   bool pressure_received{false};
   bool pressure1_valid{false};
