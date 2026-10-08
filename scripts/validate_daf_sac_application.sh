@@ -11,11 +11,23 @@ bash -n "$ROOT_DIR/scripts/run_stage4_daf_sac_bench_gate.sh"
 bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_read_gate.sh"
 bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_clear_gate.sh"
 bash -n "$ROOT_DIR/scripts/check_daf_sac_clear_evidence.sh"
+bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_controlled_retest.sh"
 bash -n "$ROOT_DIR/scripts/install_ecu_bench_agent.sh"
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
   -s "$ROOT_DIR/tests" -p "test_ecu_bench_agent.py" -v
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
   -s "$ROOT_DIR/tests" -p "test_daf_sac_clear_evidence_guard.py" -v
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+  -s "$ROOT_DIR/tests" -p "test_daf_sac_controlled_retest.py" -v
+
+if refusal_output="$(bash "$ROOT_DIR/scripts/run_stage42_daf_sac_controlled_retest.sh" </dev/null 2>&1)"; then
+  echo "ERROR: unattended controlled retest was not rejected"
+  exit 1
+fi
+case "$refusal_output" in
+  *"live local operator TTY"*) echo "DTC_CONTROLLED_RETEST_NONINTERACTIVE_DENIAL=PASS" ;;
+  *) echo "ERROR: controlled retest failed for unexpected reason: $refusal_output"; exit 1 ;;
+esac
 
 common=(
   -DECU_BUILD_TESTS=ON
