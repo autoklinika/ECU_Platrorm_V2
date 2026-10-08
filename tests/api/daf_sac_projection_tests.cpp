@@ -39,6 +39,11 @@ int main() {
   snapshot.state = app::AppState::dtcs_ready;
   snapshot.status = app::AppStatus::ok;
   snapshot.dtcs_available = true;
+  snapshot.bench.configured = true;
+  snapshot.bench.state = ecu::bench::BenchSessionState::ready;
+  snapshot.bench.status = ecu::bench::BenchSessionStatus::ok;
+  snapshot.bench.dut_profile_id = snapshot.profile_id;
+  snapshot.bench.last_completed_operation_generation = 1U;
   snapshot.dtc_count = 2U;
   list.count = 2U;
   list.valid = true;
@@ -99,6 +104,18 @@ int main() {
   require(synthetic.dtcs().status == api::ReadStatus::invalid_snapshot,
           "no-result-during-unsafe-cleanup");
   snapshot.bench.cleanup_required = false;
+  snapshot.bench.dut_profile_id = 0xDEADBEEFU;
+  require(synthetic.dtcs().status == api::ReadStatus::invalid_snapshot,
+          "mixed-session-profile-rejected");
+  snapshot.bench.dut_profile_id = snapshot.profile_id;
+  snapshot.bench.state = ecu::bench::BenchSessionState::running;
+  require(synthetic.dtcs().status == api::ReadStatus::invalid_snapshot,
+          "unfinished-session-rejected");
+  snapshot.bench.state = ecu::bench::BenchSessionState::ready;
+  snapshot.bench.last_completed_operation_generation = 0U;
+  require(synthetic.dtcs().status == api::ReadStatus::invalid_snapshot,
+          "missing-completion-generation-rejected");
+  snapshot.bench.last_completed_operation_generation = 1U;
   snapshot.clear_acknowledged = true;
   require(synthetic.dtcs().status == api::ReadStatus::invalid_snapshot,
           "clear-state-not-published");
@@ -135,6 +152,7 @@ int main() {
 
   // The 250k variant is supported by the same isolated adapter.
   snapshot.profile_id = sac::profile_id(sac::CanBitrateProfile::k250k);
+  snapshot.bench.dut_profile_id = snapshot.profile_id;
   snapshot.bitrate = 250000U;
   require(synthetic.dtcs().status == api::ReadStatus::ok, "250k-profile");
 

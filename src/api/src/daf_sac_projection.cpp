@@ -46,7 +46,17 @@ ReadResult<DtcInfo> project_daf_sac_completed_dtc_read(
       !snapshot.dtcs_available || !dtcs.valid)
     return {ReadStatus::backend_unavailable, {}};
 
+  // The native AppSnapshot must be the result of a completed Bench operation
+  // for exactly this DUT profile, never a still-running or mixed session.
   if (snapshot.clear_acknowledged ||
+      snapshot.bench.schema_version !=
+          ecu::bench::BenchSessionSnapshot::kSchemaVersion ||
+      !snapshot.bench.configured ||
+      snapshot.bench.state != ecu::bench::BenchSessionState::ready ||
+      snapshot.bench.status != ecu::bench::BenchSessionStatus::ok ||
+      snapshot.bench.dut_profile_id != snapshot.profile_id ||
+      snapshot.bench.last_completed_operation_generation == 0U ||
+      snapshot.bench.operation_generation != 0U ||
       snapshot.bench.cleanup_required ||
       snapshot.bench.active_resource_count != 0U ||
       snapshot.dtc_count != dtcs.count ||
