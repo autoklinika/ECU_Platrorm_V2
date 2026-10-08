@@ -52,11 +52,17 @@ def main() -> None:
               "PARAMETER_HISTORICAL_ONLY")
     status, _, payload = api_request(
         "GET", "/api/v1/readouts/dtc/latest", token)
-    check(status == 200 and
-          payload["data"]["source"] == "completed_application_operation" and
-          payload["data"]["live"] is False and
-          isinstance(payload["data"]["dtcs"]["entries"], list),
-          "PRESERVED_REAL_DTC_READOUT")
+    # An old preserved physical readout may legitimately expire before
+    # an upgrade. Expiry (410) is not loss of evidence or reason for another
+    # ECU diagnostic request.
+    preserved_dtc = (
+        (status == 200 and
+         payload["data"]["source"] == "completed_application_operation" and
+         payload["data"]["live"] is False and
+         isinstance(payload["data"]["dtcs"]["entries"], list))
+        or (status == 410 and
+            payload["error"]["code"] == "readout_expired"))
+    check(preserved_dtc, "PRESERVED_REAL_DTC_READOUT")
     status, _, _ = api_request(
         "POST", "/api/v1/readouts/daf-sac/parameters/latest", token)
     check(status == 405, "WRITE_METHOD_DENIED")

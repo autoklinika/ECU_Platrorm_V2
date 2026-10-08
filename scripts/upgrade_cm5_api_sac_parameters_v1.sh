@@ -42,8 +42,10 @@ strings "$candidate" | grep -Fx "$expected_sha" >/dev/null || exit 2
 [[ -f /etc/systemd/system/$unit && ! -L /etc/systemd/system/$unit ]] || exit 2
 grep -Fq "ExecStart=$destination --token-file /etc/ecu-platform-v2/api/token" \
   "/etc/systemd/system/$unit" || exit 2
+[[ ! -L /etc/ecu-platform-v2/api/token ]] || exit 2
 [[ "$(stat -c '%a:%U:%G' /etc/ecu-platform-v2/api/token)" == \
    640:root:ecu-api ]] || exit 2
+[[ ! -L /var/lib/ecu-platform-v2/api-readouts ]] || exit 2
 [[ "$(stat -c '%a:%U:%G' /var/lib/ecu-platform-v2/api-readouts)" == \
    2750:ecu:ecu-api-read ]] || exit 2
 for service in "$unit" ecu-kiosk.service ecu-webgui-static.service \
