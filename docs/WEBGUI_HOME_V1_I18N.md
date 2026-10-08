@@ -113,3 +113,42 @@ A read-only Chromium interaction smoke on the CM5 confirmed the default
 language, brand-menu toggle, no title overflow, settings navigation,
 English-to-Polish transition, local language persistence after refresh, and
 return to English. No kiosk service or Bench/DUT runtime was changed.
+
+## Visual refinement — retained V1 information architecture
+
+The V1 layout is retained. Its styling is now a restrained technical
+interface: light-gray header and workspace, graphite typography, flat
+instrument-like tiles with 1 px borders and a narrow steel-blue top line,
+thin section separators, and no decorative icons, gradients, blur, images,
+stock illustrations, fabricated diagnostic data, or animated dashboard
+elements. The three main tiles remain the only home actions.
+
+The brand itself opens/closes the initially hidden, deliberately empty
+side panel. Only that panel uses a short 180 ms transform, suppressed
+when the operator requests reduced motion. The language catalog, default
+English, the Settings/Language path, and UI/DTC translation separation
+are unchanged.
+
+### Actual browser comparisons at 1280x720
+
+Original V1 baseline:
+- [English before refinement](previews/webgui-home-en-original-1280x720.png)
+- [Polish before refinement](previews/webgui-home-pl-original-1280x720.png)
+
+Refined visual style:
+- [English home](previews/webgui-home-en-1280x720.png)
+- [Polish home](previews/webgui-home-pl-1280x720.png)
+- [Sidebar open, currently intentionally empty](previews/webgui-sidebar-open-1280x720.png)
+- [Language selector, English](previews/webgui-language-en-1280x720.png)
+- [Language selector, Polish](previews/webgui-language-pl-1280x720.png)
+
+The captures are real Chromium screenshots from the CM5 development
+machine, not synthetic mockups. Headless interaction checks confirmed
+the toolbar and tiles do not collide; the sidebar can be opened/closed;
+English/Polish translation, navigation and language persistence function.
+Viewport-geometry checks passed at 1280x720, 1920x1080, 1024x768,
+800x600, 600x800, 375x812 and 320x680.
+
+Only WebGUI styling and reference screenshots changed in this refinement.
+No live kiosk or DUT services were modified. All production integration
+and security gates specified above remain pending.

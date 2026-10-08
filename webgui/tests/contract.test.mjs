@@ -39,6 +39,14 @@ test("language is selected through Settings -> Language", () => {
   assert.match(app, /applyTranslations\(root, currentLocale\)/);
 });
 
+test("refined V1 skin stays flat, lightweight and kiosk-friendly", () => {
+  assert.match(css, /\.tiles--home\s*\{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(css, /border-top: 3px solid/);
+  assert.match(css, /transition: transform 180ms ease, visibility 180ms/);
+  assert.match(css, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(css, /(?:linear|radial|conic)-gradient\(|backdrop-filter|@keyframes/i);
+});
+
 test("WebGUI has no diagnostic, hardware or privileged-agent path", () => {
   const frontend = [
     html, css, app, read("src/i18n.mjs"), read("src/domain-text.mjs"),
