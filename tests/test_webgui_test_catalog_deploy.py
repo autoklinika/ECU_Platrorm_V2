@@ -37,7 +37,9 @@ class CatalogDeploymentTests(unittest.TestCase):
         self.assertIn("interactive-root-terminal-required", result.stdout)
 
     def test_four_parameters_and_guarded_menu_are_only_presentation(self):
-        html = (UI / "index.html").read_text()
+        # Explicit UTF-8 is required: Windows runners may default to
+        # a locale encoding that corrupts the em dash placeholder.
+        html = (UI / "index.html").read_text(encoding="utf-8")
         javascript = (UI / "src" / "app.mjs").read_text()
         for identifier in ["sac-pressure-1", "sac-pressure-2",
                            "sac-permanent-voltage", "sac-ignition-voltage"]:
