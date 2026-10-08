@@ -20,7 +20,9 @@ revision="$(git rev-parse --short=12 HEAD)"
 binary=build/params-linux/src/api/ecu_api_http
 [[ -f "$binary" && -x "$binary" ]] || exit 2
 # Embedded revision proves the C++ API HTTP release matches the clean commit.
-strings "$binary" | grep -Fxq "$revision" || {
+# Git --short=12 uses at least 12 chars; long histories may require more.
+# Never use grep -q on the output of strings under pipefail (SIGPIPE).
+strings "$binary" | grep -Fx "$revision" >/dev/null || {
   echo 'SAC_PARAMETER_API_PREPARE=FAIL embedded revision mismatch' >&2
   exit 2
 }

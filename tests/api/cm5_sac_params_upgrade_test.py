@@ -48,6 +48,10 @@ class UpgradeSafety(unittest.TestCase):
         self.assertIn('PARAMETER_BEARER_REQUIRED', SMOKE)
         self.assertIn('PARAMETER_HISTORICAL_ONLY', SMOKE)
         self.assertNotIn('print(token)', SMOKE)
+        self.assertIn('grep -Fx "$revision" >/dev/null', PREP)
+        self.assertIn('grep -Fx "$expected_sha" >/dev/null', UPGRADE)
+        self.assertIn('{12,40}', UPGRADE)
+        self.assertNotIn('grep -Fxq "$revision"', PREP)
         self.assertIn('ctest --test-dir build/params-linux', PREP)
         self.assertIn("SAC_PARAMETER_API_PREPARE=PASS", PREP)
 

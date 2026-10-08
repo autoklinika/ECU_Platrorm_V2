@@ -32,11 +32,11 @@ trap on_exit EXIT
 [[ -f "$stamp" && ! -L "$stamp" && -f "$candidate" &&
    ! -L "$candidate" && -x "$candidate" ]] || exit 2
 read -r expected_sha expected_digest < "$stamp"
-[[ "$expected_sha" =~ ^[0-9a-f]{12}$ &&
+[[ "$expected_sha" =~ ^[0-9a-f]{12,40}$ &&
    "$expected_digest" =~ ^[0-9a-f]{64}$ ]] || exit 2
 [[ "$expected_sha" == "$(runuser -u ecu -- git -C "$repo" rev-parse --short=12 HEAD)" ]] || exit 2
 [[ "$expected_digest" == "$(sha256sum "$candidate" | cut -d' ' -f1)" ]] || exit 2
-strings "$candidate" | grep -Fxq "$expected_sha" || exit 2
+strings "$candidate" | grep -Fx "$expected_sha" >/dev/null || exit 2
 [[ -f "$destination" && ! -L "$destination" &&
    "$(stat -c '%a:%U:%G' "$destination")" == 755:root:root ]] || exit 2
 [[ -f /etc/systemd/system/$unit && ! -L /etc/systemd/system/$unit ]] || exit 2
