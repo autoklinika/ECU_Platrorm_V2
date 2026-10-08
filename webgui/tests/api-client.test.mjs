@@ -168,6 +168,66 @@ test("logging out during a pending response drops the prior result", async () =>
   assert.equal(client.connected, false);
 });
 
+function parameterReadout() {
+  return {
+    source: "completed_application_operation", live: false,
+    captured_at_unix_ms: Date.now() - 5000,
+    profile_id: 0xDAF00050, completed_generation: 3,
+    parameters: {
+      permanent_voltage_v: 27.9, ignition_voltage_v: 27.9,
+      pressure1_bar: null, pressure2_bar: null, pgn_feae_observed: true
+    }
+  };
+}
+
+test("SAC parameter readout is historical and preserves unavailable pressure", async () => {
+  const path = "/api/v1/readouts/daf-sac/parameters/latest";
+  const result = await readOnlyRequest(path, token,
+    mock({[path]: reply(200, parameterReadout())}));
+  assert.equal(result.live, false);
+  assert.equal(result.source, "completed_application_operation");
+  assert.equal(result.profile_id, 0xDAF00050);
+  assert.equal(result.parameters.permanent_voltage_v, 27.9);
+  assert.equal(result.parameters.ignition_voltage_v, 27.9);
+  assert.equal(result.parameters.pressure1_bar, null);
+  assert.equal(result.parameters.pressure2_bar, null);
+  for (const [code, status] of [["backend_unavailable",503],["readout_expired",410]]) {
+    await assert.rejects(readOnlyRequest(path, token,
+      mock({[path]: reply(status, code)})),{status,code});
+  }
+});
+
+test("SAC parameter validation prevents misleading values and foreign DUTs", async () => {
+  const path = "/api/v1/readouts/daf-sac/parameters/latest";
+  const mutators = [
+    v => {v.live = true;},
+    v => {v.source = "live_telemetry";},
+    v => {v.profile_id = 0xDEADBEEF;},
+    v => {v.parameters.permanent_voltage_v = -1;},
+    v => {v.parameters.permanent_voltage_v = 27.999;},
+    v => {v.parameters.permanent_voltage_v = 61;},
+    v => {v.parameters.ignition_voltage_v = "27.9";},
+    v => {v.parameters.pressure1_bar = 100;},
+    v => {v.parameters.pressure1_bar = -1;},
+    v => {v.parameters.pressure2_bar = 0.001;},
+    v => {v.parameters.pgn_feae_observed = false; v.parameters.pressure1_bar = 0;},
+    v => {v.captured_at_unix_ms = 1;},
+    v => {v.completed_generation = 0;},
+    v => {v.parameters.pressure1_bar = "NaN";},
+    v => {v.parameters = null;}
+  ];
+  for (const mutate of mutators) {
+    const bad = parameterReadout();
+    mutate(bad);
+    await assert.rejects(readOnlyRequest(path, token,
+      mock({[path]: reply(200, bad)})),{code:"invalid_response"});
+  }
+  const realZero = parameterReadout();
+  realZero.parameters.pressure1_bar = 0;
+  assert.equal((await readOnlyRequest(path,token,
+    mock({[path]:reply(200,realZero)}))).parameters.pressure1_bar,0);
+});
+
 test("no browser or device access required to run portable tests", () => {
   assert.equal(API_ROOT, "http://127.0.0.1:8878");
   assert.equal(typeof ApiError, "function");

@@ -47,10 +47,15 @@ CAN reset or direct hardware access is carried forward.
   power control or any other physical operation from browser code.
 - Existing authenticated GET-only Application API V1; browser bearer
   credential remains private and time-limited in page memory.
-- All four SAC measurements display em dash until a verified
-  application-owned parameter readout and API DTO are available.
+- Four SAC fields display em dash unless an authenticated and
+  validated completed historical SAC parameter readout is available
+  from GET /api/v1/readouts/daf-sac/parameters/latest. The endpoint
+  is introduced by the separate API parameters candidate branch.
   Prior FE96 readings are not live values; FE/FF pressures mean
-  unavailable, not zero.
+  unavailable, not zero. Missing, expired, invalid, foreign-profile
+  or unauthenticated results clear all four fields.
+- Display the exact timestamp of the successful completed operation
+  with an explicit "historical; not live" label. Never call CAN from GUI.
 - Completed DTC is historical, freshness-checked and accepted for SAC
   only if the profile matches and the protocol is UDS. Invalid,
   expired or other-profile readouts are not displayed as SAC data.
@@ -91,6 +96,15 @@ Checks required before installation:
 
 Dedicated WebGUI Linux/Windows CI and full multiplatform
 ECU Platform CI must be green on the exact head commit.
+
+## Parameter-readout API dependency
+
+The V1.3 layout remains unchanged. A separate authenticated read-only
+endpoint is required to populate the four existing fields:
+GET /api/v1/readouts/daf-sac/parameters/latest. The operator must
+upgrade API using the staged candidate before expecting values.
+Existing DTC readout remains independent. There is no automatic
+diagnostic run on startup, clicking SAC or polling.
 
 ## Operator-only deployment after approval
 

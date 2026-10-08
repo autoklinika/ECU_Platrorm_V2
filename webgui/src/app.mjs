@@ -32,14 +32,14 @@ let sidebarOpen = false;
 let refreshVersion = 0;
 let loginPending = false;
 let authMessage = "api.notAuthenticated";
-let results = { about: null, interfaces: null, dut: null, readout: null };
-let failures = { about: null, interfaces: null, dut: null, readout: null };
+let results = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
+let failures = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
 
 function t(key) { return translate(currentLocale, key); }
 function text(id, value) { document.getElementById(id).textContent = value; }
 function emptyResults() {
-  results = { about: null, interfaces: null, dut: null, readout: null };
-  failures = { about: null, interfaces: null, dut: null, readout: null };
+  results = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
+  failures = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
 }
 
 function setSidebarOpen(open) {
@@ -165,12 +165,39 @@ function openDtcDetails(code, status) {
 }
 
 function renderSacParameters() {
-  // V1 API does not expose a completed SAC measurement readout. We MUST NOT
-  // display old laboratory voltages as live/current measurements.
+  // Never reuse stale measurements after auth loss, backend failure or
+  // another DUT selection. Each record is historical, not live telemetry.
   for (const name of ["sac-permanent-voltage", "sac-ignition-voltage",
                       "sac-pressure-1", "sac-pressure-2"]) text(name, "—");
-  text("sac-parameters-status", t(session.connected && results.about
-    ? "sac.noReadout" : "api.signInRequired"));
+  if (!session.connected) {
+    text("sac-parameters-status", t("api.signInRequired"));
+    return;
+  }
+  if (!results.about) {
+    text("sac-parameters-status", t("api.dataUnavailable"));
+    return;
+  }
+  const record = results.parameters;
+  if (!record || !SAC_DTC_PROFILES.has(record.profile_id)) {
+    const reason = failures.parameters?.code;
+    text("sac-parameters-status",
+      reason === "readout_expired" ? t("sac.readoutExpired")
+        : reason === "backend_unavailable" ? t("sac.noReadout")
+        : reason === "not_found" ? t("sac.apiUpgradeRequired")
+        : record ? t("sac.profileMismatch")
+        : t("sac.noReadout"));
+    return;
+  }
+  text("sac-parameters-status", t("sac.historicalCapture") + " " +
+    formatLocalTimestamp(new Date(record.captured_at_unix_ms)) +
+    " — " + t("sac.notLive"));
+  const values = record.parameters;
+  text("sac-permanent-voltage", values.permanent_voltage_v.toFixed(1));
+  text("sac-ignition-voltage", values.ignition_voltage_v.toFixed(1));
+  if (values.pressure1_bar !== null)
+    text("sac-pressure-1", values.pressure1_bar.toFixed(2));
+  if (values.pressure2_bar !== null)
+    text("sac-pressure-2", values.pressure2_bar.toFixed(2));
 }
 
 function renderDtc() {
@@ -307,7 +334,8 @@ async function refresh() {
     [ "about", "/api/v1/about" ],
     [ "interfaces", "/api/v1/interfaces" ],
     [ "dut", "/api/v1/dut" ],
-    [ "readout", "/api/v1/readouts/dtc/latest" ]
+    [ "readout", "/api/v1/readouts/dtc/latest" ],
+    [ "parameters", "/api/v1/readouts/daf-sac/parameters/latest" ]
   ];
   const responses = await Promise.allSettled(paths.map(([, path]) => session.read(path)));
   if (version !== refreshVersion) return;

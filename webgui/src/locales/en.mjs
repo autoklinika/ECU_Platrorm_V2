@@ -1,5 +1,10 @@
 // UI copy only. ECU/DTC domain descriptions do not belong in this catalog.
 export default Object.freeze({
+  "sac.notLive": "historical; not live",
+  "sac.historicalCapture": "Completed measurement:",
+  "sac.profileMismatch": "The available parameter readout belongs to a different DUT.",
+  "sac.apiUpgradeRequired": "The installed API does not yet support the completed SAC parameter endpoint.",
+  "sac.readoutExpired": "The completed SAC measurement has expired (24-hour limit).",
   "dtc.descriptionUnavailable": "Description not verified",
   "dtc.close": "OK",
   "dtc.details": "DTC details",
@@ -71,8 +76,8 @@ export default Object.freeze({
   "sac.activationsTitle": "DAF SAC — Activations",
   "sac.programmingTitle": "DAF SAC — Programming",
   "sac.restricted": "Unavailable. No authorized backend operation and safety gate are implemented. This screen cannot control a DUT.",
-  "sac.parameterExplanation": "Four laboratory parameters. Values appear only after a verified readout has been published by the application, never from archived evidence.",
-  "sac.noReadout": "No verified SAC parameter readout is available from API V1. No measurement is running.",
+  "sac.parameterExplanation": "Four laboratory parameters from the last verified completed operation, never live ECU telemetry.",
+  "sac.noReadout": "No completed SAC parameter measurement has been published. No diagnostic operation is running.",
   "sac.parameters": "DAF SAC laboratory parameters",
   "sac.permanentVoltage": "Battery Permanent",
   "sac.ignitionVoltage": "Battery Ignition",

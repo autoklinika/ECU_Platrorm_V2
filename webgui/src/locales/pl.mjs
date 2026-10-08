@@ -1,5 +1,10 @@
 // Wyłącznie interfejs. Opisy DTC i dane domenowe są tłumaczone oddzielnie.
 export default Object.freeze({
+  "sac.notLive": "odczyt archiwalny, nie bieżący",
+  "sac.historicalCapture": "Zakończony pomiar:",
+  "sac.profileMismatch": "Dostępny wynik parametrów dotyczy innego DUT.",
+  "sac.apiUpgradeRequired": "Zainstalowane API nie obsługuje jeszcze endpointu parametrów SAC.",
+  "sac.readoutExpired": "Zakończony pomiar SAC wygasł (ważność 24 godziny).",
   "dtc.descriptionUnavailable": "Brak zweryfikowanego opisu",
   "dtc.close": "OK",
   "dtc.details": "Szczegóły DTC",
@@ -71,8 +76,8 @@ export default Object.freeze({
   "sac.activationsTitle": "DAF SAC — Aktywacje",
   "sac.programmingTitle": "DAF SAC — Programowanie",
   "sac.restricted": "Niedostępne. Nie wdrożono autoryzowanej operacji backendowej ani blokad bezpieczeństwa. Ten ekran nie steruje DUT.",
-  "sac.parameterExplanation": "Cztery parametry laboratoryjne. Wartości pojawią się dopiero po publikacji zweryfikowanego odczytu aplikacji, nigdy z dawnych logów.",
-  "sac.noReadout": "API V1 nie udostępnia zweryfikowanego odczytu parametrów SAC. Żaden pomiar nie jest uruchamiany.",
+  "sac.parameterExplanation": "Cztery parametry laboratoryjne z ostatniej zweryfikowanej, zakończonej operacji; nie są pomiarem na żywo.",
+  "sac.noReadout": "Nie opublikowano jeszcze zakończonego pomiaru SAC. Żadna diagnostyka nie jest uruchamiana.",
   "sac.parameters": "Parametry laboratoryjne DAF SAC",
   "sac.permanentVoltage": "Zasilanie permanentne",
   "sac.ignitionVoltage": "Zasilanie zapłonu",

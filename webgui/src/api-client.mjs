@@ -4,7 +4,8 @@ export const API_ROOT = "http://127.0.0.1:8878";
 export const SESSION_LIFETIME_MS = 15 * 60 * 1000;
 const PATHS = new Set([
   "/api/v1/about", "/api/v1/interfaces", "/api/v1/dut",
-  "/api/v1/readouts/dtc/latest"
+  "/api/v1/readouts/dtc/latest",
+  "/api/v1/readouts/daf-sac/parameters/latest"
 ]);
 const TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 const CODE_PATTERN = /^[0-9A-Fa-f]{6}$/;
@@ -94,6 +95,46 @@ function checkedData(path, data) {
       dtcs: { protocol: dtcs.protocol,
         requested_status_mask: dtcs.requested_status_mask,
         status_availability_mask: dtcs.status_availability_mask, entries } };
+  }
+  if (path === "/api/v1/readouts/daf-sac/parameters/latest") {
+    const now = Date.now();
+    const values = data.parameters;
+    const sacProfiles = new Set([0xDAF00025, 0xDAF00050]);
+    const exactFixed = (value, scale, max) =>
+      typeof value === "number" && Number.isFinite(value) &&
+      value >= 0 && value <= max &&
+      Math.abs(value * scale - Math.round(value * scale)) < 0.00001;
+    if (data.source !== "completed_application_operation" ||
+        data.live !== false ||
+        !integer(data.captured_at_unix_ms) ||
+        data.captured_at_unix_ms === 0 ||
+        data.captured_at_unix_ms > now + 60000 ||
+        now - data.captured_at_unix_ms >= 24 * 60 * 60 * 1000 ||
+        !sacProfiles.has(data.profile_id) ||
+        !integer(data.completed_generation) || data.completed_generation === 0 ||
+        !record(values) ||
+        !exactFixed(values.permanent_voltage_v, 10, 60) ||
+        !exactFixed(values.ignition_voltage_v, 10, 60) ||
+        typeof values.pgn_feae_observed !== "boolean" ||
+        !(values.pressure1_bar === null ||
+          exactFixed(values.pressure1_bar, 100, 20.24)) ||
+        !(values.pressure2_bar === null ||
+          exactFixed(values.pressure2_bar, 100, 20.24)) ||
+        (!values.pgn_feae_observed &&
+         (values.pressure1_bar !== null || values.pressure2_bar !== null))) invalid();
+    return {
+      source: "completed_application_operation", live: false,
+      captured_at_unix_ms: data.captured_at_unix_ms,
+      profile_id: data.profile_id,
+      completed_generation: data.completed_generation,
+      parameters: {
+        permanent_voltage_v: values.permanent_voltage_v,
+        ignition_voltage_v: values.ignition_voltage_v,
+        pressure1_bar: values.pressure1_bar,
+        pressure2_bar: values.pressure2_bar,
+        pgn_feae_observed: values.pgn_feae_observed
+      }
+    };
   }
   invalid();
 }
