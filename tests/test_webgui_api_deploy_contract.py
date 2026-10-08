@@ -1,6 +1,7 @@
 """Static WebGUI API-only deployment security contracts."""
 from pathlib import Path
 import importlib.util
+import sys
 import subprocess
 import unittest
 
@@ -51,6 +52,8 @@ class ApiClientDeploymentContract(unittest.TestCase):
                            "curl -H 'Authorization"):
             self.assertNotIn(prohibited, text)
 
+    @unittest.skipUnless(sys.platform.startswith('linux'),
+                         'CM5 root/TTY runtime gate is Linux-only')
     def test_deployer_denies_an_unauthorized_noninteractive_invocation(self):
         result = subprocess.run(["bash", str(SCRIPT)], input="",
                                 capture_output=True, text=True, timeout=5)
