@@ -1,0 +1,274 @@
+# ECU Platform V2 — Core V2 engineering audit
+
+Date: 2026-10-07
+Scope: TRUCK / AGRI / OHV portable Core V2
+Status: **ENGINEERING AUDIT PASS / NORMATIVE CLAUSE AUDITS OPEN**
+
+## Audit objective
+
+Re-check the Core before adding more application layers, with emphasis on multiplatform portability, deterministic/bounded execution, absence of platform dependencies in Core, J1939/ISOBUS protocol boundaries, fail-closed behavior, standards-status honesty and regression resistance.
+
+## Verification performed
+
+- architecture gate,
+- portability gate,
+- scoped Core V2 conformance gate,
+- negative architecture/conformance gates,
+- isolated Core-only build graph,
+- unresolved external-runtime symbol inspection,
+- dynamic static-initialization inspection,
+- Debug, Release and Generic non-Linux builds/tests,
+- ASAN + UBSAN builds/tests,
+- additional GCC warning audit using -Wconversion, -Wsign-conversion, -Wshadow, -Wformat=2, -Wundef, -Wnull-dereference and -Werror.
+
+## Findings closed in this audit
+
+### A-01 — global source address admitted by generic J1939 identifier codec
+
+The encoder/decoder previously accepted source address 0xFF, even though that value is the J1939 global destination address.
+
+Resolution: source 0xFF is rejected by both identifier encode and decode paths; regression tests added.
+
+### A-02 — Request PGN payload length was permissive
+
+Request for Address Claimed accepted a payload longer than the required three-byte requested-PGN field.
+
+Resolution: the Address Claim request path now requires exactly three bytes; malformed addressed Request frames are counted but do not trigger a response.
+
+### A-03 — local-win Address Claim conflict was not counted
+
+When the local NAME won arbitration, the address was reasserted but the conflict counter did not record the observed collision.
+
+Resolution: conflict observation is explicit in AddressClaimStep; both local-win and local-loss collisions are counted.
+
+### A-04 — state transition invisible from service_time()
+
+The transition claiming -> claimed returned no_action if no TX frame was generated.
+
+Resolution: protocol state transitions are now reported as ok; regression coverage added.
+
+### A-05 — Commanded Address missing from J1939/81 subset
+
+Resolution: a 9-byte Commanded Address payload is accepted after Classical TP reassembly, target matching is by 64-bit NAME, invalid/null/global new source address is rejected, a successful command restarts normal Address Claim behavior, and the feature is opt-in/disabled by default.
+
+### A-06 — own-TX echo contract was implicit
+
+An own Address Claimed TX delivered back through authoritative protocol RX is indistinguishable from a duplicate remote NAME.
+
+Resolution: ICanDriver::try_receive() now explicitly forbids same-driver own-message echo on protocol ingress. Analyzer/trace loopback remains permitted outside that ingress.
+
+### A-07 — J1939/ETP status documentation drift
+
+The J1939 checkpoint still described ETP as a future layer although the streaming ISO 11783 ETP module already passed its technical gate.
+
+Resolution: traceability and checkpoint documentation updated.
+
+### A-08 — J1939 diagnostic layer absent
+
+Resolution: added read-only J1939-73 DM1/DM2 parsing for single-frame and Classical TP-reassembled messages. Current conversion-method DTC decoding is bounded; unsupported legacy conversion method fails closed; no DTC-clear/control operations were introduced.
+
+### A-09 — Request framing duplicated inside Address Claim
+
+Resolution: introduced one generic strict PGN 59904 Request codec with canonical requested-PGN validation. Address Claim now consumes that codec and DM2/on-request diagnostics can use the same boundary.
+
+### A-10 — diagnostic request failures had no shared Acknowledgment parser
+
+Resolution: added a read-only PGN 59392 Acknowledgment decoder covering ACK, NACK, Access Denied and Cannot Respond with strict DLC, reserved-field, address and requested-PGN validation. No automatic response transmission was added.
+
+### A-11 — ISO-TP still depended on the legacy direct CAN interface
+
+Resolution: revalidated ISO-TP on the Core V2 shared-bus contract. A header-only
+`IsoTpCanFrameSinkAdapter` receives routed `ICanFrameSink` traffic and forwards it
+to the non-polymorphic state machine; callbacks are bounded and never transmit.
+This keeps compiler-specific pure-virtual runtime support out of the Core static
+library. Flow Control and data
+TX are deferred to `service()` through `CanBusRuntime`, with at most one CAN TX
+attempt per service call. The V2 implementation uses fixed 4095-byte storage,
+supports Classic CAN and CAN-FD, 11-bit/29-bit CAN identifiers, Single/First/
+Consecutive/Flow-Control frames, Block Size, STmin, Wait/Overflow and fail-closed
+monotonic timing. Regression coverage includes sequence wrap, timeouts,
+`would_block`, malformed CAN input and clock faults.
+
+The engineering gate is PASS. Normative ISO 15765-2:2024 clause conformance,
+extended/mixed addressing, 32-bit FF_DL beyond 4095 bytes and independent
+interoperability evidence remain explicitly open.
+
+### A-12 — UDS existed only in the legacy Core
+
+Resolution: promoted a transport-neutral UDS foundation into Core V2 above a
+new `IDiagnosticTransport` boundary. The implementation includes positive and
+negative response validation, P2/P2* deadlines, NRC 0x78 ResponsePending,
+transport failure classification, fail-closed monotonic clock checks and
+selected diagnostic service builders/parsers. ISO-TP binding is isolated in a
+separate adapter. P2/P2* use transport TX/RX completion timestamps rather than
+host polling time. A dedicated multi-frame UDS-over-ISO-TP end-to-end test is
+part of the Core V2 matrix.
+
+The UDS engineering gate is PASS. Formal ISO 14229-1/-2/-3 clause conformance,
+full service coverage, suppressPositiveResponse transaction semantics and
+independent interoperability evidence remain explicitly open.
+
+### A-13 — J1939-73 diagnostics were too narrow for workshop read-only use
+
+Resolution: expanded the bounded read-only diagnostics layer from DM1/DM2 to
+DM1/DM2/DM4/DM5/DM6/DM12. DM4 now validates and exposes variable-length freeze
+frame records, raw standard snapshot fields and bounded manufacturer-specific
+data. DM5 exposes diagnostic-readiness fields without application-level
+reinterpretation. DM6/DM12 reuse the bounded DTC-list primitive. Reassembled
+diagnostic TP messages now accept both BAM/global and destination-specific
+RTS/CTS response envelopes, with strict source/destination checks. No clearing,
+actuation, test execution or other state-changing diagnostic operation was
+introduced.
+
+The expanded read-only technical gate is PASS. Full SAE J1939-73 clause mapping,
+remaining diagnostic messages and external interoperability evidence remain
+open.
+
+### A-14 — J1939-22 was limited to FEFF no-assurance C-PG
+
+Resolution: expanded the CAN FD data-link foundation with FBFF Global Multi-PG,
+deterministic legal-DLC padding validation and a streaming no-assurance FD.TP
+implementation. FD.TP now includes 12-byte CM and 60-byte DT segmentation,
+BAM, destination-specific RTS/CTS, CTS hold, EOMS/EOMA, Abort, 24-bit
+message/segment fields and bounded parallel session pools. The 0xFFFFFF-byte
+peer-transfer range is supported through source/sink streaming rather than a
+large Core message allocation. DTFI and assurance-data profiles outside the
+no-assurance profile fail closed.
+
+The J1939-22 engineering foundation gate is PASS. Assurance profiles, full
+clause-level timing/profile mapping and independent interoperability evidence
+remain explicitly open.
+
+### A-15 — ISOBUS network foundation stopped at extended transport
+
+Resolution: added a strict, bounded Working Set Master / Working Set Member
+codec foundation for AGRI. PGN 65037 and PGN 65036 use exact eight-byte Classic
+CAN framing, emitted priority 7, member-count range 1..250, fail-closed reserved
+bytes and validated J1939/ISO 11783 NAME encoding. NULL/global source addresses
+are rejected. No working-set registry, VT/TC control, process-data actuation or
+other machine-control behavior was introduced.
+
+The ISOBUS working-set engineering foundation gate is PASS. ISO 11783-7:2022
+clause mapping, full working-set lifecycle semantics and independent ISOBUS
+interoperability evidence remain explicitly open.
+
+### A-16 — ISOBUS had no bounded control-function topology
+
+Resolution: added an ISO 11783 network-management engineering layer that
+composes, rather than duplicates, the existing J1939 Address Claim engine. A
+shared strict Address Claimed decoder now validates the 64-bit NAME before
+arbitration. A fixed-capacity remote Control Function registry tracks NAME to
+source-address association, Cannot Claim, address migration, ambiguous
+same-address claims, malformed traffic and capacity exhaustion.
+
+Registry overflow is fail-visible to higher layers while the local Address Claim
+safety path remains responsive. No VT, Task Controller, process-data actuation
+or other machine-control behavior was introduced.
+
+The ISO 11783-5 network-management engineering gate is PASS. Clause-level
+conformance and independent interoperability evidence remain open.
+
+### A-17 — Working Set messages had no lifecycle consistency model
+
+Resolution: added a bounded read-only Working Set lifecycle above the existing
+WSMSTR/WSMEM codecs and Control Function registry. A declaration counts the
+master in its total and therefore requires exactly total-minus-one distinct
+WSMEM NAMEs. Completion additionally requires every declared NAME to resolve to
+one current unambiguous Address Claim.
+
+The model exposes assembling, incomplete, complete, conflict,
+network-incomplete and stale-master-address states. Duplicate WSMEM messages are
+idempotent; excess distinct members, master-as-member and ambiguous member
+addresses fail closed as conflicts. Master source-address migration invalidates
+the old declaration until a fresh WSMSTR starts a new generation. No VT, Task
+Controller, timing scheduler or machine actuation was introduced.
+
+The ISOBUS Working Set lifecycle engineering gate is PASS. Normative timing,
+ageing, clause mapping and independent interoperability evidence remain open.
+
+### A-18 — product root abstraction was still ECU/diagnostics-biased
+
+Resolution: made Device Under Test (DUT) the explicit laboratory root
+abstraction. Core V2 now has a DUT class/capability contract covering ECU,
+actuator, sensor, gateway, generic network-node and other automotive devices.
+Raw CAN and cyclic CAN are independent capabilities and do not require UDS,
+J1939 or other diagnostics. UDS requires an explicit supported transport
+(ISO-TP or DoIP).
+
+The architecture baseline now states that EGR/VGT-class proprietary cyclic CAN
+control is a primary product path. The legacy MAN Sonceboz EGR evidence remains
+a proof-case source, but its concrete protocol must stay in a DUT profile rather
+than generic Core.
+
+This closes the ECU-centric type-model defect.
+
+### A-19 — deterministic cyclic actuator runtime was missing
+
+Resolution: added a platform-neutral single-executor cyclic CAN actuator runtime. The DUT profile supplies bounded active/safe-stop frame rendering, including any OEM counters/checksums/E2E. Generic Core owns cadence, maximum lateness, command freshness, optional feedback freshness, interlock enforcement, authoritative `CanBusRuntime` TX, safe-stop, fault latching and declared execution budgets.
+
+The runtime starts interlocked, never catch-up bursts, rejects an active render that exceeds its declared frame bound, rejects configurations whose normal WCET cannot fit the requested period, and fails closed on timing, clock, profile or transport faults. Safe-stop may be an explicit bounded neutral frame sequence or silence when the DUT profile defines stopping TX as safe.
+
+Hard real-time independence from a completely stalled host remains a platform/hardware responsibility; Core exposes deadlines and bounded execution but cannot execute while its CPU is not scheduled.
+
+The cyclic actuator runtime engineering gate is PASS. Core freeze now moves to the final DUT-neutral proof/audit gate rather than deeper protocol expansion.
+
+### A-20 — Core V2 had no complete bounded L6 runtime foundation
+
+Resolution: rebuilt runtime semantics as single-executor, fixed-capacity Core
+contracts. Added generation-safe resource leases, frozen command/state/event
+topology, stable module and DUT registries, explicit lifecycle state transitions
+and generation-safe cancellation. Command/event reentrancy returns bounded
+`busy` rather than blocking on hidden mutex ownership.
+
+A DUT-neutral integration proof now runs J1939 NetworkManager, ISO-TP and a
+proprietary cyclic raw-CAN actuator on one authoritative `CanBusRuntime`.
+All TX paths use centralized runtime TX and mixed RX is dispatched only through
+registered filters. Actuator safe-stop does not disturb protocol state.
+
+The runtime-foundation engineering gate is PASS. Cross-platform CI run
+`37622968497` passed all six Linux/MSVC jobs.
+
+### A-21 — final DUT-neutral Core V2 freeze audit
+
+Resolution: reran the complete Core V2 validation after the DUT model, cyclic
+actuator runtime, L6 runtime foundation, cancellation semantics and shared-bus
+proof were all present.
+
+Evidence:
+
+- Debug 20/20 PASS,
+- Release 20/20 PASS,
+- Generic non-Linux 20/20 PASS,
+- ASAN/UBSAN 20/20 PASS,
+- architecture, portability, standards/conformance, negative gates, external
+  symbol and dynamic-static-initialization gates PASS,
+- cross-platform CI 6/6 PASS,
+- no Linux/Qt/SocketCAN dependencies in `src/core_v2`,
+- no thread/mutex/sleep primitives,
+- no dynamic STL containers/heap ownership in the Core V2 foundation,
+- no protocol/actuation/runtime/domain/safety direct access to `ICanDriver`.
+
+No remaining engineering blocker was found for the generic laboratory
+foundation. Core V2 is therefore frozen at engineering-foundation level on the
+working branch. Normative protocol audits, product safety/security gates and
+production promotion remain separate.
+
+Detailed freeze record:
+`docs/CORE_V2_ENGINEERING_FREEZE_2026-10-07.md`.
+
+## Open items that are not engineering defects
+
+The repository does not contain licensed full SAE/ISO normative texts. Consequently this audit does not close clause-level conformance for SAE J1939/21, SAE J1939-22, SAE J1939/81, SAE J1939-73, ISO 11783-5:2019, ISO 11783-6, ISO 11783-7:2022, ISO 15765-2:2024 or ISO 14229-1/-2/-3. Independent interoperability evidence is also required before formal protocol-conformance PASS.
+
+## Next engineering priorities
+
+1. Build Bench Session above frozen Core for the default topology of one physical DUT, with optional minimal environment emulation requested by a profile.
+2. Build the common DUT Profile contract and prove it with the retained MAN Sonceboz EGR knowledge plus one ECU-class profile.
+3. Add power/ignition/wake orchestration behind platform adapters, not generic Core.
+4. Continue deeper ISO 11783, ISO 11992/WWH-OBD, DoIP and other protocol work only when a real DUT/use case requires it.
+5. Keep normative clause mapping, product safety/security and external interoperability evidence as separate gates.
+6. Do not change frozen Core contracts for a profile-specific convenience; require an explicit Core revision and full re-gate.
+
+CORE_V2_ENGINEERING_AUDIT=PASS
+CORE_V2_ENGINEERING_FOUNDATION_FREEZE=PASS
+CORE_V2_NORMATIVE_CLAUSE_AUDITS=OPEN

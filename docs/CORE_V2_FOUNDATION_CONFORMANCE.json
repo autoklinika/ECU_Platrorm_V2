@@ -1,0 +1,696 @@
+{
+  "schema_version": 1,
+  "claim_id": "CORE-V2-FOUNDATION-TRUCK-AGRI-OHV-2026-10-07",
+  "status": "PASS",
+  "verified_on": "2026-10-07",
+  "claim_kind": "engineering_conformance_for_declared_foundation_scope",
+  "certification_claimed": false,
+  "scope": {
+    "domains": [
+      "truck",
+      "agri",
+      "ohv"
+    ],
+    "included": [
+      "portable CAN Classic/CAN FD frame contract",
+      "central CAN ownership, routing and bounded runtime contract",
+      "monotonic timestamp provenance and uncertainty handling",
+      "fail-closed generic deadline watchdog primitive",
+      "portable deterministic foundation constraints"
+    ],
+    "excluded_and_module_gated": [
+      "electrical/physical CAN transceiver conformance",
+      "J1939 PGN semantics, Address Claiming, TP/ETP and diagnostics",
+      "ISO 11783/ISOBUS application, transport, network and diagnostic services",
+      "ISO-TP/DoCAN protocol conformance",
+      "UDS protocol conformance",
+      "DoIP protocol conformance",
+      "ISO 11992 and WWH-OBD profiles",
+      "product functional-safety lifecycle compliance or certification",
+      "cybersecurity and software-update process certification"
+    ]
+  },
+  "normative_baseline": [
+    {
+      "id": "ISO 11898-1:2024",
+      "applicability": "applicable_subset",
+      "claim": "Core V2 models CAN Classic and CAN FD software-facing frame/link contracts; CAN XL is not in the declared foundation scope.",
+      "official_url": "https://www.iso.org/standard/86384.html"
+    },
+    {
+      "id": "ISO 11898-2:2026",
+      "applicability": "boundary_only",
+      "claim": "Physical-medium/transceiver conformance is outside portable Core and belongs to hardware/platform qualification.",
+      "official_url": "https://www.iso.org/standard/90697.html"
+    },
+    {
+      "id": "SAE J1939/21_202205",
+      "applicability": "profile_boundary",
+      "claim": "Core provides the Classical Extended Frame Format 29-bit CAN substrate needed by later J1939 modules; J1939 data-link semantics are module-gated.",
+      "official_url": "https://saemobilus.sae.org/standards/j193921_202205-data-link-layer"
+    },
+    {
+      "id": "ISO 11783-3:2026",
+      "applicability": "profile_boundary",
+      "claim": "AGRI is first-class product scope and Core provides the CAN substrate; ISO 11783 higher-layer behavior remains module-gated.",
+      "official_url": "https://www.iso.org/standard/89949.html"
+    },
+    {
+      "id": "ISO 11783-12:2019",
+      "applicability": "module_gated",
+      "claim": "ISOBUS diagnostic services are not part of Core V2 foundation.",
+      "official_url": "https://www.iso.org/standard/71184.html"
+    },
+    {
+      "id": "ISO 15765-2:2024",
+      "applicability": "module_gated",
+      "claim": "Core V2 contains an engineering-gate DoCAN/ISO-TP implementation, but normative ISO 15765-2 conformance remains module-gated and is excluded from the foundation claim.",
+      "official_url": "https://www.iso.org/standard/84211.html"
+    },
+    {
+      "id": "ISO 25119-1:2018",
+      "applicability": "process_boundary",
+      "claim": "Generic watchdog/timing primitives do not constitute AGRI functional-safety lifecycle compliance.",
+      "official_url": "https://www.iso.org/standard/69025.html"
+    },
+    {
+      "id": "ISO 19014-1:2018",
+      "applicability": "process_boundary",
+      "claim": "Generic watchdog/timing primitives do not constitute OHV earth-moving functional-safety compliance.",
+      "official_url": "https://www.iso.org/standard/70715.html"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "SCOPE-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "The portable foundation exposes exactly TRUCK, AGRI and OHV as supported machine domains.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "src/core_v2/include/ecu/core_v2/domain/product_scope.hpp",
+          "markers": [
+            "enum class MachineDomain",
+            "truck = 0U",
+            "agri = 1U",
+            "ohv = 2U",
+            "kAllSupported"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "exact product enum values",
+            "domain-mask invariant"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAN-FRAME-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "CAN identifiers are bounded to 11-bit standard and 29-bit extended ranges.",
+      "normative_refs": [
+        "ISO 11898-1:2024"
+      ],
+      "code_refs": [
+        {
+          "path": "src/core_v2/src/can_types.cpp",
+          "markers": [
+            "kMaxStandardIdentifier = 0x7FFU",
+            "kMaxExtendedIdentifier = 0x1FFFFFFFU"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "standard overflow",
+            "extended maximum",
+            "extended overflow"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAN-FRAME-002",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "The foundation distinguishes CAN Classic and CAN FD and rejects invalid payload/type/flag combinations.",
+      "normative_refs": [
+        "ISO 11898-1:2024"
+      ],
+      "code_refs": [
+        {
+          "path": "src/core_v2/src/can_types.cpp",
+          "markers": [
+            "valid_classic_length",
+            "valid_fd_length",
+            "frame.type == CanFrameType::remote",
+            "frame.bit_rate_switch",
+            "frame.error_state_indicator"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "classic length overflow",
+            "FD length boundaries",
+            "FD remote rejected",
+            "classic BRS rejected",
+            "classic ESI rejected"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAN-CAP-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "Unsupported CAN/CAN-FD/listen-only capabilities are rejected before unsafe driver use.",
+      "normative_refs": [
+        "ISO 11898-1:2024"
+      ],
+      "code_refs": [
+        {
+          "path": "src/core_v2/src/can_types.cpp",
+          "markers": [
+            "bool capabilities_support(",
+            "bool capabilities_support_frame("
+          ]
+        },
+        {
+          "path": "src/core_v2/src/can_bus_runtime.cpp",
+          "markers": [
+            "if (!capabilities_support(capabilities, config))",
+            "active_config_.mode == CanMode::listen_only"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "unsupported capability rejected before open",
+            "unsupported BRS or payload rejected before send",
+            "restart and listen-only TX enforcement",
+            "all channel capability combinations"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAN-ROUTING-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "One central runtime receives each CAN frame and dispatches it to all matching bounded subscribers without consumer frame stealing.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "src/core_v2/src/can_bus_runtime.cpp",
+          "markers": [
+            "CanBusRuntime::poll(",
+            "CanBusRuntime::dispatch("
+          ]
+        },
+        {
+          "path": "src/core_v2/include/ecu/core_v2/transport/can_bus_runtime.hpp",
+          "markers": [
+            "kMaxSubscriptions = 32U"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "central bus dispatch accounting",
+            "J1939 and trace consumers coexist without stealing frames"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAN-OWNERSHIP-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "A physical CAN channel has one authoritative runtime owner and lease ownership survives normal stop until explicit terminal release.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "src/core_v2/include/ecu/core_v2/transport/i_can_driver.hpp",
+          "markers": [
+            "class ICanChannelArbiter",
+            "try_acquire(",
+            "virtual void release("
+          ]
+        },
+        {
+          "path": "src/core_v2/src/can_bus_runtime.cpp",
+          "markers": [
+            "owns_driver_lease_",
+            "retained_lease"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "second runtime cannot acquire an owned physical channel",
+            "stopped owner retains lease and can restart its session",
+            "recovery releases lease and second runtime can acquire"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAN-SESSION-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "Closing/recovering a transport session prevents stale RX/TX state from leaking into a later session.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "src/core_v2/include/ecu/core_v2/transport/i_can_driver.hpp",
+          "markers": [
+            "close() is idempotent and bounded",
+            "clears the adapter's RX/TX"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "restart does not leak RX from the previous closed session",
+            "failed open rolls back resources and provisional lease"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAN-FAULT-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "Fatal transport faults latch fail-closed and require explicit recovery before restart.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "src/core_v2/src/can_bus_runtime.cpp",
+          "markers": [
+            "void CanBusRuntime::latch_fault(",
+            "CanStatus::bus_off",
+            "CanStatus::io_error",
+            "CanStatus::not_open"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "fault latches",
+            "fault blocks driver operations including stop",
+            "explicit recovery closes only owned driver then restart"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAN-TIME-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "Every accepted RX frame has healthy timestamp provenance in the configured monotonic domain, bounded uncertainty and non-decreasing time.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "src/core_v2/src/can_bus_runtime.cpp",
+          "markers": [
+            "validate_received_frame(",
+            "max_rx_timestamp_uncertainty",
+            "has_last_rx_timestamp_"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "wrong-domain RX timestamp faults before delivery",
+            "backward RX timestamp faults within one transport session",
+            "RX timestamp uncertainty bound enforced"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAN-LOSS-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "Adapter-observed RX loss is surfaced to Core consumers instead of being silently hidden.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "src/core_v2/include/ecu/core_v2/transport/can_types.hpp",
+          "markers": [
+            "dropped_frames_since_last_receive"
+          ]
+        },
+        {
+          "path": "src/core_v2/src/can_bus_runtime.cpp",
+          "markers": [
+            "result.rx_dropped"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "rx_dropped == 7U"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TIME-WATCHDOG-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "Deadline supervision uses a named suspend-continuous monotonic clock and fails closed on unhealthy, discontinuous, backward or insufficiently precise time.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "src/core_v2/include/ecu/core_v2/time/monotonic_clock.hpp",
+          "markers": [
+            "continuous_across_suspend",
+            "max_uncertainty",
+            "MonotonicClockStatus"
+          ]
+        },
+        {
+          "path": "src/core_v2/src/deadline_watchdog.cpp",
+          "markers": [
+            "precision_sufficient(",
+            "conservative_lower_bound(",
+            "conservative_upper_bound("
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "armed watchdog fails closed on unavailable clock",
+            "watchdog rejects clock that does not advance across suspend",
+            "watchdog rejects timeout inside declared clock ambiguity",
+            "watchdog expiry uses conservative poll upper bound",
+            "watchdog detects backward clock discontinuity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DETERMINISM-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "Runtime-path driver operations and callbacks have explicit finite execution budgets.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "src/core_v2/include/ecu/core_v2/transport/can_types.hpp",
+          "markers": [
+            "struct CanDriverExecutionContract",
+            "max_try_send_duration",
+            "max_try_receive_duration"
+          ]
+        },
+        {
+          "path": "src/core_v2/include/ecu/core_v2/transport/can_bus_runtime.hpp",
+          "markers": [
+            "max_callback_duration",
+            "max_poll_execution_duration",
+            "max_send_execution_duration"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "declared external-work budgets include handled close paths",
+            "zero callback budget rejected"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DETERMINISM-002",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "Deterministic Core runtime operations perform no Core-owned heap allocation.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "src/core_v2/include/ecu/core_v2/transport/i_can_driver.hpp",
+          "markers": [
+            "never allocate dynamically after open()"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core_v2_foundation_tests.cpp",
+          "markers": [
+            "Core runtime operations allocate no heap memory",
+            "allocation probe operations succeed"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PORTABILITY-001",
+      "claim_type": "implemented",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "Portable Core has no OS/driver-SDK/UI dependency and is validated as an isolated graph across Linux compilers, Generic CMake and Windows MSVC.",
+      "normative_refs": [],
+      "code_refs": [
+        {
+          "path": "scripts/check_core_v2_architecture.py",
+          "markers": [
+            "OS API",
+            "CMake link/platform dependency"
+          ]
+        },
+        {
+          "path": "scripts/validate_core_v2_foundation.sh",
+          "markers": [
+            "CMAKE_SYSTEM_NAME=Generic",
+            "CORE_V2_ISOLATED_GRAPH=PASS"
+          ]
+        },
+        {
+          "path": ".github/workflows/ecu-platform-ci.yml",
+          "markers": [
+            "Core V2 Linux Clang",
+            "Core V2 Windows MSVC"
+          ]
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "scripts/test_core_v2_gates.sh",
+          "markers": [
+            "CORE_V2_GATE_NEGATIVE_TESTS=PASS"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "J1939-FOUNDATION-001",
+      "claim_type": "boundary",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "The foundation exposes Classical Extended Frame Format compatible 29-bit CAN transport primitives required by later J1939 modules, without claiming J1939 higher-layer conformance.",
+      "normative_refs": [
+        "SAE J1939/21_202205",
+        "ISO 11898-1:2024"
+      ],
+      "evidence_refs": [
+        {
+          "path": "src/core_v2/include/ecu/core_v2/transport/can_types.hpp",
+          "markers": [
+            "extended_29_bit",
+            "CanFrameFormat"
+          ]
+        },
+        {
+          "path": "docs/CORE_V2_ARCHITECTURE_BASELINE.md",
+          "markers": [
+            "J1939 Address Claiming",
+            "J1939 TP/ETP"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AGRI-FOUNDATION-001",
+      "claim_type": "boundary",
+      "status": "PASS",
+      "domains": [
+        "agri"
+      ],
+      "requirement": "AGRI is first-class scope and the foundation supplies the CAN/J1939-compatible substrate while ISO 11783 higher layers remain a separate conformance module.",
+      "normative_refs": [
+        "ISO 11783-3:2026",
+        "SAE J1939/21_202205"
+      ],
+      "evidence_refs": [
+        {
+          "path": "src/core_v2/include/ecu/core_v2/domain/product_scope.hpp",
+          "markers": [
+            "agri = 1U"
+          ]
+        },
+        {
+          "path": "docs/CORE_V2_ARCHITECTURE_BASELINE.md",
+          "markers": [
+            "ISO 11783 / ISOBUS,"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PHYSICAL-LAYER-BOUNDARY-001",
+      "claim_type": "boundary",
+      "status": "PASS",
+      "domains": [
+        "truck",
+        "agri",
+        "ohv"
+      ],
+      "requirement": "Electrical CAN physical-layer conformance is explicitly outside portable Core and is delegated to qualified transceiver/platform hardware.",
+      "normative_refs": [
+        "ISO 11898-2:2026"
+      ],
+      "evidence_refs": [
+        {
+          "path": "src/core_v2/include/ecu/core_v2/transport/i_can_driver.hpp",
+          "markers": [
+            "class ICanDriver"
+          ]
+        },
+        {
+          "path": "docs/CORE_V2_ARCHITECTURE_BASELINE.md",
+          "markers": [
+            "Linux/Windows/MCU implementations live outside Core"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SAFETY-CLAIM-BOUNDARY-001",
+      "claim_type": "boundary",
+      "status": "PASS",
+      "domains": [
+        "agri",
+        "ohv"
+      ],
+      "requirement": "The generic watchdog is treated only as a safety primitive; no ISO 25119 or ISO 19014 product/process compliance claim is inherited from Core.",
+      "normative_refs": [
+        "ISO 25119-1:2018",
+        "ISO 19014-1:2018"
+      ],
+      "evidence_refs": [
+        {
+          "path": "docs/CORE_V2_ARCHITECTURE_BASELINE.md",
+          "markers": [
+            "A generic watchdog is only a primitive",
+            "Safety claims require domain-specific"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+diff --git a/.github/workflows/ecu-platform-ci.yml b/.github/workflows/ecu-platform-ci.yml
+index 693d641..19f6dca 100644
+--- a/.github/workflows/ecu-platform-ci.yml
++++ b/.github/workflows/ecu-platform-ci.yml
+@@ -340,3 +340,105 @@ jobs:
+           -R "^ecu\.dut_profile\."
+           --output-on-failure
+           --no-tests=error
++
++  daf-sac-application-linux:
++    name: DAF SAC app Linux matrix
++    runs-on: ubuntu-24.04
++    timeout-minutes: 25
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++      - name: Install build dependencies
++        run: |
++          sudo apt-get update
++          sudo apt-get install -y --no-install-recommends cmake ninja-build g++
++      - name: DAF SAC app architecture and debug/release/generic/sanitizer
++        run: bash scripts/validate_daf_sac_application.sh
++
++  daf-sac-application-clang:
++    name: DAF SAC app Clang Linux
++    runs-on: ubuntu-24.04
++    timeout-minutes: 20
++    env:
++      CC: clang
++      CXX: clang++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++      - name: Install build dependencies
++        run: |
++          sudo apt-get update
++          sudo apt-get install -y --no-install-recommends cmake ninja-build clang
++      - name: Architecture gate
++        run: python3 scripts/check_daf_sac_application_architecture.py
++      - name: Configure
++        run: >
++          cmake -S . -B build/daf-sac-app-clang -G Ninja
++          -DECU_BUILD_TESTS=ON
++          -DECU_BUILD_LEGACY_CORE=OFF
++          -DECU_BUILD_SAC_MODULE=OFF
++          -DECU_BUILD_LINUX_SOCKETCAN=OFF
++          -DECU_BUILD_CORE_V2=ON
++          -DECU_BUILD_BENCH_RUNTIME=ON
++          -DECU_BUILD_DUT_PROFILE=ON
++          -DECU_BUILD_DAF_SAC_PROFILE=ON
++          -DECU_BUILD_DAF_SAC_APPLICATION=ON
++          -DECU_BUILD_LINUX_V2_PLATFORM=ON
++      - name: Build
++        run: >
++          cmake --build build/daf-sac-app-clang
++          --target ecu_daf_sac_application_tests ecu_daf_sac_bench_app_probe ecu_daf_sac_stage42_read_probe ecu_daf_sac_stage42_clear_probe ecu_daf_sac_clear_operator_tests
++      - name: Test (never transmit on CI)
++        run: >
++          ctest --test-dir build/daf-sac-app-clang
++          -R '^ecu\.(applications\.daf_sac|sac\.clear_operator)$'
++          --output-on-failure --no-tests=error
++
++  daf-sac-application-windows:
++    name: DAF SAC app Windows MSVC (${{ matrix.arch }} / ${{ matrix.config }})
++    runs-on: windows-2022
++    timeout-minutes: 20
++    strategy:
++      fail-fast: false
++      matrix:
++        arch:
++          - x64
++          - Win32
++        config:
++          - Debug
++          - Release
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++      - name: Architecture gate
++        shell: pwsh
++        run: python scripts/check_daf_sac_application_architecture.py
++      - name: Configure
++        shell: pwsh
++        run: >
++          cmake -S . -B "build/daf-sac-app-msvc-${{ matrix.arch }}-${{ matrix.config }}"
++          -G "Visual Studio 17 2022"
++          -A "${{ matrix.arch }}"
++          -DECU_BUILD_TESTS=ON
++          -DECU_BUILD_LEGACY_CORE=OFF
++          -DECU_BUILD_SAC_MODULE=OFF
++          -DECU_BUILD_LINUX_SOCKETCAN=OFF
++          -DECU_BUILD_CORE_V2=ON
++          -DECU_BUILD_BENCH_RUNTIME=ON
++          -DECU_BUILD_DUT_PROFILE=ON
++          -DECU_BUILD_DAF_SAC_PROFILE=ON
++          -DECU_BUILD_DAF_SAC_APPLICATION=ON
++          -DECU_BUILD_LINUX_V2_PLATFORM=OFF
++      - name: Build
++        shell: pwsh
++        run: >
++          cmake --build "build/daf-sac-app-msvc-${{ matrix.arch }}-${{ matrix.config }}"
++          --config "${{ matrix.config }}"
++          --target ecu_daf_sac_application_tests
++      - name: Test
++        shell: pwsh
++        run: >
++          ctest --test-dir "build/daf-sac-app-msvc-${{ matrix.arch }}-${{ matrix.config }}"
++          -C "${{ matrix.config }}"
++          -R "^ecu\.applications\.daf_sac$"
++          --output-on-failure --no-tests=error

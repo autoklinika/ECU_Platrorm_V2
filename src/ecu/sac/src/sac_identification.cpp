@@ -1,0 +1,235 @@
+#include "ecu/sac/sac_identification.hpp"
+
+#include "ecu/core/protocol/uds/uds_services.hpp"
+#include "ecu/sac/sac_profile.hpp"
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+
+namespace ecu::sac {
+namespace {
+
+std::uint8_t byte_value(const std::byte value) noexcept {
+  return std::to_integer<std::uint8_t>(value);
+}
+
+}  // namespace
+
+SacIdentification::SacIdentification(
+    core::protocol::uds::UdsClient& uds) noexcept
+    : uds_(uds) {}
+
+SacIdentificationStatus SacIdentification::start() noexcept {
+  if (status_ == SacIdentificationStatus::in_progress) {
+    return SacIdentificationStatus::busy;
+  }
+
+  uds_.reset();
+  result_ = {};
+  last_nrc_ = 0U;
+  step_ = Step::request_vin;
+  status_ = SacIdentificationStatus::in_progress;
+  return status_;
+}
+
+SacIdentificationStatus SacIdentification::poll() noexcept {
+  if (step_ == Step::idle) {
+    return SacIdentificationStatus::idle;
+  }
+
+  if (step_ == Step::done || step_ == Step::error) {
+    return status_;
+  }
+
+  switch (step_) {
+    case Step::request_vin:
+      return start_did(kDidVin, Step::wait_vin);
+
+    case Step::wait_vin:
+      return handle_did_response(
+          kDidVin,
+          result_.vin,
+          Step::request_software);
+
+    case Step::request_software:
+      return start_did(
+          kDidSoftware,
+          Step::wait_software);
+
+    case Step::wait_software:
+      return handle_did_response(
+          kDidSoftware,
+          result_.software,
+          Step::request_hardware);
+
+    case Step::request_hardware:
+      return start_did(
+          kDidHardware,
+          Step::wait_hardware);
+
+    case Step::wait_hardware:
+      return handle_did_response(
+          kDidHardware,
+          result_.hardware,
+          Step::done);
+
+    case Step::idle:
+    case Step::done:
+    case Step::error:
+      break;
+  }
+
+  fail(SacIdentificationStatus::uds_error);
+  return status_;
+}
+
+SacIdentificationStatus SacIdentification::status() const noexcept {
+  return status_;
+}
+
+const SacIdentificationResult& SacIdentification::result() const noexcept {
+  return result_;
+}
+
+std::uint8_t SacIdentification::last_nrc() const noexcept {
+  return last_nrc_;
+}
+
+void SacIdentification::reset() noexcept {
+  uds_.reset();
+  step_ = Step::idle;
+  status_ = SacIdentificationStatus::idle;
+  result_ = {};
+  last_nrc_ = 0U;
+}
+
+SacIdentificationStatus SacIdentification::start_did(
+    const std::uint16_t did,
+    const Step wait_step) noexcept {
+  const auto request =
+      core::protocol::uds::make_read_data_by_identifier(did);
+
+  const auto status = uds_.start_request(request);
+  if (status ==
+      core::protocol::uds::UdsStatus::in_progress) {
+    step_ = wait_step;
+    status_ = SacIdentificationStatus::in_progress;
+    return status_;
+  }
+
+  if (status == core::protocol::uds::UdsStatus::busy) {
+    return SacIdentificationStatus::in_progress;
+  }
+
+  fail(SacIdentificationStatus::uds_error);
+  return status_;
+}
+
+SacIdentificationStatus SacIdentification::handle_did_response(
+    const std::uint16_t expected_did,
+    SacTextField& target,
+    const Step next_step) noexcept {
+  const auto poll_status = uds_.poll();
+
+  if (!uds_.has_response()) {
+    if (poll_status ==
+            core::protocol::uds::UdsStatus::in_progress ||
+        poll_status ==
+            core::protocol::uds::UdsStatus::idle) {
+      return SacIdentificationStatus::in_progress;
+    }
+
+    fail(SacIdentificationStatus::uds_error);
+    return status_;
+  }
+
+  const auto response = uds_.take_response();
+
+  if (response.status ==
+      core::protocol::uds::UdsStatus::negative_response) {
+    fail(
+        SacIdentificationStatus::uds_error,
+        response.negative_response_code);
+    return status_;
+  }
+
+  if (!parse_text_did(
+          response,
+          expected_did,
+          target)) {
+    fail(SacIdentificationStatus::invalid_response);
+    return status_;
+  }
+
+  if (next_step == Step::done) {
+    step_ = Step::done;
+    status_ = SacIdentificationStatus::done;
+    return status_;
+  }
+
+  step_ = next_step;
+  status_ = SacIdentificationStatus::in_progress;
+  return status_;
+}
+
+bool SacIdentification::parse_text_did(
+    const core::protocol::uds::UdsResponse& response,
+    const std::uint16_t expected_did,
+    SacTextField& target) noexcept {
+  if (response.status !=
+          core::protocol::uds::UdsStatus::ok ||
+      response.length < 4U ||
+      byte_value(response.payload[0]) != 0x62U) {
+    return false;
+  }
+
+  const auto did =
+      static_cast<std::uint16_t>(
+          (static_cast<std::uint16_t>(
+               byte_value(response.payload[1]))
+           << 8U) |
+          byte_value(response.payload[2]));
+
+  if (did != expected_did) {
+    return false;
+  }
+
+  const std::size_t value_length =
+      response.length - 3U;
+
+  if (value_length == 0U ||
+      value_length >= SacTextField::kCapacity) {
+    return false;
+  }
+
+  target = {};
+  target.length = value_length;
+
+  for (std::size_t i = 0U;
+       i < value_length;
+       ++i) {
+    const auto raw =
+        byte_value(response.payload[i + 3U]);
+
+    if (raw < 0x20U || raw > 0x7EU) {
+      return false;
+    }
+
+    target.data[i] = static_cast<char>(raw);
+  }
+
+  target.data[value_length] = char{0};
+  return true;
+}
+
+void SacIdentification::fail(
+    const SacIdentificationStatus status,
+    const std::uint8_t nrc) noexcept {
+  step_ = Step::error;
+  status_ = status;
+  last_nrc_ = nrc;
+}
+
+}  // namespace ecu::sac

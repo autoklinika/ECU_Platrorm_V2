@@ -39,7 +39,17 @@ Core, transport abstractions, device abstractions, WebGUI/API contracts and secu
 
 If a dependency from another project appears in ECU Platform code or documentation without explicit authorization, treat it as a project-boundary violation and remove or isolate it before merge.
 
-## 4. Enforcement
+## 4. WebGUI is strictly an untrusted client
+
+WebGUI (including the CM5 touchscreen kiosk) is a presentation-only client. It cannot directly control hardware, CAN, diagnostic sessions, power/ignition/wake, system processes, local privileged agents, configuration, databases or authoritative Bench/DUT state.
+
+Only authenticated, authorized, versioned requests through the ECU Platform API may convey user intent. Application/Bench/CORE remain the sole owners of execution, resource arbitration, watchdogs, safety interlocks and safe-stop. Localhost or physical co-location with the CM5 never grants additional authorization.
+
+The kiosk browser and privileged Bench backend must run under **separate OS identities** with no direct IPC or hardware-control path. The existing Stage D kiosk identity is a known pre-WebGUI security-isolation gap and must be migrated and revalidated before publishing actual WebGUI operations.
+
+**Mandatory design, backend and deployment gates:** [WEBGUI_CLIENT_ONLY_ARCHITECTURE.md](WEBGUI_CLIENT_ONLY_ARCHITECTURE.md). No framework or feature decision may relax them without explicit user approval.
+
+## 5. Enforcement
 
 These rules are release/merge gates.
 

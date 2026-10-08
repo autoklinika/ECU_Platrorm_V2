@@ -12,6 +12,16 @@
 
 ---
 
+## Zakres produktu — klasy obsługiwanych pojazdów i maszyn
+
+- **[USTALONE / NADRZĘDNE / INVARIANT]** ECU Platform V2 obsługuje wyłącznie trzy klasy docelowe: **ciężarówki / heavy-duty road vehicles, maszyny rolnicze (AGRI) oraz maszyny off-highway (OHV)**.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Samochody osobowe nie są zakresem produktu. Nie projektujemy funkcji, protokołów ani zgodności wyłącznie dla passenger-car, chyba że dany standard jest wspólnym fundamentem technicznym wymaganym także przez truck/AGRI/OHV.
+- **[USTALONE / NADRZĘDNE]** SAE J1939 jest protokołem pierwszoplanowym wspólnym dla heavy-duty, wielu zastosowań AGRI i OHV.
+- **[USTALONE / NADRZĘDNE]** Dla AGRI rodzina ISO 11783 (ISOBUS) jest standardem pierwszoplanowym.
+- **[USTALONE / NADRZĘDNE]** Dla ciężarówek uwzględniamy ISO 11992 (ciągnik–naczepa/przyczepa) oraz WWH-OBD / ISO 27145 tam, gdzie ma zastosowanie.
+- **[USTALONE / NADRZĘDNE]** Standardy bezpieczeństwa i regulacyjne są dobierane według klasy maszyny: ISO 26262/UNECE tylko tam, gdzie dotyczą pojazdu drogowego; ISO 25119 dla maszyn rolniczych; ISO 19014 dla maszyn ziemnych/OHV objętych zakresem tej rodziny norm.
+- **[USTALONE]** UDS, DoCAN/ISO-TP i DoIP pozostają wspólnymi technologiami diagnostycznymi tam, gdzie są stosowane przez ECU w truck/AGRI/OHV; nie traktujemy ich jako „standardów osobówkowych”.
+
 ## 0. Governance projektu i granice kontekstu
 
 - **[USTALONE / NADRZĘDNE / INVARIANT]** ECU Platform V2 jest traktowana jako **odrębny projekt z własnym kontekstem, repozytorium, architekturą, danymi i decyzjami**.
@@ -28,9 +38,12 @@
 ## 1. Charakter projektu
 
 - **[USTALONE]** ECU Platform V2 powstaje jako nowy projekt w nowym repozytorium.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** ECU Platform V2 jest platformą laboratoryjną do naprawy i inżynierii elektroniki automotive. Diagnostyka jest jedną z jej funkcji, ale produkt nie jest modelowany jako klasyczny tester diagnostyczny.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** Bazową abstrakcją obiektu podłączonego do stanowiska jest **DUT (Device Under Test)**. ECU jest jedną klasą DUT; równorzędnie wspierane mają być inteligentne aktuatory (np. EGR/VGT), sensory, gatewaye i inne elektroniczne węzły automotive.
+- **[USTALONE / NADRZĘDNE / INVARIANT]** DUT nie musi obsługiwać UDS, J1939 ani żadnego protokołu diagnostycznego. Surowy/proprietary CAN/CAN-FD, w tym cykliczne komendy i feedback, jest pełnoprawnym pierwszoplanowym przypadkiem użycia.
 - **[USTALONE]** ECU Platform V2 ma być ogólną, rozwijalną platformą inżyniersko-diagnostyczną, a nie aplikacją zbudowaną pod jeden konkretny ECU, pojazd lub aktuator.
-- **[USTALONE]** Platforma ma obsługiwać pracę zarówno ze sterownikami/modułami na stole, jak i — tam gdzie jest to technicznie i bezpiecznie uzasadnione — w pojeździe.
-- **[USTALONE]** Zakładany zakres platformy obejmuje co najmniej: komunikację z ECU/modułami, identyfikację sterowników, diagnostykę, odczyt i kasowanie DTC, dane live/runtime, sterowanie aktuatorami, automatyczne procedury i testy, skanowanie i analizę CAN, rejestrację komunikacji oraz generowanie raportów.
+- **[USTALONE]** Platforma ma obsługiwać pracę zarówno z ECU, aktuatorami, sensorami i innymi modułami na stole, jak i — tam gdzie jest to technicznie i bezpiecznie uzasadnione — w pojeździe.
+- **[USTALONE]** Zakładany zakres platformy obejmuje co najmniej: identyfikację i komunikację z różnymi klasami DUT, diagnostykę ECU tam gdzie ma zastosowanie, odczyt/kasowanie DTC, dane live/runtime, surową analizę CAN/CAN-FD, deterministyczne sterowanie aktuatorami, cykliczne ramki OEM z counter/checksum/E2E, automatyczne procedury i testy, rejestrację komunikacji oraz generowanie raportów.
 - **[USTALONE]** Obsługa nowych ECU nie może ograniczać się do CAN/CAN-FD. ECU Platform V2 musi od początku uwzględniać diagnostykę **DoIP (Diagnostics over Internet Protocol, ISO 13400)** jako równorzędny, pierwszoplanowy transport diagnostyczny.
 - **[USTALONE]** ECU Platform V2 jest budowana jako **WebGUI-first**. WebGUI jest jedyną bazową technologią interfejsu użytkownika V2; lokalny ekran urządzenia uruchamia tę samą aplikację WebGUI w trybie kioskowym.
 - **[USTALONE]** Rozwijalność jest wymaganiem fundamentalnym: dodanie w przyszłości nowego ECU, modułu, urządzenia wykonawczego, protokołu, transportu, klienta lub innej klasy obsługiwanych elementów nie może wymagać przebudowy całej platformy.
@@ -81,7 +94,8 @@
 - **[USTALONE]** Lokalny ekran urządzenia nie posiada osobnej aplikacji GUI; uruchamia WebGUI w przeglądarce/runtime kioskowym.
 - **[USTALONE]** Lokalny kiosk i autoryzowani klienci zdalni korzystają z tego samego modelu API i tej samej aplikacji WebGUI.
 - **[USTALONE]** Krytyczne czasowo sterowanie nie może zależeć od GUI, renderowania, event loop warstwy prezentacji ani od aktywności użytkownika.
-- **[USTALONE]** Klient wysyła polecenia wysokiego poziomu; sposób bezpiecznego wykonania polecenia należy do Core.
+- **[USTALONE / NADRZĘDNE]** Cykliczna komunikacja wykonawcza EGR/VGT i podobnych DUT musi być generowana przez deterministyczny runtime/scheduler, nie przez WebGUI/API timer. Profile DUT dostarczają identyfikatory, payload, rolling counter/checksum/E2E i limity; generic Core egzekwuje cadence, timeout/interlock i safe-stop.
+- **[USTALONE]** Klient wysyła polecenia wysokiego poziomu; sposób bezpiecznego wykonania polecenia należy do Core/Bench Runtime.
 - **[USTALONE]** Fizyczny interfejs CAN / hardware musi mieć jednoznacznego właściciela i kontrolowany mechanizm arbitrażu dostępu.
 - **[USTALONE]** Awaria lub restart GUI nie może powodować destabilizacji warstwy komunikacji i sterowania.
 - **[USTALONE]** Funkcje specyficzne dla konkretnego ECU, aktuatora lub protokołu nie mogą wymuszać zmian w niezwiązanych modułach systemu.
@@ -100,7 +114,7 @@
 - **[USTALONE]** Docelowy produkt komercyjny może w przyszłości używać innej platformy sprzętowej lub systemu operacyjnego. Zmiana platformy powinna wymagać przede wszystkim dostarczenia nowych adapterów warstwy platformowej, a nie przepisywania logiki ECU Platform.
 - **[USTALONE]** Nie zakładamy pełnej przenośności na dowolny typ urządzenia. Celem jest niezależność w rozsądnym zakresie dla klasy urządzeń zdolnych uruchomić Core; przejście na bardzo ograniczony mikrokontroler bez systemu operacyjnego może wymagać osobnej adaptacji architektury.
 - **[DO USTALENIA]** Minimalny formalny kontrakt warstwy platformowej: CAN, clock/scheduler, storage, networking, system lifecycle, hardware I/O oraz pozostałe zależności od OS.
-- **[DO USTALENIA]** Czy CI będzie od początku kompilować i testować Core w więcej niż jednym środowisku/adapterze (np. Linux + platforma symulowana), aby wykrywać przypadkowe zależności od Linuxa.
+- **[USTALONE / NADRZĘDNE]** Core V2 jest kompilowany i testowany w CI na Linuxie z GCC i Clang oraz na Windows z MSVC (x64 i Win32); dodatkowy build z `CMAKE_SYSTEM_NAME=Generic` sprawdza, czy graf Core-only nie zależy od warunków Linuxa. Adaptery platformowe otrzymują osobne testy zgodności z kontraktami Core.
 
 **Dlaczego przyjmujemy to założenie:**
 

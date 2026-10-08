@@ -1,0 +1,11 @@
+# ECU Platform V2 local build artifacts
+/build/
+/out/
+.cmake/
+CMakeUserPresets.json
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
