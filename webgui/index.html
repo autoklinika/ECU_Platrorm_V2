@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' http://127.0.0.1:8878; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Ecu Bench Platform</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./src/app.mjs"></script>
@@ -55,11 +55,28 @@
 
         <section class="page" data-page="tests" hidden>
           <h1 data-i18n="pages.tests">Tests</h1>
+          <p class="field-label" data-i18n="dtc.historical">Last completed DTC readout (historical, not live)</p>
+          <p class="data-state" id="dtc-status" role="status" aria-live="polite" data-i18n="api.signInRequired">Sign in under Settings to read API data.</p>
+          <div id="dtc-details" class="data-panel" hidden>
+            <dl class="readout-meta">
+              <div><dt data-i18n="dtc.captured">Captured:</dt><dd id="dtc-captured">—</dd></div>
+              <div><dt data-i18n="dtc.profile">Profile ID:</dt><dd id="dtc-profile">—</dd></div>
+              <div><dt data-i18n="dtc.protocol">Protocol:</dt><dd id="dtc-protocol">—</dd></div>
+              <div><dt data-i18n="dtc.count">DTC count:</dt><dd id="dtc-count">—</dd></div>
+            </dl>
+            <table class="readout-table">
+              <thead><tr><th data-i18n="dtc.code">DTC code</th><th data-i18n="dtc.status">Status byte</th></tr></thead>
+              <tbody id="dtc-rows"></tbody>
+            </table>
+          </div>
           <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
         </section>
 
         <section class="page" data-page="can" hidden>
           <h1 data-i18n="pages.can">CAN</h1>
+          <p class="field-label" data-i18n="can.source">Kernel interface state reported by the read-only API</p>
+          <p class="data-state" id="can-status" role="status" aria-live="polite" data-i18n="api.signInRequired">Sign in under Settings to read API data.</p>
+          <div id="can-list" class="can-list" aria-live="polite"></div>
           <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
         </section>
 
@@ -68,6 +85,20 @@
           <div class="tiles tiles--settings">
             <button type="button" class="tile" data-route="language" data-i18n="settings.language">LANGUAGE</button>
           </div>
+          <section class="auth-panel" aria-labelledby="api-auth-heading">
+            <h2 id="api-auth-heading" data-i18n="api.authentication">API authorization</h2>
+            <p data-i18n="api.operatorInstruction">Operator must provide an authorized API bearer token; never stored on disk.</p>
+            <div class="auth-row">
+              <label for="api-token" data-i18n="api.tokenLabel">API token (64 lowercase hexadecimal characters)</label>
+              <input id="api-token" type="password" autocomplete="off" autocapitalize="off"
+                     spellcheck="false" minlength="64" maxlength="64" inputmode="text">
+            </div>
+            <div class="auth-actions">
+              <button id="api-connect" type="button" data-i18n="api.signIn">Connect API</button>
+              <button id="api-disconnect" type="button" data-i18n="api.signOut" disabled>Disconnect</button>
+            </div>
+            <p id="api-auth-status" role="status" aria-live="polite" data-i18n="api.notAuthenticated">Not authenticated</p>
+          </section>
           <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
         </section>
 

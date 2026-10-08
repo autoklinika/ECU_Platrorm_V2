@@ -65,7 +65,6 @@ test("WebGUI has no diagnostic, hardware or privileged-agent path", () => {
     /XMLHttpRequest/,
     /EventSource/,
     /\/run\/ecu-platform/,
-    /\bcan0\b/,
     /(?:sudo|systemctl|child_process|process\.exec)\b/,
     /\b(navigator\.serial|navigator\.usb)\b/,
     /\b(document\.write|eval\s*\()\b/
@@ -77,6 +76,24 @@ test("WebGUI has no diagnostic, hardware or privileged-agent path", () => {
   assert.doesNotMatch(html, /<script[^>]+src="https?:/);
   assert.match(html, /id="interface-value">—/);
   assert.match(html, /id="bitrate-value">—/);
+});
+
+test("API client can only read authorized V1 routes without privileged I/O", () => {
+  const client = read("src/api-client.mjs");
+  assert.match(client, /http:\/\/127\.0\.0\.1:8878/);
+  assert.match(client, /credentials: "omit"/);
+  assert.match(client, /cache: "no-store"/);
+  assert.match(client, /redirect: "error"/);
+  assert.match(client, /method: "GET"/);
+  assert.match(client, /SESSION_LIFETIME_MS/);
+  assert.doesNotMatch(client, /(?:localStorage|sessionStorage|indexedDB|document\.cookie)/);
+  assert.doesNotMatch(client, /(?:WebSocket|EventSource|navigator\.serial|navigator\.usb)/);
+  assert.doesNotMatch(client, /(?:\/dev\/|\/run\/ecu-platform|sudo|child_process)/);
+  assert.match(html, /id="api-token" type="password" autocomplete="off"/);
+  assert.match(html, /connect-src 'self' http:\/\/127\.0\.0\.1:8878/);
+  assert.match(html, /id="dtc-status"/);
+  assert.match(html, /id="can-status"/);
+  assert.doesNotMatch(html, /value="[0-9a-f]{64}"/);
 });
 
 test("there are no hard-coded source-language-only labels in alternate views", () => {

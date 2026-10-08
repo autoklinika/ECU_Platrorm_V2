@@ -11,6 +11,7 @@ FILES = {
     "/index.html": "index.html",
     "/styles.css": "styles.css",
     "/src/app.mjs": "src/app.mjs",
+    "/src/api-client.mjs": "src/api-client.mjs",
     "/src/i18n.mjs": "src/i18n.mjs",
     "/src/domain-text.mjs": "src/domain-text.mjs",
     "/src/locales/en.mjs": "src/locales/en.mjs",
@@ -18,7 +19,7 @@ FILES = {
 }
 CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self'; "
-    "connect-src 'self'; img-src 'self'; object-src 'none'; "
+    "connect-src 'self' http://127.0.0.1:8878; img-src 'self'; object-src 'none'; "
     "base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
 )
 
