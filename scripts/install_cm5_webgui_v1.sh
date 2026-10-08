@@ -10,18 +10,20 @@ unit_dir="/etc/systemd/system"
 backup=""
 rollback_armed=0
 
-failed() {
+on_exit() {
   local code="$?"
-  trap - ERR
-  echo "ECU_WEBGUI_INSTALL=FAIL exit=$code" >&2
-  if [[ "$rollback_armed" == 1 ]]; then
-    echo "ECU_WEBGUI_AUTO_ROLLBACK=START" >&2
-    /usr/bin/bash /usr/local/libexec/ecu-platform/rollback_kiosk.sh "$backup" || \
-      echo "ECU_WEBGUI_AUTO_ROLLBACK=FAILED - MANUAL RECOVERY REQUIRED: sudo /usr/local/sbin/ecu-webgui-rollback" >&2
+  trap - EXIT ERR
+  if [[ "$code" -ne 0 ]]; then
+    echo "ECU_WEBGUI_INSTALL=FAIL exit=$code" >&2
+    if [[ "$rollback_armed" == 1 ]]; then
+      echo "ECU_WEBGUI_AUTO_ROLLBACK=START" >&2
+      /usr/bin/bash /usr/local/libexec/ecu-platform/rollback_kiosk.sh "$backup" || \
+        echo "ECU_WEBGUI_AUTO_ROLLBACK=FAILED - MANUAL RECOVERY REQUIRED: sudo /usr/local/sbin/ecu-webgui-rollback" >&2
+    fi
   fi
-  exit "$code"
 }
-trap failed ERR
+# EXIT catches explicit 'exit 1' as well as errexit failures.
+trap on_exit EXIT
 
 [[ "$EUID" -eq 0 ]] || { echo "ECU_WEBGUI_INSTALL=NEEDS_ROOT"; exit 77; }
 [[ "$(hostname -s)" == "ecu" ]] || { echo "ECU_WEBGUI_INSTALL=WRONG_HOST"; exit 2; }
@@ -30,8 +32,25 @@ trap failed ERR
 [[ -d "$source_ui/src/locales" && -r "$payload/ecu-kiosk-v1.service" ]] || exit 2
 
 if grep -q '^User=ecu-kiosk$' "$unit_dir/ecu-kiosk.service"; then
-  echo "ECU_WEBGUI_INSTALL=ALREADY_INSTALLED (validate existing cutover)"
-  exit 0
+  # A previous aborted attempt may have changed the unit file but not
+  # reloaded systemd. Never falsely report that state as installed.
+  if [[ "$(systemctl show --value -p User ecu-kiosk.service)" == "ecu-kiosk" ]] &&
+     systemctl is-active --quiet ecu-kiosk.service &&
+     systemctl is-active --quiet ecu-webgui-static.service; then
+    echo "ECU_WEBGUI_INSTALL=ALREADY_INSTALLED"
+    exit 0
+  fi
+  echo "ECU_WEBGUI_PARTIAL_CUTOVER=DETECTED"
+  if [[ ! -x /usr/local/sbin/ecu-webgui-rollback ]]; then
+    echo "ECU_WEBGUI_PARTIAL_CUTOVER=NO_RECOVERY_HELPER - refusing to proceed" >&2
+    exit 2
+  fi
+  /usr/local/sbin/ecu-webgui-rollback
+  grep -q '^User=ecu$' "$unit_dir/ecu-kiosk.service" || {
+    echo "ECU_WEBGUI_PARTIAL_CUTOVER=RECOVERY_NOT_CONFIRMED" >&2
+    exit 2
+  }
+  echo "ECU_WEBGUI_PARTIAL_CUTOVER=RECOVERED"
 fi
 grep -q '^User=ecu$' "$unit_dir/ecu-kiosk.service" || {
   echo "Unexpected kiosk configuration - refusing cutover"; exit 2;
@@ -206,4 +225,4 @@ echo "ECU_WEBGUI_BENCH_AGENT_ISOLATION=PASS"
 echo "ECU_WEBGUI_RECOVERY=sudo /usr/local/sbin/ecu-webgui-rollback"
 echo "KIOSK_AUTO_START=enabled (reboot test and human touchscreen acceptance still required)"
 echo "CORE_AND_API=unchanged"
-trap - ERR
+trap - EXIT

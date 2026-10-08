@@ -1,2 +1,2 @@
-# WaveShare USB HID 0712:0009 touch event ONLY; do not grant the broad input group.
-SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="0712", ATTRS{idProduct}=="0009", GROUP="ecu-kiosk", MODE="0660", TAG+="uaccess"
+# WaveShare USB HID 0712:0009 touch event ONLY. Final assignments override the later 99-com.rules input group.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="0712", ATTRS{idProduct}=="0009", GROUP:="ecu-kiosk", MODE:="0660", TAG+="uaccess"

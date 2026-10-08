@@ -55,14 +55,16 @@ class SecurityContractTest(unittest.TestCase):
         text = (DEPLOY / "91-ecu-kiosk-touch.rules").read_text()
         for expected in ('SUBSYSTEM=="input"', 'KERNEL=="event*"',
                          'ATTRS{idVendor}=="0712"', 'ATTRS{idProduct}=="0009"',
-                         'GROUP="ecu-kiosk"'):
+                         'GROUP:="ecu-kiosk"', 'MODE:="0660"'):
             self.assertIn(expected, text)
         self.assertNotIn('GROUP="input"', text)
 
     def test_recovery_is_defined_before_restart(self):
         install = (BASE / "scripts" / "install_cm5_webgui_v1.sh").read_text()
         rollback = (DEPLOY / "rollback_kiosk.sh").read_text()
-        self.assertIn("trap failed ERR", install)
+        self.assertIn("trap on_exit EXIT", install)
+        self.assertIn("ECU_WEBGUI_PARTIAL_CUTOVER=DETECTED", install)
+        self.assertIn("ECU_WEBGUI_PARTIAL_CUTOVER=RECOVERED", install)
         self.assertIn("ECU_WEBGUI_AUTO_ROLLBACK=START", install)
         self.assertLess(install.index("rollback_armed=1"),
                         install.index("systemctl restart ecu-kiosk.service"))

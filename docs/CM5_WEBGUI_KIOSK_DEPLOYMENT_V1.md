@@ -118,3 +118,37 @@ capabilities should be read-only, versioned and DUT-neutral (system health,
 Bench/DUT snapshot, supported capabilities and eventual diagnostics).
 Raw CAN transmit, DTC erasure, ECU reset, security unlock, power outputs
 and actuator control are outside this initial API stage.
+
+## 2026-10-08 installation incident: ECU_WEBGUI_TOUCH_PERMISSIONS=FAIL
+
+Actual host evidence: the initial 91-ecu-kiosk-touch.rules correctly
+matched WaveShare 0712:0009 and set GROUP=ecu-kiosk, but Debian/Raspberry
+Pi's /usr/lib/udev/rules.d/99-com.rules subsequently set GROUP=input for
+all input event devices. The real udevadm test reported both assignments
+in that exact order. The installer failed before the kiosk service restart,
+but an explicit exit 1 bypassed its former ERR trap. The on-disk kiosk
+unit therefore changed while systemd still held the old running User=ecu
+service. No isolation gate passed in that failed installation.
+
+### Corrected installation
+
+- The hardware-specific rule uses systemd-udev final assignments:
+  GROUP:="ecu-kiosk", MODE:="0660". These prevent the later
+  99-com.rules rule from overriding the WaveShare input event group.
+  udevadm verify and the unit tests now check the corrected rule.
+- An EXIT trap runs also on explicit exit 1, and invokes automatic rollback
+  for any failure after the root-owned recovery helper is installed.
+- A retry detects the partial previous cutover and calls the existing
+  root-owned recovery helper. It verifies the restored legacy unit before
+  beginning the fresh, backed-up installation. This avoids falsely
+  reporting ALREADY_INSTALLED when only the unit file had changed.
+- Do not reboot the device while a failed cutover remains unresolved.
+- Manual emergency recovery:
+      sudo /usr/local/sbin/ecu-webgui-rollback
+- Retry using the corrected, clean development branch:
+      cd /home/ecu/ECU_WebGUI_Home_V1
+      sudo bash scripts/install_cm5_webgui_v1.sh
+- The retry should show ECU_WEBGUI_PARTIAL_CUTOVER=RECOVERED before
+  progressing to the WebGUI HTTP/kiosk/security gates. Do not infer
+  successful deployment until the full gates, physical touch, and reboot
+  acceptance complete.
