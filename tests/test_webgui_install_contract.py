@@ -23,6 +23,12 @@ class SecurityContractTest(unittest.TestCase):
         self.assertIn("\nExecStartPre=/usr/bin/python3 -I ", text)
         self.assertIn("\nSupplementaryGroups=video render\n", text)
         self.assertIn("\nProtectSystem=strict\n", text)
+        self.assertIn("\nInaccessiblePaths=/home /root\n", text)
+        self.assertIn("\nReadWritePaths=/var/lib/ecu-kiosk /run/user\n", text)
+        self.assertNotIn("\nProtectHome=read-only\n", text)
+        self.assertIn("\nStandardError=journal\n", text)
+        self.assertIn("\nStartLimitBurst=2\n", text)
+        self.assertIn("\nRestart=on-failure\n", text)
         self.assertIn("\nIPAddressDeny=any\n", text)
         self.assertIn("\nIPAddressAllow=localhost\n", text)
         allowed = next(x for x in text.splitlines()
@@ -51,6 +57,14 @@ class SecurityContractTest(unittest.TestCase):
             self.assertIn(expected, text)
         self.assertNotIn("/run/ecu-platform-v2-bench", text)
 
+    def test_wayland_runtime_socket_preflight_is_required(self):
+        script = (DEPLOY / "ecu-kiosk-security-preflight.py").read_text()
+        self.assertIn("XDG_RUNTIME_DIR", script)
+        self.assertIn("os.stat(runtime).st_uid", script)
+        self.assertIn("probe.bind(probe_path)", script)
+        self.assertIn("Wayland runtime socket creation denied", script)
+        self.assertIn("socket.AF_CAN", script)
+
     def test_touch_is_targeted_to_one_usb_product(self):
         text = (DEPLOY / "91-ecu-kiosk-touch.rules").read_text()
         for expected in ('SUBSYSTEM=="input"', 'KERNEL=="event*"',
@@ -58,6 +72,18 @@ class SecurityContractTest(unittest.TestCase):
                          'GROUP:="ecu-kiosk"', 'MODE:="0660"'):
             self.assertIn(expected, text)
         self.assertNotIn('GROUP="input"', text)
+
+    def test_headless_regression_probe_cannot_change_physical_kiosk(self):
+        probe = (BASE / "scripts/probe_cm5_wayland_sandbox.sh").read_text()
+        self.assertIn("--setenv=WLR_BACKENDS=headless", probe)
+        self.assertIn("--setenv=WLR_RENDERER=pixman", probe)
+        self.assertIn("ProtectHome=read-only", probe)
+        self.assertIn("InaccessiblePaths=/home /root", probe)
+        self.assertIn("status=6/ABRT", probe)
+        self.assertIn("status=0/SUCCESS", probe)
+        self.assertNotIn("sudo ", probe)
+        self.assertNotIn("systemctl restart", probe)
+        self.assertNotIn("can0", probe)
 
     def test_recovery_is_defined_before_restart(self):
         install = (BASE / "scripts" / "install_cm5_webgui_v1.sh").read_text()

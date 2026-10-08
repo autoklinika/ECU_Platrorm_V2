@@ -20,6 +20,32 @@ if os.access("/home/ecu", os.R_OK | os.X_OK):
     errors.append("operator home accessible")
 if os.access("/run/ecu-platform-v2-bench/request.sock", os.R_OK | os.W_OK):
     errors.append("privileged Bench-agent socket accessible")
+# Probe the exact AF_UNIX bind that Cage needs for its Wayland socket.
+# XDG_RUNTIME_DIR is /run/user/<UID> and must remain writable through
+# the service mount namespace; a broken ProtectHome=read-only policy
+# would otherwise crash Cage with SIGABRT during cleanup.
+runtime = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.geteuid()}")
+expected_runtime = f"/run/user/{os.geteuid()}"
+if runtime != expected_runtime:
+    errors.append("unexpected XDG_RUNTIME_DIR: " + runtime)
+else:
+    probe_path = os.path.join(runtime, f".ecu-kiosk-preflight-{os.getpid()}.sock")
+    try:
+        if os.stat(runtime).st_uid != os.geteuid():
+            errors.append("runtime directory owned by another user")
+        else:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+                probe.bind(probe_path)
+    except OSError as exc:
+        errors.append("Wayland runtime socket creation denied: " + str(exc))
+    finally:
+        try:
+            os.unlink(probe_path)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            errors.append("cannot clean runtime probe: " + str(exc))
+
 try:
     s = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
 except (OSError, AttributeError):

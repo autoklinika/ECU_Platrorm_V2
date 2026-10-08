@@ -8,6 +8,7 @@ on:
       - "docs/CM5_WEBGUI_KIOSK_DEPLOYMENT_V1.md"
       - "deploy/webgui/**"
       - "scripts/install_cm5_webgui_v1.sh"
+      - "scripts/probe_cm5_wayland_sandbox.sh"
       - "tests/test_webgui_install_contract.py"
       - ".github/workflows/webgui-ui.yml"
   pull_request:
@@ -17,6 +18,7 @@ on:
       - "docs/CM5_WEBGUI_KIOSK_DEPLOYMENT_V1.md"
       - "deploy/webgui/**"
       - "scripts/install_cm5_webgui_v1.sh"
+      - "scripts/probe_cm5_wayland_sandbox.sh"
       - "tests/test_webgui_install_contract.py"
       - ".github/workflows/webgui-ui.yml"
 
@@ -52,5 +54,6 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           bash -n scripts/install_cm5_webgui_v1.sh
+          bash -n scripts/probe_cm5_wayland_sandbox.sh
           bash -n deploy/webgui/rollback_kiosk.sh
           bash -n deploy/webgui/ecu-kiosk-v1-launcher

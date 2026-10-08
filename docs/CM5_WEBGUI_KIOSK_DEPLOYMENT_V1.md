@@ -152,3 +152,66 @@ service. No isolation gate passed in that failed installation.
   progressing to the WebGUI HTTP/kiosk/security gates. Do not infer
   successful deployment until the full gates, physical touch, and reboot
   acceptance complete.
+
+## 2026-10-08 second installation incident: Cage SIGABRT after service switch
+
+A second installation progressed past the corrected WaveShare udev rule:
+- ECU_WEBGUI_PARTIAL_CUTOVER=RECOVERED
+- ECU_WEBGUI_HTTP=PASS
+- ECU_WEBGUI_CUTOVER=START
+- Cage/Chromium immediately failed with exit status 6/ABRT.
+- The installer bounded its wait but the service's Restart=always resulted
+  in more than ten short-lived launch attempts before automatic rollback.
+- ECU_WEBGUI_AUTO_ROLLBACK=START / ECU_WEBGUI_ROLLBACK=PASS.
+- Independent CM5 follow-up confirms the original Stage D kiosk runs under
+  user ecu, the new static service is inactive, WaveShare event1 is restored
+  to root:input, and the development worktree is clean.
+
+### Root cause reproducibly isolated
+
+The new kiosk unit carried **ProtectHome=read-only** together with
+ReadWritePaths=/run/user. On this Debian trixie systemd 257 + Cage 0.3.1,
+this makes the XDG_RUNTIME_DIR (/run/user/<UID>) effectively read-only in
+the service's mount namespace. Cage cannot create its Wayland lock/socket.
+
+An independent, UNPRIVILEGED probe uses WLR_BACKENDS=headless (no actual
+DRM/TTY/display touched), retaining all relevant mount restrictions:
+- With ProtectHome=read-only and ReadWritePaths=/run/user, Cage logs
+  "unable to open lockfile", then "Unable to open Wayland socket:
+  Invalid argument"; its wlroots cleanup triggers an assertion in
+  wlr_output_layout_destroy, yielding SIGABRT / exit status 6.
+- With InaccessiblePaths=/home /root instead and the same
+  ReadWritePaths=/run/user, Cage starts and cleanly exits status 0.
+- This A/B test was run on the actual CM5 and can be repeated as an
+  unprivileged developer using scripts/probe_cm5_wayland_sandbox.sh.
+
+This is **evidence for the crash mechanism**, not yet a complete physical
+acceptance of the new kiosk. The headless test does not exercise DRM, HDMI,
+logind seat acquisition or touchscreen input as user ecu-kiosk.
+
+### Remediation in kiosk service
+
+- Replace ProtectHome=read-only with **InaccessiblePaths=/home /root**.
+  The kiosk home at /var/lib/ecu-kiosk remains accessible for its
+  dedicated Chromium profile. Operator home directories remain denied,
+  but the Wayland runtime directory remains writable.
+- Preserve NoNewPrivileges, zero capabilities, ProtectSystem=strict,
+  restricted address families (no AF_CAN/AF_PACKET) and loopback-only
+  network policy.
+- Add a sandbox preflight that binds a temporary AF_UNIX socket in
+  /run/user/<UID> **before Cage launches**; it fails closed if the
+  Wayland runtime is not owned/writable by the kiosk user.
+- Explicitly route compositor stdout/stderr to the system journal.
+- Bound failures to two launch attempts in 30 seconds:
+  StartLimitBurst=2; Restart=on-failure (3-second delay).
+- Retain automatic rollback if the new kiosk does not stabilize.
+
+After local tests and CI pass, run one controlled installation from the
+unchanged development branch:
+
+    cd /home/ecu/ECU_WebGUI_Home_V1
+    sudo bash scripts/install_cm5_webgui_v1.sh
+
+The service should now pass its Wayland bind preflight without weakening
+browser/Bench isolation. Do NOT merge to production main until physical
+touch, restart recovery and the API authorization gates are accepted.
