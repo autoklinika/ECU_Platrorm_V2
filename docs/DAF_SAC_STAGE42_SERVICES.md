@@ -381,3 +381,20 @@ Dalsza analiza: interpretacja kodów OEM, źródłowe warunki SAC
 i ewentualna pasywna obserwacja odpowiedzi na osobnej, autoryzowanej
 próbie w przyszłości. Nie zmieniono Core V2, Bench Runtime ani
 operacyjnego zakresu agenta.
+
+## Audyt odczytu i kasowania DTC — 2026-10-08
+
+Audyt dotyczył wyłącznie aplikacji/profilu DAF SAC i operatorowego narzędzia Stage 4.2; CORE V2 oraz ogólny Bench Runtime pozostają bez zmian. Zweryfikowano żądania `10 03 -> 19 02 FF` (UDS ReadDTCInformation) i `10 03 -> 14 FF FF FF` (ClearDiagnosticInformation), pozytywne odpowiedzi `59 02` i `54`, ramkowanie ISO-TP, dekoder `statusAvailabilityMask` i rekordów 24-bit DTC/status, a także zachowanie po NRC, timeout i opóźnionej odpowiedzi.
+
+Odczyt fizyczny, wykonany przez stałego agenta **bez 0x14** (`python3 scripts/ecu_bench.py sac-dtc`), zakończył się `ECU_BENCH_AGENT_STATUS=PASS`, `SAC_STAGE42_READ_PHYSICAL=PASS`, `SAC_DTC_COUNT=12`, `SAC_DTC_AVAILABILITY_MASK=0x8B`, `SAC_BENCH_RESOURCE_LEASES=0`, `CAN0_CLEANUP=DOWN`. Dla `3A0002` uzyskano status `0x02`; pozostałe 11 kodów/statusów zachowało wcześniejsze wartości. Jest to potwierdzenie odczytu, a nie potwierdzenie kasowania.
+
+Poprawki do procedury kasowania:
+
+- Odczyt niepełną maską statusową (np. `0xAA`) nie może służyć jako podstawa do kasowania **wszystkich** grup `14 FF FF FF`. Wymagany jest pełny odczyt z `0xFF`.
+- Potwierdzenie operatora musi opierać się na świeżym, poprawnym odczycie: maksymalnie 180 s od jego zakończenia. Stare tokeny i stare listy DTC nie wyzwalają transmisji.
+- Prywatne archiwum DTC jest weryfikowane także pod kątem liczby rekordów `<=128` i pełnej maski `0xFF`.
+- Przed próbą kasowania zapisywany jest trwale `CLEAR_ATTEMPT=UNRESOLVED_UNTIL_VERIFIED`. Nowy preflight `scripts/check_daf_sac_clear_evidence.sh` blokuje operację zarówno dla `CLEAR_OUTCOME=UNKNOWN`, jak i przerwanej próby bez kompletnego zapisu potwierdzenia `CLEAR_UDS_54_ACK=YES` **oraz** odczytu kontrolnego `POST_CLEAR_VERIFICATION=READ_COMPLETED`. Chroni też historyczne archiwa z `CLEAR_INTENT` bez zakończonej weryfikacji. Preflight działa przed włączeniem interfejsu CAN.
+
+Testy nowej walidacji archiwów (w tym SIGKILL/crash w logicznym oknie przerwania, brak ACK, brak odczytu następczego, archiwum z symlinkiem), testy maski i wygasania, wszystkie bramy Debug/Release/Generic/ASan+UBSan oraz zakaz nieinteraktywnego `clear` ukończono `PASS` przez `bash scripts/validate_daf_sac_application.sh`. Żaden z testów software nie wysyłał `0x14` do fizycznego sterownika.
+
+**Kasowanie na fizycznym DAF SAC pozostaje NIEPOTWIERDZONE.** W archiwum `~/.ecu-platform-v2/daf-sac/dtc-clear/` nadal istnieje wcześniejszy `CLEAR_OUTCOME=UNKNOWN`, więc bramka ponownego kasowania poprawnie zwraca `DTC_CLEAR_BLOCKED=PREVIOUS_OUTCOME_UNKNOWN` bez podnoszenia `can0`. Nie usuwaj, nie nadpisuj ani nie „naprawiaj” tego archiwum wyłącznie po to, aby odblokować kasowanie. Przed kolejną, odrębnie zatwierdzoną próbą wymagane jest rozpoznanie zachowania OEM i zachowanie materiału diagnostycznego.

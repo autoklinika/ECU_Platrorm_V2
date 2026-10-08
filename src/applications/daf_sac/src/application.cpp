@@ -343,6 +343,17 @@ void Application::invalidate_clear_challenge() noexcept {
   armed_clear_sequence_ = 0U;
 }
 
+bool Application::fresh_dtc_inventory() const noexcept {
+  if (!last_dtc_read_valid_) {
+    return false;
+  }
+  const auto now = clock_.read();
+  return ecu::core::v2::time::is_valid_clock_reading(
+             now, clock_.properties().domain) &&
+         now.value >= last_dtc_read_at_ &&
+         now.value - last_dtc_read_at_ <= std::chrono::seconds{180};
+}
+
 AppStatus Application::begin_operation(const AppState state) noexcept {
   invalidate_clear_challenge();
   const auto started = host_.start();
@@ -417,13 +428,16 @@ AppStatus Application::read_dtcs(const std::uint8_t mask) noexcept {
     return AppStatus::invalid_state;
   }
   dtcs_ = {};
+  last_dtc_read_valid_ = false;
   clear_acknowledged_ = false;
   return begin_operation(AppState::reading_dtcs);
 }
 
 ClearDtcChallenge Application::prepare_clear_dtcs() noexcept {
+  // Erasing ALL DTC groups cannot be authorized from a filtered inventory.
   if (services_ == nullptr || state_ != AppState::dtcs_ready ||
-      !dtcs_.valid ||
+      !dtcs_.valid || dtcs_.requested_mask != 0xFFU ||
+      !fresh_dtc_inventory() ||
       session_.state() != ecu::bench::BenchSessionState::ready ||
       next_clear_sequence_ ==
           (std::numeric_limits<std::uint64_t>::max)()) {
@@ -441,6 +455,7 @@ AppStatus Application::clear_dtcs(
     return AppStatus::unsupported;
   }
   if (state_ != AppState::dtcs_ready || !dtcs_.valid ||
+      dtcs_.requested_mask != 0xFFU || !fresh_dtc_inventory() ||
       armed_clear_sequence_ == 0U || !explicitly_confirmed ||
       confirmation.sequence != armed_clear_sequence_ ||
       confirmation.profile_id != plan_.profile_id ||
@@ -454,6 +469,7 @@ AppStatus Application::clear_dtcs(
     return AppStatus::invalid_state;
   }
   dtcs_ = {}; // previous read is stale as soon as clear is attempted
+  last_dtc_read_valid_ = false;
   clear_acknowledged_ = false;
   return begin_operation(AppState::clearing_dtcs);
 }
@@ -555,7 +571,11 @@ AppStatus Application::service() noexcept {
   switch (prior_state) {
     case AppState::identifying: state_ = AppState::identified; break;
     case AppState::reading_parameters: state_ = AppState::parameters_ready; break;
-    case AppState::reading_dtcs: state_ = AppState::dtcs_ready; break;
+    case AppState::reading_dtcs:
+      last_dtc_read_at_ = now.value;
+      last_dtc_read_valid_ = true;
+      state_ = AppState::dtcs_ready;
+      break;
     case AppState::clearing_dtcs:
       state_ = AppState::dtcs_clear_acknowledged; break;
     default: state_ = AppState::faulted; break;

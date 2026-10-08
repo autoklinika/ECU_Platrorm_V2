@@ -61,17 +61,12 @@ if ! runuser -u "$TARGET_USER" -- test -w "$EVIDENCE_DIR"; then
   exit 1
 fi
 
-# Never offer a second erase while a previous destructive request has
-# an unresolved result. This check is BEFORE the CAN interface is enabled.
-for record in "$EVIDENCE_DIR"/sac-dtc-*.txt; do
-  [[ -f "$record" ]] || continue
-  if grep -q '^CLEAR_OUTCOME=UNKNOWN' "$record"; then
-    echo "DTC_CLEAR_BLOCKED=PREVIOUS_OUTCOME_UNKNOWN"
-    echo "Previous uncertain operation: $record"
-    echo "Perform a fresh READ-ONLY DTC check and review the result first."
-    exit 4
-  fi
-done
+# Fail closed for unresolved results AND interrupted operations that did
+# not reach the old CLEAR_OUTCOME=UNKNOWN append point. Check before CAN UP.
+if ! bash "$ROOT_DIR/scripts/check_daf_sac_clear_evidence.sh" "$EVIDENCE_DIR"; then
+  echo "Perform a fresh READ-ONLY DTC check and review the evidence first."
+  exit 4
+fi
 
 if ! ip link show "$IFACE" >/dev/null 2>&1; then
   echo "ERROR: missing CAN interface $IFACE"

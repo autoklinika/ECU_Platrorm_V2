@@ -337,7 +337,8 @@ int main(int argc, char** argv) {
   // command, otherwise abort without sending UDS service 0x14.
   if (!evidence.append(
           "OPERATOR_CONFIRMATION=EXPLICIT_ONE_TIME\n"
-          "CLEAR_INTENT=UDS_10_03_THEN_14_FF_FF_FF\n")) {
+          "CLEAR_INTENT=UDS_10_03_THEN_14_FF_FF_FF\n"
+          "CLEAR_ATTEMPT=UNRESOLVED_UNTIL_VERIFIED\n")) {
     return failed("pre-clear-confirmation-audit-not-durable-NO-ERASE");
   }
 

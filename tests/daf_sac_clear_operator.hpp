@@ -44,8 +44,10 @@ class EvidenceFile final {
       const std::string& directory,
       const ecu::dut_profiles::daf_sac::SacDtcList& dtcs,
       const std::uint32_t profile_id) {
-    if (fd_ >= 0 || !dtcs.valid || directory.empty() ||
-        directory.front() != '/' || profile_id == 0U) {
+    if (fd_ >= 0 || !dtcs.valid ||
+        dtcs.requested_mask != 0xFFU ||
+        dtcs.count > ecu::dut_profiles::daf_sac::SacDtcList::kMaxEntries ||
+        directory.empty() || directory.front() != '/' || profile_id == 0U) {
       return false;
     }
 

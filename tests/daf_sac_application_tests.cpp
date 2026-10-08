@@ -833,6 +833,17 @@ int main() {
         "read-DTC result includes status, availability and bounded records");
     failures += require(f.script.clear_requests == 0,
         "reading faults never causes implicit erase-DTC command");
+    failures += require(
+        f.application.prepare_clear_dtcs().sequence == 0U &&
+        f.application.clear_dtcs({1U, f.plan.profile_id, 1U}, true) ==
+            app::AppStatus::confirmation_required &&
+        f.script.clear_requests == 0,
+        "filtered DTC status-mask read cannot authorize clearing all groups");
+    failures += require(
+        f.application.read_dtcs(0xFFU) == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_ready) == 0 &&
+        f.application.dtcs().requested_mask == 0xFFU,
+        "fresh full-mask DTC inventory is required before erase");
 
     const auto challenge = f.application.prepare_clear_dtcs();
     failures += require(challenge.sequence != 0U &&
@@ -850,7 +861,8 @@ int main() {
     failures += require(f.application.clear_dtcs(challenge, true) ==
         app::AppStatus::ok &&
         service_to_end(f, app::AppState::dtcs_clear_acknowledged) == 0 &&
-        f.script.session_requests == 2 && f.script.clear_requests == 1 &&
+        f.script.session_requests == 3 && f.script.dtc_requests == 2 &&
+        f.script.clear_requests == 1 &&
         f.script.last_request_sid == 0x14U &&
         f.script.last_request_length == 4U &&
         f.application.snapshot().clear_acknowledged &&
@@ -869,6 +881,29 @@ int main() {
             app::AppStatus::confirmation_required &&
         f.script.requests == 0,
         "DTC erase impossible before read and explicit challenge");
+  }
+
+  {
+    ServicesFixture f;
+    failures += require(
+        f.application.configure({std::chrono::milliseconds{250}}) &&
+        f.application.read_dtcs(0xFFU) == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_ready) == 0,
+        "full-mask inventory can be inspected before TTL expires");
+    const auto challenge = f.application.prepare_clear_dtcs();
+    f.clock.advance(std::chrono::seconds{181});
+    failures += require(
+        challenge.sequence != 0U &&
+        f.application.prepare_clear_dtcs().sequence == 0U &&
+        f.application.clear_dtcs(challenge, true) ==
+            app::AppStatus::confirmation_required &&
+        f.script.clear_requests == 0,
+        "expired 180-second inventory and its issued challenge cannot erase DTCs");
+    failures += require(
+        f.application.read_dtcs(0xFFU) == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_ready) == 0 &&
+        f.application.prepare_clear_dtcs().sequence != 0U,
+        "expired inventory can be refreshed without automatic DTC clearing");
   }
 
   {

@@ -45,6 +45,21 @@ int main() {
   before.records[0U] = {0x3A0002U, 0x0AU};
   before.records[1U] = {0xDFF7E9U, 0x8BU};
 
+  {
+    auto filtered = before;
+    filtered.requested_mask = 0x01U;
+    clear::EvidenceFile refused{};
+    failures += require(!refused.create(directory, filtered, 0xDAF00025U),
+                        "cannot archive a partial-mask inventory for erase all");
+  }
+  {
+    auto oversized = before;
+    oversized.count = daf::SacDtcList::kMaxEntries + 1U;
+    clear::EvidenceFile refused{};
+    failures += require(!refused.create(directory, oversized, 0xDAF00025U),
+                        "malformed oversized DTC inventory rejected before indexing");
+  }
+
   std::string path;
   {
     clear::EvidenceFile evidence{};

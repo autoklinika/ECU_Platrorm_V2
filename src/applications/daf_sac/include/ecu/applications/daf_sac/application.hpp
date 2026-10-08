@@ -225,6 +225,7 @@ class Application final {
  private:
   [[nodiscard]] AppStatus begin_operation(AppState state) noexcept;
   void invalidate_clear_challenge() noexcept;
+  [[nodiscard]] bool fresh_dtc_inventory() const noexcept;
   [[nodiscard]] bool operation_active() const noexcept;
   [[nodiscard]] AppStatus fail(
       const ecu::bench::BenchHostServiceResult& result) noexcept;
@@ -243,6 +244,8 @@ class Application final {
   ecu::dut_profiles::daf_sac::SacVoltage voltage_{};
   ecu::dut_profiles::daf_sac::SacPressure pressure_sample_{};
   ecu::dut_profiles::daf_sac::SacDtcList dtcs_{};
+  ecu::core::v2::time::MonotonicTime last_dtc_read_at_{0};
+  bool last_dtc_read_valid_{false};
   bool clear_acknowledged_{false};
   std::uint64_t next_clear_sequence_{0U};
   std::uint64_t armed_clear_sequence_{0U};
