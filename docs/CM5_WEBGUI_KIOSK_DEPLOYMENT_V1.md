@@ -298,3 +298,19 @@ Acceptance: pointer disappears from the physical screen, while
 WaveShare touch and Settings -> Language navigation remain functional.
 A reboot should preserve this narrow libinput rule. Human observation
 is required before declaring the pointer visibility gate PASS.
+
+
+### Potwierdzenie zamknięcia incydentu kursora (2026-10-08)
+
+**ZAMKNIĘTY — test fizyczny PASS.** Po wdrożeniu reguły
+90-ecu-kiosk-ignore-hdmi-pointer.rules użytkownik potwierdził, że
+kursor na środku ekranu zniknął, a dotyk działa poprawnie. Na CM5
+potwierdzono LIBINPUT_IGNORE_DEVICE=1 dla vc4-hdmi-0 i vc4-hdmi-1,
+brak tego ustawienia dla WaveShare oraz aktywną usługę ecu-kiosk
+uruchomioną jako ecu-kiosk. Pełny zapis przyczyny, przebiegu, dowodów
+i wycofania zmiany:
+[INC-WEBGUI-2026-10-08-01](INCIDENT_CM5_KIOSK_GHOST_CURSOR_2026-10-08.md).
+
+Brak potrzeby ponownego wdrażania GUI lub zmiany API/Bench/CORE.
+Trwałość reguły po kolejnym restarcie CM5 pozostaje do potwierdzenia
+przy planowym reboocie (bez wymuszania restartu stanowiska).
