@@ -7,23 +7,32 @@ project(
 )
 
 option(ECU_BUILD_TESTS "Build ECU Platform V2 tests" ON)
-option(ECU_BUILD_LEGACY_CORE "Build legacy Core" ON)
+option(ECU_BUILD_LEGACY_CORE "Build legacy Core (reference only, not production V2)" OFF)
 option(ECU_BUILD_CORE_V2 "Build rebuilt TRUCK/AGRI/OHV Core V2" ON)
 option(ECU_BUILD_BENCH_RUNTIME "Build DUT-neutral Bench Runtime" ON)
-option(ECU_BUILD_DUT_PROFILE "Build Stage 3 DUT Profile foundation" OFF)
-option(ECU_BUILD_DAF_SAC_PROFILE "Build Stage 3.3 DAF SAC proof profile" OFF)
-option(ECU_BUILD_DAF_SAC_APPLICATION "Build isolated DAF SAC application module" OFF)
-option(ECU_BUILD_SAC_MODULE "Build SAC ECU module" ON)
+option(ECU_BUILD_DUT_PROFILE "Build Stage 3 DUT Profile foundation" ${ECU_BUILD_BENCH_RUNTIME})
+option(ECU_BUILD_DAF_SAC_PROFILE "Build Stage 3.3 DAF SAC proof profile" ${ECU_BUILD_DUT_PROFILE})
+option(ECU_BUILD_DAF_SAC_APPLICATION "Build isolated DAF SAC application module" ${ECU_BUILD_DAF_SAC_PROFILE})
+option(ECU_BUILD_SAC_MODULE "Build legacy SAC ECU module" OFF)
 option(
   ECU_BUILD_LINUX_SOCKETCAN
   "Build legacy Linux SocketCAN platform adapter"
-  ON
-)
-option(
-  ECU_BUILD_LINUX_V2_PLATFORM
-  "Build Linux Core V2 platform adapters"
   OFF
 )
+set(ECU_DEFAULT_LINUX_V2_PLATFORM OFF)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND ECU_BUILD_BENCH_RUNTIME)
+  set(ECU_DEFAULT_LINUX_V2_PLATFORM ON)
+endif()
+option(
+  ECU_BUILD_LINUX_V2_PLATFORM
+  "Build Linux Core V2 platform adapters (Linux only; never a Core dependency)"
+  ${ECU_DEFAULT_LINUX_V2_PLATFORM}
+)
+
+if(ECU_BUILD_LINUX_V2_PLATFORM AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  message(FATAL_ERROR
+    "ECU_BUILD_LINUX_V2_PLATFORM=ON requires a Linux target; the portable Core/Bench/DUT/Application must build without it")
+endif()
 
 if(ECU_BUILD_LEGACY_CORE)
   add_subdirectory(src/core)
