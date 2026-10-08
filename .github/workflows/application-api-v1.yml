@@ -85,3 +85,30 @@ jobs:
         run: cmake --build build/api-generic-ci --target ecu_application_api_tests ecu_api_daf_sac_projection_tests ecu_api_readout_wire_tests --parallel 2
       - name: Validate API without Linux or Windows sockets
         run: ctest --test-dir build/api-generic-ci -R '^ecu[.]api[.]' --output-on-failure
+
+
+  api-cm5-deployment-static:
+    name: CM5 deploy scripts and privilege gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax and Python parser
+        run: |
+          for script in scripts/prepare_cm5_api_v1.sh scripts/install_cm5_api_v1.sh scripts/rollback_cm5_api_v1.sh scripts/run_stage42_daf_sac_500k_read_gate.sh; do
+            bash -n "$script"
+          done
+          python3 -m py_compile scripts/verify_cm5_api_v1.py
+          python3 tests/api/cm5_deploy_policy_test.py
+      - name: Privileged installation and rollback are unavailable to normal user
+        run: |
+          if bash scripts/install_cm5_api_v1.sh > /tmp/api-install-denied.log 2>&1; then
+            echo "Unexpected non-root deployment" >&2
+            exit 1
+          fi
+          grep -q 'ECU_API_INSTALL=DENIED interactive-root-terminal-required' /tmp/api-install-denied.log
+          if bash scripts/rollback_cm5_api_v1.sh > /tmp/api-rollback-denied.log 2>&1; then
+            echo "Unexpected non-root rollback" >&2
+            exit 1
+          fi
+          grep -q 'ECU_API_ROLLBACK=DENIED root-required' /tmp/api-rollback-denied.log

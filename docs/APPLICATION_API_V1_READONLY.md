@@ -169,3 +169,56 @@ no authorization and no confusion with live `/dtcs`.
 
 No WebGUI changes, production merge, installed user or enabled service are
 part of this stage.
+
+## CM5 standalone API deployment gate (stage, no main merge)
+
+Files added under `scripts/`:
+
+- `prepare_cm5_api_v1.sh`: non-root Release candidate build of `ecu_api_http`,
+  API tests, and the operator-only SAC read probes in a separate build
+  tree. Records exact branch commit and SHA-256 in build output. Does not
+  touch CAN or services.
+- `install_cm5_api_v1.sh`: **one-time interactive root installer**, rejects
+  non-CM5 Debian, dirty/wrong branch, missing candidate stamp, active CAN,
+  unavailable kiosk/Bench Agent, occupied port 8878, existing/ambiguous
+  accounts/groups and unexpected filesystem paths. Creates separate
+  `ecu-api`, `ecu-api-read` and group-private readouts; generates a random
+  token on the device; installs the root-owned binary and systemd unit.
+  Starts only the API and calls the independent post-install smoke. Enables
+  startup only after smoke PASS. No ECU commands, no raw Bench Agent access.
+- `verify_cm5_api_v1.py`: checks exact running build SHA, bearer auth,
+  strict Host/Origin, absence of CAN write routes, netlink data, absent
+  live session and historical DTC, loopback-only socket, kiosk/agent service
+  health and access denial to the privileged Bench socket and API token.
+- `rollback_cm5_api_v1.sh`: stops and disables only the new API unit,
+  removes its runtime binary/service, preserves DUT evidence, credentials
+  and OS account for inspection. Can be invoked via
+  `sudo /usr/local/sbin/ecu-api-v1-rollback` after installation; invoked
+  automatically when the install smoke fails. **Reinstallation after
+  rollback is intentionally refused** until a separate recovery review
+  reconciles the retained accounts, token and filesystem state.
+
+On CM5, stage a candidate after this PR is committed and all CI checks pass:
+
+`bash scripts/prepare_cm5_api_v1.sh`
+
+Then in the operator's **interactive** VS Code terminal, from the **separate
+API branch directory** (`~/ECU_API_V1`), execute:
+
+`sudo bash scripts/install_cm5_api_v1.sh`
+
+The installer checks the candidate SHA itself and does not ask ChatGPT to
+handle a password. Success requires
+`ECU_API_INSTALL=PASS`, `ECU_API_CM5_INSTALL_SMOKE=PASS`, and
+`ECU_API_CAN_UNCHANGED=PASS`. Any failure is fail-closed; do not
+manually override device or service permissions to make it pass.
+
+After installation, historical `/api/v1/readouts/dtc/latest` is
+**unavailable** until a trusted operator deliberately executes a *new*
+SAC readout with the protected opt-in flag (after reviewing current DUT
+connection and ignition/power conditions). Existing private SAC trace
+files are **not** imported or masqueraded as a new capture.
+
+This CM5 deployment procedure is separate from `main` and WebGUI PR #19.
+Neither the existing WebGUI nor the restricted Bench Agent is restarted or
+reconfigured.

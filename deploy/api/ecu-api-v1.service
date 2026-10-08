@@ -1,6 +1,8 @@
 [Unit]
 Description=ECU Platform V2 Application API V1 (read-only)
 After=network.target
+StartLimitIntervalSec=30s
+StartLimitBurst=3
 # Staged example only. Do not enable as part of repository build/tests.
 
 [Service]

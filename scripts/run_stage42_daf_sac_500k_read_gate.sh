@@ -30,7 +30,8 @@ BITRATE=500000
 ID_PROBE="$ROOT/build/daf-sac-core-v2-probe/tests/ecu_daf_sac_core_v2_probe"
 READ_PROBE="$ROOT/build/daf-sac-app-linux/tests/ecu_daf_sac_stage42_read_probe"
 if [[ "$PUBLISH_READOUT" == 1 ]]; then
-  # Never replace the installed restricted agent's legacy binary.
+  # Never replace the installed restricted agent's legacy binaries.
+  ID_PROBE="$ROOT/build/api-readout-linux/tests/ecu_daf_sac_core_v2_probe"
   READ_PROBE="$ROOT/build/api-readout-linux/tests/ecu_daf_sac_stage42_read_probe"
 fi
 for tool in ip candump runuser getent cut install grep sed tee date stat chown sha256sum; do
