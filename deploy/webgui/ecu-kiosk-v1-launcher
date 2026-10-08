@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$(id -un)" == "ecu-kiosk" ]] || { echo "KIOSK_WRONG_IDENTITY" >&2; exit 1; }
+: "${ECU_KIOSK_URL:=http://127.0.0.1:8877/}"
+case "$ECU_KIOSK_URL" in
+  http://127.0.0.1:8877/|http://127.0.0.1:8877) ;;
+  *) echo "KIOSK_URL_NOT_ALLOWED" >&2; exit 1 ;;
+esac
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=cage
+PROFILE_DIR="/var/lib/ecu-kiosk/chromium-profile"
+install -d -m 0700 "$PROFILE_DIR"
+exec /usr/bin/cage -- /usr/bin/chromium \
+  --ozone-platform=wayland \
+  --kiosk \
+  --no-first-run \
+  --no-default-browser-check \
+  --disable-session-crashed-bubble \
+  --password-store=basic \
+  --user-data-dir="$PROFILE_DIR" \
+  "$ECU_KIOSK_URL"

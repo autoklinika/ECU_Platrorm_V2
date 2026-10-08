@@ -5,11 +5,19 @@ on:
     paths:
       - "webgui/**"
       - "docs/WEBGUI_HOME_V1_I18N.md"
+      - "docs/CM5_WEBGUI_KIOSK_DEPLOYMENT_V1.md"
+      - "deploy/webgui/**"
+      - "scripts/install_cm5_webgui_v1.sh"
+      - "tests/test_webgui_install_contract.py"
       - ".github/workflows/webgui-ui.yml"
   pull_request:
     paths:
       - "webgui/**"
       - "docs/WEBGUI_HOME_V1_I18N.md"
+      - "docs/CM5_WEBGUI_KIOSK_DEPLOYMENT_V1.md"
+      - "deploy/webgui/**"
+      - "scripts/install_cm5_webgui_v1.sh"
+      - "tests/test_webgui_install_contract.py"
       - ".github/workflows/webgui-ui.yml"
 
 permissions:
@@ -35,3 +43,14 @@ jobs:
           node --check webgui/src/domain-text.mjs
       - name: Client-only, navigation and translation tests
         run: node --test webgui/tests/i18n.test.mjs webgui/tests/contract.test.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Static deployment and HTTP security tests
+        run: python -m unittest discover -s tests -p test_webgui_install_contract.py -v
+      - name: Bash installer syntax
+        if: runner.os == 'Linux'
+        run: |
+          bash -n scripts/install_cm5_webgui_v1.sh
+          bash -n deploy/webgui/rollback_kiosk.sh
+          bash -n deploy/webgui/ecu-kiosk-v1-launcher
