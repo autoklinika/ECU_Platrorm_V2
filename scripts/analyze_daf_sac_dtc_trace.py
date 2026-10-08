@@ -109,6 +109,9 @@ def summary(path: Path) -> tuple[list[str], str]:
     pending = 0
     dtc_counts: list[int] = []
     capture_started_clear = False
+    post_clear_read_requests = 0
+    post_clear_read_responses = 0
+    post_clear_session_acks = 0
 
     try:
         source = path.open(encoding="ascii", errors="replace")
@@ -136,9 +139,13 @@ def summary(path: Path) -> tuple[list[str], str]:
             if is_tx and sid == 0x10 and msg == bytes.fromhex("1003"):
                 lines.append(f"SAC_TRACE_EVENT={stamp} {label} UDS_10_03")
             elif is_tx and sid == 0x19 and msg[:2] == bytes.fromhex("1902"):
-                lines.append(f"SAC_TRACE_EVENT={stamp} {label} UDS_19_02 mask=0x{msg[2]:02X}"
-                             if len(msg) == 3 else
-                             f"SAC_TRACE_EVENT={stamp} {label} MALFORMED_19")
+                if len(msg) == 3:
+                    if capture_started_clear:
+                        post_clear_read_requests += 1
+                    lines.append(f"SAC_TRACE_EVENT={stamp} {label} UDS_19_02 mask=0x{msg[2]:02X}")
+                else:
+                    errors += 1
+                    lines.append(f"SAC_TRACE_EVENT={stamp} {label} MALFORMED_19")
             elif is_tx and sid == 0x14:
                 clear_requests += 1
                 capture_started_clear = True
@@ -164,13 +171,23 @@ def summary(path: Path) -> tuple[list[str], str]:
                 if (len(msg) - 3) % 4 == 0:
                     count = (len(msg) - 3) // 4
                     dtc_counts.append(count)
+                    if capture_started_clear and post_clear_read_requests:
+                        post_clear_read_responses += 1
                     lines.append(f"SAC_TRACE_EVENT={stamp} {label} UDS_59_02 "
                                  f"dtc_count={count} availability=0x{msg[2]:02X}")
                 else:
                     errors += 1
                     lines.append(f"SAC_TRACE_EVENT={stamp} {label} MALFORMED_DTC_LIST")
             elif not is_tx and sid == 0x50:
-                lines.append(f"SAC_TRACE_EVENT={stamp} {label} UDS_50_SESSION")
+                if capture_started_clear:
+                    post_clear_session_acks += 1
+                if len(msg) >= 6:
+                    p2 = int.from_bytes(msg[2:4], "big")
+                    p2star = 10 * int.from_bytes(msg[4:6], "big")
+                    lines.append(f"SAC_TRACE_EVENT={stamp} {label} UDS_50_SESSION "
+                                 f"p2_ms={p2} p2star_ms={p2star}")
+                else:
+                    lines.append(f"SAC_TRACE_EVENT={stamp} {label} UDS_50_SESSION")
     if tx.expected or rx.expected:
         errors += 1  # incomplete multi-frame capture is never proof of success
 
@@ -180,8 +197,12 @@ def summary(path: Path) -> tuple[list[str], str]:
         result = "MULTIPLE_CLEAR_REQUESTS_OBSERVED"
     elif positive and negative_final:
         result = "CONFLICTING_CLEAR_REPLIES"
+    elif positive == 1 and post_clear_read_responses:
+        result = "UDS_54_OBSERVED_POST_READ_CAPTURED"
+    elif positive == 1 and post_clear_read_requests:
+        result = "UDS_54_OBSERVED_POST_READ_INCOMPLETE"
     elif positive == 1:
-        result = "UDS_54_OBSERVED_VERIFY_POST_READ"
+        result = "UDS_54_OBSERVED_POST_READ_NOT_REQUESTED"
     elif positive > 1:
         result = "MULTIPLE_CLEAR_ACKS_OBSERVED"
     elif negative_final:
@@ -197,6 +218,9 @@ def summary(path: Path) -> tuple[list[str], str]:
         f"SAC_TRACE_CLEAR_REQUESTS_OBSERVED={clear_requests}",
         f"SAC_TRACE_CLEAR_ACKS_OBSERVED={positive}",
         f"SAC_TRACE_CLEAR_RESPONSE_PENDING={pending}",
+        f"SAC_TRACE_POST_CLEAR_SESSION_ACKS={post_clear_session_acks}",
+        f"SAC_TRACE_POST_CLEAR_READ_REQUESTS={post_clear_read_requests}",
+        f"SAC_TRACE_POST_CLEAR_READ_RESPONSES={post_clear_read_responses}",
         f"SAC_TRACE_DTC_LIST_COUNTS={','.join(str(c) for c in dtc_counts)}",
         f"SAC_TRACE_RESULT={result}",
     ])

@@ -113,7 +113,8 @@ namespace uds = ecu::core::v2::protocol::uds;
 
 [[nodiscard]] int failed(
     const char* reason, const app::Application* application = nullptr) {
-  std::cerr << "SAC_STAGE42_READ_PHYSICAL=FAIL reason=" << reason;
+  // This binary is the destructive operator CLI, not the read-only gate.
+  std::cerr << "SAC_DTC_CLEAR_CLI=FAIL reason=" << reason;
   if (application != nullptr) {
     const auto s = application->snapshot();
     std::cerr << " app_status=" << static_cast<unsigned int>(s.status)
@@ -366,10 +367,53 @@ int main(int argc, char** argv) {
   std::cout << "SAC_DTC_CLEAR_UDS_ACK=YES\n"
             << "SAC_DTC_CLEAR_VERIFICATION=RE-READ_DTC\n";
 
-  // Positive SID 0x54 is not proof that the actual faults disappeared.
-  // Read again and preserve the result, including recurring DTCs.
-  if (application.read_dtcs(0xFFU) != app::AppStatus::ok ||
-      !execute_until(app::AppState::dtcs_ready)) {
+  // An ACK does NOT prove that the faults disappeared. The legacy SAC
+  // application finished on 0x54 and started a NEW read only when the
+  // operator refreshed the view. In V2 the immediate post-clear 10 03
+  // sometimes times out, despite a 50 03 visible in parallel CAN capture.
+  // Allow the SAC to settle before a new standalone read-only Bench session.
+  // Never re-send 0x14 under any recovery condition.
+  constexpr auto kPostClearSettle = std::chrono::milliseconds{1000};
+  std::cout << "SAC_POST_CLEAR_SETTLE_MS=" << kPostClearSettle.count() << '\n'
+            << std::flush;
+  std::this_thread::sleep_for(kPostClearSettle);
+
+  const auto verify_read = [&]() {
+    return application.read_dtcs(0xFFU) == app::AppStatus::ok &&
+           execute_until(app::AppState::dtcs_ready);
+  };
+  bool verified = verify_read();
+  if (!verified) {
+    const auto first = application.snapshot();
+    std::ostringstream diagnostic;
+    diagnostic << "POST_CLEAR_FIRST_READ=FAILED app_status="
+               << static_cast<unsigned int>(first.status)
+               << " uds=" << static_cast<unsigned int>(first.uds_status)
+               << " nrc=" << static_cast<unsigned int>(first.nrc)
+               << " transport="
+               << static_cast<unsigned int>(first.transport_failure) << '\n';
+    if (!evidence.append(diagnostic.str())) {
+      return failed("post-clear-first-read-evidence-not-durable", &application);
+    }
+    std::cerr << "SAC_POST_CLEAR_FIRST_READ=FAIL; UDS 54 ACK RETAINED\n";
+    if (first.state != app::AppState::faulted ||
+        resources.active_count() != 0U ||
+        bus.state() == transport::CanBusState::running ||
+        application.recover() != app::AppStatus::ok) {
+      (void)evidence.append("POST_CLEAR_VERIFICATION=RECOVERY_BLOCKED\n");
+      return failed("post-clear-read-only-recovery-blocked", &application);
+    }
+    // Exactly one retry of 10 03 / 19 02 FF only, in a fresh session.
+    // The previously acknowledged destructive request remains one-shot.
+    std::this_thread::sleep_for(std::chrono::milliseconds{1000});
+    std::cout << "SAC_POST_CLEAR_READ_ONLY_RETRY=ONE\n" << std::flush;
+    verified = verify_read();
+    if (verified && !evidence.append(
+                        "POST_CLEAR_READ_ONLY_RETRY=RECOVERED\n")) {
+      return failed("post-clear-read-recovery-evidence-not-durable");
+    }
+  }
+  if (!verified) {
     (void)evidence.append("POST_CLEAR_VERIFICATION=FAILED\n");
     std::cerr << "SAC_POST_CLEAR_READ=FAIL; CLEAR WAS ACKNOWLEDGED\n";
     return failed("post-clear-DTC-read-failed", &application);

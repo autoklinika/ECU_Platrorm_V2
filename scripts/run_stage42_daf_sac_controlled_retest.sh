@@ -152,10 +152,11 @@ set -e
 echo "SAC_CONTROLLED_RETEST_PASSIVE_WINDOW=8_SECONDS_NO_TX"
 sleep 8
 ip -details -statistics link show "$IFACE" >> "$CAN_STATS" || true
-ip link set "$IFACE" down
+# Stop the sniffer BEFORE CAN DOWN to avoid a spurious ENETDOWN log error.
 kill -INT "$CAPTURE_PID" 2>/dev/null || true
 wait "$CAPTURE_PID" 2>/dev/null || true
 CAPTURE_PID=""
+ip link set "$IFACE" down
 
 python3 "$ANALYZE" "$TRACE" > "$SUMMARY" || true
 cat "$SUMMARY"
@@ -176,7 +177,11 @@ else
   echo "SAC_CONTROLLED_RETEST_POST_READ=SKIPPED_NO_CLEAR_START"
 fi
 if [[ "$PROBE_RC" -ne 0 ]]; then
-  echo "SAC_CONTROLLED_RETEST_RESULT=UNCONFIRMED probe_exit=$PROBE_RC"
+  if grep -q 'SAC_DTC_CLEAR_UDS_ACK=YES' "$CONSOLE"; then
+    echo "SAC_CONTROLLED_RETEST_RESULT=CLEAR_ACKNOWLEDGED_POST_READ_INCOMPLETE probe_exit=$PROBE_RC"
+  else
+    echo "SAC_CONTROLLED_RETEST_RESULT=CLEAR_ACK_UNCONFIRMED probe_exit=$PROBE_RC"
+  fi
   echo "SAC_CONTROLLED_RETEST_NO_AUTOMATIC_RETRY=YES"
   exit "$PROBE_RC"
 fi
@@ -186,6 +191,7 @@ if ! grep -q 'SAC_DTC_CLEAR_PHYSICAL=ACKNOWLEDGED_AND_RECHECKED' "$CONSOLE"; the
 fi
 if ! grep -qx 'SAC_TRACE_CLEAR_REQUESTS_OBSERVED=1' "$SUMMARY" ||
    ! grep -qx 'SAC_TRACE_CLEAR_ACKS_OBSERVED=1' "$SUMMARY" ||
+   ! grep -Eq '^SAC_TRACE_POST_CLEAR_READ_RESPONSES=[1-9][0-9]*$' "$SUMMARY" ||
    ! grep -qx 'SAC_TRACE_PARSE_ERRORS=0' "$SUMMARY"; then
   echo "SAC_CONTROLLED_RETEST_RESULT=ACKNOWLEDGED_BUT_TRACE_INCOMPLETE"
   exit 6

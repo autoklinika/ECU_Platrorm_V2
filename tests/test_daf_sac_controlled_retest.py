@@ -169,12 +169,36 @@ class TraceTests(unittest.TestCase):
             + candelog(analyzer.RX_ID, bytes.fromhex("59028B"), 26)
         )
         summary, result = trace_summary(content)
-        self.assertEqual(result, "UDS_54_OBSERVED_VERIFY_POST_READ", summary)
+        self.assertEqual(result, "UDS_54_OBSERVED_POST_READ_CAPTURED", summary)
         self.assertIn("SAC_TRACE_DTC_LIST_COUNTS=12,0", summary)
+        self.assertIn("SAC_TRACE_POST_CLEAR_READ_REQUESTS=1", summary)
+        self.assertIn("SAC_TRACE_POST_CLEAR_READ_RESPONSES=1", summary)
         self.assertIn("SAC_TRACE_CLEAR_REQUESTS_OBSERVED=1", summary)
         self.assertIn("SAC_TRACE_CLEAR_ACKS_OBSERVED=1", summary)
         self.assertIn("SAC_TRACE_CLEAR_RESPONSE_PENDING=1", summary)
         self.assertIn("SAC_TRACE_PARSE_ERRORS=0", summary)
+
+    def test_ack_followed_by_session_only_is_unverified(self) -> None:
+        # Regression derived from the physical 2026-10-08 SAC event sequence:
+        # Clear ACK, then 10 03 / 50 03, but no subsequent 19 02 FF.
+        # Use synthetic frames rather than publishing private bench evidence.
+        session = bytes.fromhex("5003001900C8")
+        content = (
+            candelog(analyzer.TX_ID, bytes.fromhex("14FFFFFF"), 1)
+            + candelog(analyzer.RX_ID, bytes.fromhex("54"), 2)
+            + candelog(analyzer.TX_ID, bytes.fromhex("1003"), 3)
+            + candelog(analyzer.RX_ID, session, 4)
+        )
+        report, result = trace_summary(content)
+        self.assertEqual(result, "UDS_54_OBSERVED_POST_READ_NOT_REQUESTED", report)
+        self.assertIn("SAC_TRACE_POST_CLEAR_SESSION_ACKS=1", report)
+        self.assertIn("SAC_TRACE_POST_CLEAR_READ_REQUESTS=0", report)
+        self.assertIn("p2_ms=25 p2star_ms=2000", report)
+
+        # A transmitted 19 02 FF without 59 02 is still NOT verification.
+        report, result = trace_summary(
+            content + candelog(analyzer.TX_ID, bytes.fromhex("1902FF"), 5))
+        self.assertEqual(result, "UDS_54_OBSERVED_POST_READ_INCOMPLETE", report)
 
     def test_nrc_and_missing_response_are_not_success(self) -> None:
         start = candelog(analyzer.TX_ID, bytes.fromhex("14FFFFFF"), 1)

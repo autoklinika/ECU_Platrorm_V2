@@ -20,6 +20,26 @@ namespace bench = ecu::bench;
          status == uds::UdsStatus::in_progress;
 }
 
+// SAC-specific client-side latency allowance. The ECU advertises P2=25 ms
+// in 50 03; losing a scheduling slot after ClearDiagnosticInformation must
+// not silently turn a reply into a false timeout. This does NOT modify the
+// ECU-reported timings or the transport-neutral UDS/Core contracts.
+[[nodiscard]] bool ensure_client_wait(
+    uds::UdsClient& client,
+    const std::chrono::milliseconds minimum_p2,
+    const std::chrono::milliseconds minimum_p2_star) noexcept {
+  auto timing = client.timing();
+  if (timing.p2 < minimum_p2) {
+    timing.p2 = minimum_p2;
+  }
+  if (timing.p2_star < minimum_p2_star) {
+    timing.p2_star = minimum_p2_star;
+  }
+  client.set_timing(timing);
+  return client.timing().p2 == timing.p2 &&
+         client.timing().p2_star == timing.p2_star;
+}
+
 [[nodiscard]] std::uint16_t big16(
     const std::byte high, const std::byte low) noexcept {
   return static_cast<std::uint16_t>(
@@ -212,6 +232,12 @@ bench::BenchComponentStatus ServiceProgram::prepare(
   // A previous clear-specific client timeout must never leak into the
   // next read/identification session.
   uds_.set_timing(initial_timing_);
+  if (selected_ == SacService::read_dtcs &&
+      !ensure_client_wait(
+          uds_, std::chrono::milliseconds{1000},
+          std::chrono::milliseconds{5000})) {
+    return fail();
+  }
   phase_ = Phase::idle;
   status_ = IdentificationProgramStatus::prepared;
   last_status_ = uds::UdsStatus::idle;
@@ -315,25 +341,20 @@ bench::BenchComponentStatus ServiceProgram::handle_response(
           raw(response.payload[1U]) != 0x03U) {
         return fail();
       }
-      if (selected_ == SacService::clear_dtcs) {
-        // ECU may need longer to process ClearDiagnosticInformation than
-        // ordinary ReadDTCInformation. This is a SAC-specific CLIENT wait
-        // allowance, not an assertion that the OEM supports or completed
-        // the operation. Never retry automatically if no reply arrives.
-        auto timing = uds_.timing();
-        constexpr auto kClearClientP2 = std::chrono::milliseconds{3000};
-        constexpr auto kClearClientP2Star = std::chrono::milliseconds{5000};
-        if (timing.p2 < kClearClientP2) {
-          timing.p2 = kClearClientP2;
-        }
-        if (timing.p2_star < kClearClientP2Star) {
-          timing.p2_star = kClearClientP2Star;
-        }
-        uds_.set_timing(timing);
-        if (uds_.timing().p2 != timing.p2 ||
-            uds_.timing().p2_star != timing.p2_star) {
-          return fail();
-        }
+      if (selected_ == SacService::read_dtcs &&
+          !ensure_client_wait(
+              uds_, std::chrono::milliseconds{1000},
+              std::chrono::milliseconds{5000})) {
+        // ECU's 50 03 timing bytes remain evidence, but do not shorten
+        // the SAC application client's user-space response allowance.
+        return fail();
+      }
+      if (selected_ == SacService::clear_dtcs &&
+          !ensure_client_wait(
+              uds_, std::chrono::milliseconds{3000},
+              std::chrono::milliseconds{5000})) {
+        // The destructive request can take longer; no automatic retry.
+        return fail();
       }
       phase_ = Phase::request_data;
       return bench::BenchComponentStatus::ok;

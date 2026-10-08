@@ -196,6 +196,14 @@ class ScriptedTransport final : public transport::IDiagnosticTransport {
         response_[0U] = std::byte{0x50U};
         response_[1U] = std::byte{0x03U};
         response_size_ = 2U;
+        if (announce_short_session_timing) {
+          // Physical SAC reply: 50 03 00 19 00 C8 => P2 25ms / P2* 2s.
+          response_[2U] = std::byte{0x00U};
+          response_[3U] = std::byte{0x19U};
+          response_[4U] = std::byte{0x00U};
+          response_[5U] = std::byte{0xC8U};
+          response_size_ = 6U;
+        }
       } else if (sid == 0x19U && request_[1U] == std::byte{0x02U}) {
         ++dtc_requests;
         last_mask = std::to_integer<std::uint8_t>(request_[2U]);
@@ -233,6 +241,18 @@ class ScriptedTransport final : public transport::IDiagnosticTransport {
         response_size_ = 3U;
       }
       if (drop_service == sid) {
+        return transport::DiagnosticTransportStatus::ok;
+      }
+      if (sid == 0x10U && drop_next_post_clear_session &&
+          clear_requests != 0) {
+        // A response can be visible on a parallel CAN sniffer while the
+        // UDS client fails to complete its first post-clear 10 03 exchange.
+        drop_next_post_clear_session = false;
+        return transport::DiagnosticTransportStatus::ok;
+      }
+      if (sid == 0x19U && dtc_reply_delay.count() > 0) {
+        delayed_reply_ = true;
+        reply_ready_at_ = reading.value + dtc_reply_delay;
         return transport::DiagnosticTransportStatus::ok;
       }
       if (sid == 0x14U && clear_reply_delay.count() > 0) {
@@ -351,6 +371,9 @@ class ScriptedTransport final : public transport::IDiagnosticTransport {
   bool overflow_dtc{false};
   bool malformed_voltage{false};
   bool invalid_voltage_value{false};
+  bool announce_short_session_timing{false};
+  bool drop_next_post_clear_session{false};
+  std::chrono::milliseconds dtc_reply_delay{0};
   std::chrono::milliseconds clear_reply_delay{0};
   int requests{0};
   int clear_requests{0};
@@ -908,6 +931,21 @@ int main() {
 
   {
     ServicesFixture f;
+    f.script.announce_short_session_timing = true;
+    f.script.dtc_reply_delay = std::chrono::milliseconds{200};
+    failures += require(
+        f.application.configure({std::chrono::milliseconds{250}}) &&
+        f.application.read_dtcs(0xFFU) == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_ready, 350) == 0 &&
+        f.application.dtcs().count == 1U &&
+        f.script.dtc_requests == 1 &&
+        f.script.clear_requests == 0 &&
+        f.resources.active_count() == 0U,
+        "SAC advertised 25ms P2 does not cause false timeout on a 200ms DTC reply");
+  }
+
+  {
+    ServicesFixture f;
     f.script.reject_service = 0x19U;
     failures += require(f.application.configure({std::chrono::milliseconds{250}}) &&
         f.application.read_dtcs() == app::AppStatus::ok,
@@ -1071,6 +1109,38 @@ int main() {
         f.uds_client.timing().p2 == std::chrono::milliseconds{100} &&
         f.resources.active_count() == 0U,
         "delayed 0x54 at 650 ms accepted; single clear; P2 reset after cleanup");
+  }
+
+  {
+    ServicesFixture f;
+    f.script.announce_short_session_timing = true;
+    f.script.drop_next_post_clear_session = true;
+    failures += require(
+        f.application.configure({std::chrono::milliseconds{250}}) &&
+        f.application.read_dtcs(0xFFU) == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_ready) == 0,
+        "SAC post-clear verification fault simulation has pre-clear DTC evidence");
+    const auto challenge = f.application.prepare_clear_dtcs();
+    failures += require(
+        f.application.clear_dtcs(challenge, true) == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_clear_acknowledged) == 0 &&
+        f.script.clear_requests == 1,
+        "SAC accepts precisely one clear before transient post-clear read fault");
+    failures += require(
+        f.application.read_dtcs(0xFFU) == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_ready, 1400) != 0 &&
+        f.application.snapshot().state == app::AppState::faulted &&
+        f.application.snapshot().uds_status == uds::UdsStatus::timeout_p2 &&
+        f.resources.active_count() == 0U,
+        "first post-clear 10 03 can time out while preserving safe shutdown");
+    failures += require(
+        f.application.recover() == app::AppStatus::ok &&
+        f.application.read_dtcs(0xFFU) == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_ready) == 0 &&
+        f.application.dtcs().valid &&
+        f.script.clear_requests == 1 &&
+        f.resources.active_count() == 0U,
+        "a separate read-only retry recovers verification without re-erasing");
   }
 
   {
