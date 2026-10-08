@@ -211,10 +211,11 @@ if runuser -u ecu-kiosk -- test -r /home/ecu/ECU_Platrorm_V2/CMakeLists.txt; the
   echo "ECU_WEBGUI_PROJECT_ISOLATION=FAIL"
   exit 1
 fi
-if ! journalctl -u ecu-kiosk.service --no-pager -n 80 | grep -q 'ECU_KIOSK_SECURITY_PREFLIGHT=PASS'; then
-  echo "ECU_WEBGUI_SECURITY_PREFLIGHT_LOG=FAIL"
-  exit 1
-fi
+# ExecStartPre is mandatory (not prefixed with '-') and systemd prevents
+# ExecStart when the safety preflight fails. Its stdout belongs to the
+# PAM-created session-*.scope, not necessarily ecu-kiosk.service, so
+# scraping journalctl -u would falsely fail a correctly isolated kiosk.
+# Real denial checks above, service state and process identity are authoritative.
 
 echo "ECU_WEBGUI_INSTALL=PASS"
 echo "ECU_WEBGUI_RELEASE=$revision"

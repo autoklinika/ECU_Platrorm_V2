@@ -85,6 +85,17 @@ class SecurityContractTest(unittest.TestCase):
         self.assertNotIn("systemctl restart", probe)
         self.assertNotIn("can0", probe)
 
+    def test_pam_session_journal_is_not_a_security_gate(self):
+        install = (BASE / "scripts" / "install_cm5_webgui_v1.sh").read_text()
+        unit = (DEPLOY / "ecu-kiosk-v1.service").read_text()
+        self.assertIn("\nExecStartPre=/usr/bin/python3 -I ", unit)
+        self.assertNotIn("ECU_WEBGUI_SECURITY_PREFLIGHT_LOG=FAIL", install)
+        self.assertNotIn("journalctl -u ecu-kiosk.service --no-pager -n 80 | grep", install)
+        self.assertIn("ECU_WEBGUI_BENCH_AGENT_ISOLATION=FAIL", install)
+        self.assertIn("ECU_WEBGUI_PROJECT_ISOLATION=FAIL", install)
+        self.assertIn("systemctl is-active --quiet ecu-kiosk.service", install)
+        self.assertIn('pgrep -u ecu-kiosk -x chromium', install)
+
     def test_recovery_is_defined_before_restart(self):
         install = (BASE / "scripts" / "install_cm5_webgui_v1.sh").read_text()
         rollback = (DEPLOY / "rollback_kiosk.sh").read_text()

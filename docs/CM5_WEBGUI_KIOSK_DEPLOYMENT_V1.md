@@ -229,3 +229,21 @@ DRM output, a PAM session under ecu-kiosk, or the WaveShare touch path.
 
 The physical kiosk installation still needs one separately gated
 administrator cutover and actual operator verification.
+
+## 2026-10-08: final validation false negative
+
+The third root cutover **did launch** the isolated Cage + Chromium and load
+all WebGUI static assets, but the installer incorrectly returned
+ECU_WEBGUI_SECURITY_PREFLIGHT_LOG=FAIL and rolled back.
+
+Evidence: journald contains ECU_KIOSK_SECURITY_PREFLIGHT=PASS from the
+mandatory ExecStartPre process PID 453104, which PAMName=ecu-kiosk placed
+in session-c32.scope. The installer had searched only
+journalctl -u ecu-kiosk.service, which excludes that session-scoped output.
+This was a log-query bug, not a failed security preflight.
+
+The redundant log-query gate is removed. Systemd's mandatory ExecStartPre
+still fails closed on nonzero exit; the installer retains process identity,
+running kiosk, denied Bench-agent socket, denied operator filesystem and
+local-only static HTTP checks. No security permission was relaxed.
+Physical touch and reboot acceptance remain outstanding.
