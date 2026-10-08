@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import http.client
+import http.client as http_client
 import json
 import os
 import grp
@@ -26,9 +26,9 @@ def run(*args: str) -> str:
     ).strip()
 
 
-def http(method: str, route: str, auth: str | None,
+def api_request(method: str, route: str, auth: str | None,
          extra: dict[str, str] | None = None) -> tuple[int, dict, dict]:
-    conn = http.client.HTTPConnection("127.0.0.1", 8878, timeout=3)
+    conn = http_client.HTTPConnection("127.0.0.1", 8878, timeout=3)
     try:
         headers = dict(extra or {})
         if auth is not None:
@@ -117,39 +117,39 @@ def main() -> None:
     listeners = [line.split()[3] for line in lines if line.split()[3].endswith(":8878")]
     check(listeners == ["127.0.0.1:8878"], "LISTEN_LOOPBACK_ONLY")
 
-    code, headers, about = http("GET", "/api/v1/about", token)
+    code, headers, about = api_request("GET", "/api/v1/about", token)
     check(code == 200 and
           about.get("data", {}).get("api_version") == "v1" and
           about["data"].get("read_only") is True and
           about["data"].get("build_revision") == args.expected_revision,
           "API_BUILD_AND_READONLY")
     check(headers.get("Cache-Control") == "no-store", "CACHE_DISABLED")
-    code, _, _ = http("GET", "/api/v1/about", None)
+    code, _, _ = api_request("GET", "/api/v1/about", None)
     check(code == 401, "BEARER_REQUIRED")
-    code, _, _ = http("GET", "/api/v1/about", "f" * 64)
+    code, _, _ = api_request("GET", "/api/v1/about", "f" * 64)
     check(code == 401, "BEARER_INVALID_DENIED")
-    code, _, _ = http("GET", "/api/v1/about", token,
+    code, _, _ = api_request("GET", "/api/v1/about", token,
                        {"Origin": "https://untrusted.invalid"})
     check(code == 403, "ORIGIN_DENIED")
-    code, _, _ = http("POST", "/api/v1/about", token)
+    code, _, _ = api_request("POST", "/api/v1/about", token)
     check(code in (400, 405), "WRITE_METHOD_DENIED")
-    code, _, _ = http("GET", "/api/v1/can/transmit", token)
+    code, _, _ = api_request("GET", "/api/v1/can/transmit", token)
     check(code == 404, "CAN_TX_ROUTE_ABSENT")
 
-    code, _, link = http("GET", "/api/v1/interfaces", token)
+    code, _, link = api_request("GET", "/api/v1/interfaces", token)
     actual = json.loads(run("ip", "-j", "-d", "link", "show", "can0"))[0]
     check(code == 200 and len(link["data"]["interfaces"]) == 1 and
           link["data"]["interfaces"][0]["name"] == "can0" and
           link["data"]["interfaces"][0]["up"] == ("UP" in actual["flags"]),
           "ACTUAL_CAN_NETLINK")
     check("UP" not in actual["flags"], "CAN_REMAINS_DOWN")
-    code, _, errors = http("GET", "/api/v1/dut/dtcs", token)
+    code, _, errors = api_request("GET", "/api/v1/dut/dtcs", token)
     check(code == 503 and errors["error"]["code"] == "backend_unavailable",
           "LIVE_DTC_FAIL_CLOSED")
-    code, _, errors = http("GET", "/api/v1/readouts/dtc/latest", token)
+    code, _, errors = api_request("GET", "/api/v1/readouts/dtc/latest", token)
     check(code == 503 and errors["error"]["code"] == "backend_unavailable",
           "MISSING_READOUT_FAIL_CLOSED")
-    web = http.client.HTTPConnection("127.0.0.1", 8877, timeout=3)
+    web = http_client.HTTPConnection("127.0.0.1", 8877, timeout=3)
     try:
         web.request("GET", "/")
         response = web.getresponse()

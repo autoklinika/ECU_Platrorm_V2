@@ -78,6 +78,20 @@ def main():
     must(not re.search(r"systemctl\s+(stop|restart|disable|enable)\s+"
                        r"(ecu-kiosk|ecu-webgui|ecu-platform-v2-bench-agent)",
                        installer + rollback), "no_existing_service_mutation")
+    must('RECOVER_AFTER_ROLLBACK=0' in installer and
+         '"--resume-after-rollback"' in installer,
+         "explicit_rollback_recovery_optin")
+    must("ECU_API_RECOVER_PREFLIGHT=PASS retained-assets-verified" in installer,
+         "recovery_has_separate_gate")
+    must("rollback-binary-drift" in installer and
+         "invalid-retained-token" in installer,
+         "retained_assets_reauthenticated")
+    must("retained-state-requires-review" in installer and
+         "ownership-or-permissions-drift" in installer and
+         "credential-group-membership-drift" in installer,
+         "recovery_rejects_drift")
+    must("if [[ \"$RECOVER_AFTER_ROLLBACK\" == 0 ]]; then" in installer,
+         "account_and_token_creation_fresh_only")
     must("PROBE_BUILD=build/api-readout-linux" in prep,
          "isolated_operator_probes")
     must("--target ecu_daf_sac_core_v2_probe ecu_daf_sac_stage42_read_probe" in prep,

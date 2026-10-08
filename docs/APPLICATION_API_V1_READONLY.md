@@ -194,9 +194,11 @@ Files added under `scripts/`:
   removes its runtime binary/service, preserves DUT evidence, credentials
   and OS account for inspection. Can be invoked via
   `sudo /usr/local/sbin/ecu-api-v1-rollback` after installation; invoked
-  automatically when the install smoke fails. **Reinstallation after
-  rollback is intentionally refused** until a separate recovery review
-  reconciles the retained accounts, token and filesystem state.
+  automatically when the install smoke fails. **A normal fresh reinstall is intentionally refused after rollback.**
+  An explicit `--resume-after-rollback` is supported only if the retained
+  identities, credentials, empty readout store, permissions, rollback binary
+  digest and service absence are independently revalidated. The token is
+  reused without printing or rotating it. Any drift causes fail-closed denial.
 
 On CM5, stage a candidate after this PR is committed and all CI checks pass:
 
@@ -222,3 +224,31 @@ files are **not** imported or masqueraded as a new capture.
 This CM5 deployment procedure is separate from `main` and WebGUI PR #19.
 Neither the existing WebGUI nor the restricted Bench Agent is restarted or
 reconfigured.
+
+
+### Incident recovery — failed first install smoke (2026-10-08)
+
+The first operator installation passed account/group, file ownership, socket
+isolation and listener preflights, but the smoke test crashed before its first
+HTTP query: Python `def http(...)` shadowed the imported `http.client`
+module, raising `AttributeError`. The rollback passed and removed the API
+systemd unit and binary, while retaining the correctly protected token,
+system groups and readout directory. The kiosk, Bench Agent and CAN remained
+unmodified.
+
+Fixed by renaming the helper to `api_request`, importing
+`http.client as http_client`, and adding **executable regressions** that invoke the HTTP helper and
+exercise the entire smoke-check control flow with isolated fixtures in CI.
+Syntax checking alone cannot detect module shadowing. A new explicit install recovery mode audits and reuses only the
+already-provisioned account/group, token and empty readout directory:
+
+```sh
+cd ~/ECU_API_V1
+bash scripts/prepare_cm5_api_v1.sh
+sudo bash scripts/install_cm5_api_v1.sh --resume-after-rollback
+```
+
+This command requires an interactive sudo session from the operator. It
+must return `ECU_API_RECOVER_PREFLIGHT=PASS`, the post-install smoke PASS
+and `ECU_API_INSTALL=PASS` before enabling the unit. It does not start a
+physical diagnostic operation or grant hardware permissions to WebGUI/API.

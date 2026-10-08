@@ -12,6 +12,13 @@ if [[ "${SUDO_USER:-}" != ecu ]]; then
   echo "ECU_API_INSTALL=DENIED expected-operator-ecu" >&2
   exit 2
 fi
+RECOVER_AFTER_ROLLBACK=0
+if [[ "$#" -eq 1 && "$1" == "--resume-after-rollback" ]]; then
+  RECOVER_AFTER_ROLLBACK=1
+elif [[ "$#" -ne 0 ]]; then
+  echo "ECU_API_INSTALL=DENIED invalid-mode" >&2
+  exit 2
+fi
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 # Inspect the worktree as its authorized non-root owner. Git intentionally
 # refuses to trust a user-owned worktree when run as root.
@@ -47,7 +54,7 @@ trap fail ERR EXIT
 
 for executable in getent git id install groupadd useradd \
     systemctl systemd-analyze openssl ss ip stat sha256sum runuser \
-    python3 curl grep cut chmod chown mktemp mv uname; do
+    python3 curl grep cut chmod chown mktemp mv uname find; do
   command -v "$executable" >/dev/null || {
     echo "ECU_API_INSTALL=FAIL missing-tool=$executable" >&2
     exit 3
@@ -76,13 +83,8 @@ if [[ "$(cat "$PREPARED_REV")" != "$REVISION" ]] ||
   exit 3
 fi
 
-# Never overwrite existing or externally administered resources.
-if [[ -e "$MARKER" || -e "$SERVICE_DST" || -e "$BINARY_DST" ||
-      -e "$KEY_PATH" || -L "$SERVICE_DST" || -L "$BINARY_DST" ||
-      -L "$DATA_DIR" || -L "$KEY_DIR" ]]; then
-  echo "ECU_API_INSTALL=DENIED existing-release-or-unsafe-path" >&2
-  exit 3
-fi
+# Runtime and retained-asset validation are performed below. The recovery
+# path must not reject the intentionally preserved token before auditing it.
 for service in ecu-kiosk.service ecu-webgui-static.service \
                ecu-platform-v2-bench-agent.service; do
   [[ "$(systemctl is-active "$service")" == active ]] || {
@@ -111,29 +113,108 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
 print("ECU_API_INSTALL_PORT_8878=AVAILABLE")
 PY
 
-if getent passwd ecu-api >/dev/null; then
-  echo "ECU_API_INSTALL=DENIED preexisting-ecu-api-account-requires-review" >&2
+if [[ -e "$MARKER" || -L "$MARKER" ||
+      -e "$SERVICE_DST" || -L "$SERVICE_DST" ||
+      -e "$BINARY_DST" || -L "$BINARY_DST" ]]; then
+  echo "ECU_API_INSTALL=DENIED existing-runtime-or-release-marker" >&2
   exit 3
 fi
-for group in ecu-api ecu-api-read; do
-  if getent group "$group" >/dev/null; then
-    echo "ECU_API_INSTALL=DENIED preexisting-group-$group-requires-review" >&2
-    exit 3
-  fi
-done
-for path in "$DATA_PARENT" "$DATA_DIR" "$KEY_PARENT" "$KEY_DIR" "$INSTALL_STATE"; do
-  [[ ! -e "$path" && ! -L "$path" ]] || {
-    echo "ECU_API_INSTALL=DENIED path-already-exists=$path" >&2
+
+if [[ "$RECOVER_AFTER_ROLLBACK" == 0 ]]; then
+  [[ ! -e "$KEY_PATH" && ! -L "$KEY_PATH" &&
+     ! -e "$ROLLBACK_DST" && ! -L "$ROLLBACK_DST" ]] || {
+    echo "ECU_API_INSTALL=DENIED preexisting-credential-or-rollback" >&2
     exit 3
   }
-done
+  if getent passwd ecu-api >/dev/null; then
+    echo "ECU_API_INSTALL=DENIED preexisting-ecu-api-account-requires-review" >&2
+    exit 3
+  fi
+  for group in ecu-api ecu-api-read; do
+    if getent group "$group" >/dev/null; then
+      echo "ECU_API_INSTALL=DENIED preexisting-group-$group-requires-review" >&2
+      exit 3
+    fi
+  done
+  for path in "$DATA_PARENT" "$DATA_DIR" "$KEY_PARENT" "$KEY_DIR" "$INSTALL_STATE"; do
+    [[ ! -e "$path" && ! -L "$path" ]] || {
+      echo "ECU_API_INSTALL=DENIED path-already-exists=$path" >&2
+      exit 3
+    }
+  done
+else
+  # Fail-closed audit of exact resources preserved by the previous rollback.
+  for group in ecu-api ecu-api-read; do
+    getent group "$group" >/dev/null || {
+      echo "ECU_API_RECOVER=DENIED missing-group=$group" >&2
+      exit 3
+    }
+  done
+  [[ "$(getent passwd ecu-api | cut -d: -f6)" == /nonexistent &&
+     "$(getent passwd ecu-api | cut -d: -f7)" == /usr/sbin/nologin &&
+     "$(id -u ecu-api)" != 0 ]] || {
+    echo "ECU_API_RECOVER=DENIED account-identity-drift" >&2
+    exit 3
+  }
+  API_GROUPS="$(id -nG ecu-api)"
+  [[ "$API_GROUPS" == "ecu-api ecu-api-read" ||
+     "$API_GROUPS" == "ecu-api-read ecu-api" ]] || {
+    echo "ECU_API_RECOVER=DENIED account-group-drift" >&2
+    exit 3
+  }
+  [[ "$(getent group ecu-api-read | cut -d: -f4)" == ecu-api ]] || {
+    echo "ECU_API_RECOVER=DENIED read-group-membership-drift" >&2
+    exit 3
+  }
+  [[ -z "$(getent group ecu-api | cut -d: -f4)" &&
+     "$(getent passwd ecu-api | cut -d: -f4)" == "$(getent group ecu-api | cut -d: -f3)" ]] || {
+    echo "ECU_API_RECOVER=DENIED credential-group-membership-drift" >&2
+    exit 3
+  }
+  for path in "$DATA_PARENT" "$DATA_DIR" "$KEY_PARENT" "$KEY_DIR" "$INSTALL_STATE" "$KEY_PATH" "$ROLLBACK_DST"; do
+    [[ -e "$path" && ! -L "$path" ]] || {
+      echo "ECU_API_RECOVER=DENIED missing-or-symlink-path=$path" >&2
+      exit 3
+    }
+  done
+  [[ "$(stat -c '%F %a %U:%G' "$DATA_PARENT")" == "directory 755 root:root" &&
+     "$(stat -c '%F %a %U:%G' "$DATA_DIR")" == "directory 2750 ecu:ecu-api-read" &&
+     "$(stat -c '%F %a %U:%G' "$KEY_PARENT")" == "directory 755 root:root" &&
+     "$(stat -c '%F %a %U:%G' "$KEY_DIR")" == "directory 750 root:ecu-api" &&
+     "$(stat -c '%F %a %U:%G' "$INSTALL_STATE")" == "directory 700 root:root" &&
+     "$(stat -c '%F %a %U:%G %h' "$KEY_PATH")" == "regular file 640 root:ecu-api 1" &&
+     "$(stat -c '%F %a %U:%G %h' "$ROLLBACK_DST")" == "regular file 755 root:root 1" ]] || {
+    echo "ECU_API_RECOVER=DENIED ownership-or-permissions-drift" >&2
+    exit 3
+  }
+  [[ "$(sha256sum "$ROLLBACK_DST" | cut -d' ' -f1)" == "$(sha256sum "$ROLLBACK_SRC" | cut -d' ' -f1)" ]] || {
+    echo "ECU_API_RECOVER=DENIED rollback-binary-drift" >&2
+    exit 3
+  }
+  if [[ -n "$(find "$INSTALL_STATE" -mindepth 1 -maxdepth 1 -print -quit)" ||
+        -n "$(find "$DATA_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ||
+        -n "$(find "$KEY_DIR" -mindepth 1 -maxdepth 1 ! -name token -print -quit)" ]]; then
+    echo "ECU_API_RECOVER=DENIED retained-state-requires-review" >&2
+    exit 3
+  fi
+  python3 -I - "$KEY_PATH" <<'PY_TOKEN'
+import re
+import sys
+from pathlib import Path
+if not re.fullmatch(rb'[0-9a-f]{64}\n', Path(sys.argv[1]).read_bytes()):
+    raise SystemExit('ECU_API_RECOVER=DENIED invalid-retained-token')
+PY_TOKEN
+  echo "ECU_API_RECOVER_PREFLIGHT=PASS retained-assets-verified"
+fi
 echo "ECU_API_INSTALL_PREFLIGHT=PASS commit=$SHORT_REV"
 umask 077
 
-groupadd --system ecu-api
-groupadd --system ecu-api-read
-useradd --system --gid ecu-api --groups ecu-api-read \
-  --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin ecu-api
+if [[ "$RECOVER_AFTER_ROLLBACK" == 0 ]]; then
+  groupadd --system ecu-api
+  groupadd --system ecu-api-read
+  useradd --system --gid ecu-api --groups ecu-api-read \
+    --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin ecu-api
+fi
 
 API_GROUPS="$(id -nG ecu-api)"
 [[ " $API_GROUPS " == *" ecu-api "* &&
@@ -146,24 +227,27 @@ for assigned_group in $API_GROUPS; do
 done
 [[ "$(id -u ecu-api)" != 0 ]] || exit 5
 
-install -d -o root -g root -m 0755 "$DATA_PARENT"
-install -d -o ecu -g ecu-api-read -m 2750 "$DATA_DIR"
-chmod 2750 "$DATA_DIR"
-install -d -o root -g root -m 0755 "$KEY_PARENT"
-install -d -o root -g ecu-api -m 0750 "$KEY_DIR"
-install -d -o root -g root -m 0700 "$INSTALL_STATE"
-[[ "$(stat -c '%a %U:%G' "$DATA_DIR")" == '2750 ecu:ecu-api-read' &&
-   "$(stat -c '%a %U:%G' "$KEY_DIR")" == '750 root:ecu-api' ]] || {
-  echo "ECU_API_INSTALL=FAIL readout-or-credential-directory-modes" >&2
-  exit 5
-}
+if [[ "$RECOVER_AFTER_ROLLBACK" == 0 ]]; then
+  install -d -o root -g root -m 0755 "$DATA_PARENT"
+  install -d -o ecu -g ecu-api-read -m 2750 "$DATA_DIR"
+  chmod 2750 "$DATA_DIR"
+  install -d -o root -g root -m 0755 "$KEY_PARENT"
+  install -d -o root -g ecu-api -m 0750 "$KEY_DIR"
+  install -d -o root -g root -m 0700 "$INSTALL_STATE"
+  [[ "$(stat -c '%a %U:%G' "$DATA_DIR")" == '2750 ecu:ecu-api-read' &&
+     "$(stat -c '%a %U:%G' "$KEY_DIR")" == '750 root:ecu-api' ]] || {
+    echo "ECU_API_INSTALL=FAIL readout-or-credential-directory-modes" >&2
+    exit 5
+  }
 
-# CSPRNG-generated token. Never log it or store it in Git/JS/HTML.
-TOKEN_TMP="$(mktemp "$KEY_DIR/.token.XXXXXXXX")"
-openssl rand -hex 32 > "$TOKEN_TMP"
-chown root:ecu-api "$TOKEN_TMP"
-chmod 0640 "$TOKEN_TMP"
-mv -T -- "$TOKEN_TMP" "$KEY_PATH"
+  # Generate new random credentials only for an initial install. Recovery
+  # reuses the protected token and does not rotate it without a review.
+  TOKEN_TMP="$(mktemp "$KEY_DIR/.token.XXXXXXXX")"
+  openssl rand -hex 32 > "$TOKEN_TMP"
+  chown root:ecu-api "$TOKEN_TMP"
+  chmod 0640 "$TOKEN_TMP"
+  mv -T -- "$TOKEN_TMP" "$KEY_PATH"
+fi
 
 if [[ -e /usr/local/libexec/ecu-platform-v2 ]]; then
   [[ ! -L /usr/local/libexec/ecu-platform-v2 &&
