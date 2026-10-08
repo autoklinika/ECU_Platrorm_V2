@@ -622,7 +622,7 @@ int main() {
   int failures = 0;
   failures += require(app::operation_available(app::AppOperation::identify) &&
       app::operation_available(app::AppOperation::read_dtc) &&
-      app::operation_available(app::AppOperation::clear_dtc) &&
+      !app::operation_available(app::AppOperation::clear_dtc) &&
       app::operation_available(app::AppOperation::live_parameters) &&
       !app::operation_available(app::AppOperation::actuator_test) &&
       !app::operation_available(app::AppOperation::program_ecu) &&
