@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Ecu Bench Platform</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./src/app.mjs"></script>
+</head>
+<body>
+  <div class="application" id="application">
+    <header class="topbar">
+      <button type="button" class="topbar__brand" id="sidebar-toggle"
+              aria-controls="side-panel" aria-expanded="false"
+              aria-label="Toggle side panel"
+              data-i18n-aria-label="navigation.toggle">Ecu Bench Platform</button>
+      <div class="topbar__field topbar__field--connection">
+        <span data-i18n="header.connection">Connection:</span>
+        <span class="topbar__status" id="connection-value" data-i18n="header.unavailable">Unavailable</span>
+      </div>
+      <div class="topbar__field topbar__field--interface">
+        <span data-i18n="header.interface">Interface:</span>
+        <span class="topbar__value" id="interface-value">—</span>
+      </div>
+      <div class="topbar__field topbar__field--bitrate">
+        <span data-i18n="header.bitrate">Bitrate:</span>
+        <span class="topbar__value" id="bitrate-value">—</span>
+      </div>
+      <div class="topbar__field topbar__field--module">
+        <span data-i18n="header.module">Module:</span>
+        <span class="topbar__value" id="module-value">—</span>
+      </div>
+      <time class="topbar__clock" id="local-clock" data-i18n-aria-label="header.localTime"
+            aria-label="Local date and time">—</time>
+    </header>
+
+    <div class="workspace" id="workspace">
+      <div class="sidebar-veil" id="sidebar-veil" aria-hidden="true"></div>
+      <aside class="side-panel" id="side-panel" aria-label="Side panel"
+             data-i18n-aria-label="navigation.panel" aria-hidden="true" inert>
+        <!-- The side-panel navigation is intentionally left empty for the next design stage. -->
+      </aside>
+
+      <main class="content" id="main-content">
+        <section class="page" data-page="home">
+          <h1 data-i18n="home.heading">Main menu</h1>
+          <div class="tiles tiles--home">
+            <button type="button" class="tile" data-route="tests" data-i18n="home.tests">TESTS</button>
+            <button type="button" class="tile" data-route="can" data-i18n="home.can">CAN</button>
+            <button type="button" class="tile" data-route="settings" data-i18n="home.settings">SETTINGS</button>
+          </div>
+        </section>
+
+        <section class="page" data-page="tests" hidden>
+          <h1 data-i18n="pages.tests">Tests</h1>
+          <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page" data-page="can" hidden>
+          <h1 data-i18n="pages.can">CAN</h1>
+          <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page" data-page="settings" hidden>
+          <h1 data-i18n="pages.settings">Settings</h1>
+          <div class="tiles tiles--settings">
+            <button type="button" class="tile" data-route="language" data-i18n="settings.language">LANGUAGE</button>
+          </div>
+          <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page" data-page="language" hidden>
+          <h1 data-i18n="pages.language">Language</h1>
+          <div class="language-options" role="group" aria-label="Language selection"
+               data-i18n-aria-label="language.selection">
+            <button type="button" class="language-option" data-locale="en" aria-pressed="true">
+              <span data-i18n="language.english">English</span>
+              <span class="language-option__selected" aria-hidden="true">✓</span>
+            </button>
+            <button type="button" class="language-option" data-locale="pl" aria-pressed="false">
+              <span data-i18n="language.polish">Polski</span>
+              <span class="language-option__selected" aria-hidden="true">✓</span>
+            </button>
+          </div>
+          <button type="button" class="back-button" data-route="settings" data-i18n="navigation.back">Back</button>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>
