@@ -534,12 +534,13 @@ struct Fixture {
 }
 
 struct ServicesFixture {
-  explicit ServicesFixture()
-      : plan(prepare_plan(duts, profiles, daf::CanBitrateProfile::k250k)),
+  explicit ServicesFixture(
+      const daf::CanBitrateProfile bitrate = daf::CanBitrateProfile::k250k)
+      : plan(prepare_plan(duts, profiles, bitrate)),
         bus(driver),
         bus_ready(prepare_services_bus(bus, uds_sink, pressure)),
         uds_client(script, make_uds_config()),
-        services(daf::CanBitrateProfile::k250k, uds_client, clock,
+        services(bitrate, uds_client, clock,
                  {std::chrono::milliseconds{1},
                   std::chrono::milliseconds{1},
                   std::chrono::milliseconds{1},
@@ -758,10 +759,44 @@ int main() {
 
   {
     Fixture f{daf::CanBitrateProfile::k500k};
-    failures += require(f.bus_ready && !f.endpoint.valid() &&
-        !f.application.configure({std::chrono::milliseconds{250}}) &&
-        f.driver.opens == 0,
-        "unverified 500k profile is not enabled for first application");
+    failures += require(f.bus_ready && f.endpoint.valid() &&
+        f.application.configure({std::chrono::milliseconds{250}}) &&
+        f.application.snapshot().bitrate == 500000U &&
+        f.application.snapshot().profile_id == 0xDAF00050U &&
+        f.application.identify() == app::AppStatus::ok &&
+        run_to_end(f) == 0 &&
+        f.resources.active_count() == 0U && !f.driver.is_open(),
+        "500k DUT profile performs independent read-only identification");
+  }
+
+  {
+    ServicesFixture f{daf::CanBitrateProfile::k500k};
+    failures += require(
+        f.bus_ready && f.endpoint.valid() &&
+        f.application.configure({std::chrono::milliseconds{250}}) &&
+        f.application.snapshot().bitrate == 500000U &&
+        f.application.snapshot().profile_id == 0xDAF00050U &&
+        f.application.read_parameters() == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::parameters_ready, 900) == 0 &&
+        f.application.voltage().valid &&
+        f.resources.active_count() == 0U,
+        "500k SAC independently reads voltage without changing Core or Bench");
+    failures += require(
+        f.application.read_dtcs(0xFFU) == app::AppStatus::ok &&
+        service_to_end(f, app::AppState::dtcs_ready) == 0 &&
+        f.application.dtcs().valid &&
+        f.application.dtcs().count == 1U &&
+        f.script.session_requests == 1 &&
+        f.script.dtc_requests == 1 &&
+        f.resources.active_count() == 0U &&
+        !f.driver.is_open(),
+        "500k SAC independently reads DTC 19 02 FF in extended session");
+    failures += require(
+        f.application.prepare_clear_dtcs().sequence == 0U &&
+        f.application.clear_dtcs({1U, f.plan.profile_id, 1U}, true) ==
+            app::AppStatus::confirmation_required &&
+        f.script.clear_requests == 0,
+        "unverified 500k SAC cannot transmit 0x14 even with synthetic confirmation");
   }
 
   {

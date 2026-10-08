@@ -31,20 +31,19 @@ namespace uds = ecu::core::v2::protocol::uds;
     dp::DutProfileRegistry& profiles,
     const core::time::MonotonicClockDomainId domain,
     const transport::CanPhysicalChannelId channel,
+    const daf::CanBitrateProfile bitrate_profile,
     dp::ResolvedDutSessionPlan& plan) noexcept {
   if (!channel.valid() ||
       channel.value > (std::numeric_limits<runtime::ResourceInstance>::max)()) {
     return false;
   }
-  const auto profile =
-      daf::make_profile_definition(daf::CanBitrateProfile::k250k);
+  const auto profile = daf::make_profile_definition(bitrate_profile);
   if (profiles.register_profile(profile) !=
           dp::ProfileRegistrationStatus::registered ||
       !profiles.freeze_configuration()) {
     return false;
   }
-  const auto selected = profiles.select(
-      daf::profile_id(daf::CanBitrateProfile::k250k));
+  const auto selected = profiles.select(daf::profile_id(bitrate_profile));
   if (selected.status != dp::ProfileSelectionStatus::selected ||
       selected.profile == nullptr) {
     return false;
@@ -125,13 +124,26 @@ namespace uds = ecu::core::v2::protocol::uds;
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 3 ||
+  if ((argc != 3 && argc != 4) ||
       (std::string_view{argv[2]} != "parameters" &&
        std::string_view{argv[2]} != "dtc")) {
     std::cerr << "usage: ecu_daf_sac_stage42_read_probe <ifname> "
-                 "<parameters|dtc> (NO DTC CLEAR)\n";
+                 "<parameters|dtc> [250000|500000] (NO DTC CLEAR)\n";
     return 2;
   }
+  // Preserve the installed root-owned agent's 3-argument 250k contract.
+  // 500k is available only by explicit, operator-selected fourth argument.
+  daf::CanBitrateProfile bitrate_profile = daf::CanBitrateProfile::k250k;
+  if (argc == 4) {
+    const std::string_view chosen{argv[3]};
+    if (chosen == "500000") {
+      bitrate_profile = daf::CanBitrateProfile::k500k;
+    } else if (chosen != "250000") {
+      std::cerr << "SAC_STAGE42_READ_PHYSICAL=FAIL invalid-bitrate\n";
+      return 2;
+    }
+  }
+  const auto expected_bitrate = daf::nominal_bitrate(bitrate_profile);
   const std::string_view mode{argv[2]};
   const std::string_view iface{argv[1]};
   if (iface.empty() || iface.size() >= 16U) {
@@ -141,9 +153,9 @@ int main(int argc, char** argv) {
   const auto link = platform::query_socketcan_link(iface.data(), 50);
   if (link.status != platform::SocketCanLinkQueryStatus::ok ||
       !link.info.up || link.info.bus_off ||
-      link.info.nominal_bitrate != 250000U ||
+      link.info.nominal_bitrate != expected_bitrate ||
       link.info.fd_enabled || link.info.listen_only_enabled) {
-    return failed("CAN-link-not-ready-250k-classic-normal");
+    return failed("CAN-link-not-ready-requested-bitrate-classic-normal");
   }
 
   platform::BoottimeClock clock{
@@ -160,7 +172,7 @@ int main(int argc, char** argv) {
   dp::DutProfileRegistry profiles;
   dp::ResolvedDutSessionPlan plan{};
   if (!resolve(duts, profiles, clock.properties().domain,
-               driver.physical_channel_id(), plan)) {
+               driver.physical_channel_id(), bitrate_profile, plan)) {
     return failed("DUT-binding");
   }
 
@@ -209,7 +221,7 @@ int main(int argc, char** argv) {
     return failed("UDS");
   }
   daf::ServiceProgram services{
-      daf::CanBitrateProfile::k250k, client, clock, program_contract()};
+      bitrate_profile, client, clock, program_contract()};
   dp::DutProfileSessionEndpoint profile_endpoint{plan, services};
   app::BenchEndpoint bench_endpoint{
       plan, bus, profile_endpoint, services, driver.execution_contract()};
@@ -224,7 +236,8 @@ int main(int argc, char** argv) {
   }
 
   std::cout << "SAC_STAGE42_READ=START mode=" << mode
-            << " bitrate=250000 profile=0x" << std::hex << plan.profile_id
+            << " bitrate=" << expected_bitrate << " profile=0x"
+            << std::hex << plan.profile_id
             << std::dec
             << " no-clear-no-write-no-output-control\n";
 

@@ -54,6 +54,7 @@ program_execution() noexcept {
   return link.up &&
          !link.bus_off &&
          link.nominal_bitrate == bitrate &&
+         !link.fd_enabled &&
          !link.listen_only_enabled;
 }
 

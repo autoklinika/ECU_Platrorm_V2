@@ -9,6 +9,7 @@ python3 "$ROOT_DIR/scripts/check_daf_sac_profile_architecture.py"
 python3 "$ROOT_DIR/scripts/check_daf_sac_application_architecture.py"
 bash -n "$ROOT_DIR/scripts/run_stage4_daf_sac_bench_gate.sh"
 bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_read_gate.sh"
+bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_500k_read_gate.sh"
 bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_clear_gate.sh"
 bash -n "$ROOT_DIR/scripts/check_daf_sac_clear_evidence.sh"
 bash -n "$ROOT_DIR/scripts/run_stage42_daf_sac_controlled_retest.sh"
@@ -27,6 +28,15 @@ fi
 case "$refusal_output" in
   *"live local operator TTY"*) echo "DTC_CONTROLLED_RETEST_NONINTERACTIVE_DENIAL=PASS" ;;
   *) echo "ERROR: controlled retest failed for unexpected reason: $refusal_output"; exit 1 ;;
+esac
+
+if refusal_output="$(bash "$ROOT_DIR/scripts/run_stage42_daf_sac_500k_read_gate.sh" all </dev/null 2>&1)"; then
+  echo "ERROR: unattended SAC 500k physical test was not rejected"
+  exit 1
+fi
+case "$refusal_output" in
+  *"interactive-sudo-terminal-required"*) echo "SAC_500K_NONINTERACTIVE_DENIAL=PASS" ;;
+  *) echo "ERROR: 500k proof failed for unexpected reason: $refusal_output"; exit 1 ;;
 esac
 
 common=(

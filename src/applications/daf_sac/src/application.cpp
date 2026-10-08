@@ -49,9 +49,17 @@ using HostStatus = ecu::bench::BenchHostServiceStatus;
     const ecu::dut_profile::ResolvedDutSessionPlan& plan) noexcept {
   namespace daf = ecu::dut_profiles::daf_sac;
   namespace transport = ecu::core::v2::transport;
+  // Two independent immutable SAC DUT profiles. NEVER assume that the
+  // selected profile and the CAN link bitrate belong to the same variant.
+  // Core V2 and Bench Runtime remain transport/DUT neutral.
+  const bool known_sac_variant =
+      (plan.profile_id == daf::profile_id(daf::CanBitrateProfile::k250k) &&
+       plan.can_links[0U].channel_config.nominal_bitrate == 250000U) ||
+      (plan.profile_id == daf::profile_id(daf::CanBitrateProfile::k500k) &&
+       plan.can_links[0U].channel_config.nominal_bitrate == 500000U);
   return plan.schema_version ==
              ecu::dut_profile::DutProfileDefinition::kSchemaVersion &&
-         plan.profile_id == daf::profile_id(daf::CanBitrateProfile::k250k) &&
+         known_sac_variant &&
          plan.profile_revision == daf::kProfileRevision &&
          plan.can_link_count == 1U && plan.rx_expectation_count == 2U &&
          plan.rx_expectations[0U].identifier == daf::kResponseCanId &&
@@ -61,7 +69,6 @@ using HostStatus = ecu::bench::BenchHostServiceStatus;
          plan.rx_expectations[1U].match_extended &&
          !plan.rx_expectations[1U].match_standard &&
          plan.can_links[0U].link_id == daf::kPrimaryCanLink &&
-         plan.can_links[0U].channel_config.nominal_bitrate == 250000U &&
          !plan.can_links[0U].channel_config.fd_enabled &&
          plan.can_links[0U].channel_config.mode ==
              transport::CanMode::normal &&
@@ -435,7 +442,13 @@ AppStatus Application::read_dtcs(const std::uint8_t mask) noexcept {
 
 ClearDtcChallenge Application::prepare_clear_dtcs() noexcept {
   // Erasing ALL DTC groups cannot be authorized from a filtered inventory.
-  if (services_ == nullptr || state_ != AppState::dtcs_ready ||
+  // DTC clear has been exercised only on the 250k DUT. Do not expose
+  // destructive operations on the new, unverified 500k variant.
+  if (services_ == nullptr ||
+      plan_.profile_id !=
+          ecu::dut_profiles::daf_sac::profile_id(
+              ecu::dut_profiles::daf_sac::CanBitrateProfile::k250k) ||
+      state_ != AppState::dtcs_ready ||
       !dtcs_.valid || dtcs_.requested_mask != 0xFFU ||
       !fresh_dtc_inventory() ||
       session_.state() != ecu::bench::BenchSessionState::ready ||
@@ -454,7 +467,10 @@ AppStatus Application::clear_dtcs(
   if (services_ == nullptr) {
     return AppStatus::unsupported;
   }
-  if (state_ != AppState::dtcs_ready || !dtcs_.valid ||
+  if (plan_.profile_id !=
+          ecu::dut_profiles::daf_sac::profile_id(
+              ecu::dut_profiles::daf_sac::CanBitrateProfile::k250k) ||
+      state_ != AppState::dtcs_ready || !dtcs_.valid ||
       dtcs_.requested_mask != 0xFFU || !fresh_dtc_inventory() ||
       armed_clear_sequence_ == 0U || !explicitly_confirmed ||
       confirmation.sequence != armed_clear_sequence_ ||
