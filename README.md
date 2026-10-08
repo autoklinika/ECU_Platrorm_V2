@@ -1,40 +1,95 @@
 # ECU Platform V2
 
-ECU Platform V2 is a WebGUI-first ECU diagnostic/service platform whose Core is designed to remain independent of the current OS and hardware.
+Laboratory platform for repair and testing of automotive electronics in
+**TRUCK / AGRI / OHV**. A Device Under Test (DUT) can be an ECU, EGR/VGT
+actuator, sensor, gateway or other electronic module. This is **not just an
+automotive fault-code tester**.
 
-## Current bootstrap line
+## Layer boundaries
 
-Active development/bootstrap branch:
+1. **CORE V2:** portable, DUT-neutral bus, protocol and safety primitives.
+2. **Bench Runtime:** one DUT per laboratory session by default; resource
+   ownership, lifecycle, watchdog, interlocks and safe-stop.
+3. **DUT Profile:** physical links, protocol requirements and DUT-specific
+   decoding, diagnostics or cyclic actuation. Proprietary EGR/VGT behavior
+   does not belong in generic CORE.
+4. **Application:** high-level, domain-aware operations and snapshots.
+5. **API (future):** independent authentication, authorization, command
+   admission and versioned DTOs. No generic shell, raw CAN transmit or
+   direct privileged-agent proxy.
+6. **WebGUI/kiosk (future):** strictly an untrusted **display client** that
+   reports operator intent through the authenticated API. See
+   [WebGUI client-only contract](docs/WEBGUI_CLIENT_ONLY_ARCHITECTURE.md).
 
-```text
-setup/cm5-bootstrap
+There is no production HTTP API or finished WebGUI in this source tree.
+A separate CM5 Cage/Chromium kiosk currently displays a local placeholder.
+Its OS identity must be isolated from the Bench agent before using a real
+WebGUI. This is a release gate, not a browser preference.
+
+## Build — portable C++ V2
+
+Requires a C++17 toolchain and CMake 3.25+. Linux Ninja examples:
+
+```sh
+cmake -S . -B build/v2 -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/v2
+ctest --test-dir build/v2 --output-on-failure
 ```
 
-Production `main` is user-controlled and must not be changed without explicit approval.
+The fresh **default configuration builds CORE V2 + Bench + DUT Profile +
+DAF SAC Application**, and excludes the legacy Core, legacy SAC and legacy
+SocketCAN adapter. A Linux build also includes the **separate Linux V2
+platform adapter**. No executable is configured to contact a real ECU
+automatically during ordinary CMake/CTest runs.
 
-## Prototype A
+On Windows/MSVC, use CMake's Visual Studio generator. The Linux adapter is
+excluded automatically and cannot be forced ON for a non-Linux target.
+The source-level portable layers also support
+`-DCMAKE_SYSTEM_NAME=Generic` for simulated conformance testing.
 
-Current reference platform:
+To build only CORE V2:
 
-- Raspberry Pi Compute Module 5
-- Raspberry Pi OS Lite 64-bit / Debian 13
-- KAmod CAN-FD / MCP251xFD
-- DRM/KMS + Wayland/Cage + Chromium kiosk
-
-Prototype A is not an architectural dependency of Core.
-
-## Build the current Core bootstrap
-
-```bash
-cmake -S . -B build/dev -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/dev
-ctest --test-dir build/dev --output-on-failure
+```sh
+cmake -S . -B build/v2-core -G Ninja -DECU_BUILD_BENCH_RUNTIME=OFF
+cmake --build build/v2-core --target ecu_core_v2_tests
 ```
 
-Full Stage E gate:
+Optional legacy code remains in the repository as an explicitly enabled,
+isolated reference, not the default V2 execution path.
 
-```bash
-./scripts/validate_stage_e_core_bootstrap.sh
+Verify freshly configured defaults with:
+
+```sh
+python3 scripts/check_v2_default_build.py build/v2 --system Linux
 ```
 
-See `docs/ZALOZENIA_ROBOCZE.md` and `docs/PROJECT_GOVERNANCE.md` for mandatory architecture and merge rules.
+Accepted values for `--system`: `Linux`, `Windows`, `Generic`.
+Do not use `--system Linux` to validate a Windows or Generic configuration.
+
+## Engineering verification
+
+```sh
+bash scripts/validate_core_v2_foundation.sh
+bash scripts/validate_bench_runtime_stage2.sh
+bash scripts/validate_daf_sac_application.sh
+```
+
+The application gate includes Debug, Release, Generic, ASan/UBSan,
+architecture checks, negative security tests and read-only simulation.
+GitHub CI additionally builds Linux x86_64 GCC/Clang and Windows MSVC
+x64/Win32 Debug/Release. The CM5 ARM64 build is validated locally.
+
+**All physical tests are separate, explicit operator actions.** In
+particular, never execute the DTC-clear operator tools as part of a build,
+CI run, release test or WebGUI startup. Previous physical proof archives
+and consumed operator authorization must remain intact.
+
+## Production gates
+
+The repository's `main` branch is controlled by the project owner.
+Auditing, preparing code, passing local tests and opening a PR do **not**
+authorize merging into production. The release candidate must pass the
+multi-OS CI matrix, architecture/security audits, and explicit owner
+review before a concrete `main` merge.
+
+See [project governance](docs/PROJECT_GOVERNANCE.md).

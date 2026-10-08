@@ -340,3 +340,190 @@ jobs:
           -R "^ecu\.dut_profile\."
           --output-on-failure
           --no-tests=error
+
+  daf-sac-application-linux-gcc:
+    name: DAF SAC Application Linux GCC (full gate)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build g++
+      - name: Full application and DUT/Bench gate (no physical CAN TX)
+        run: bash scripts/validate_daf_sac_application.sh
+
+  daf-sac-application-linux-clang:
+    name: DAF SAC Application Linux Clang
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build clang
+      - name: Architecture gates
+        run: |
+          python3 scripts/check_dut_profile_architecture.py
+          python3 scripts/check_daf_sac_profile_architecture.py
+          python3 scripts/check_daf_sac_application_architecture.py
+      - name: Configure portable application
+        run: >
+          cmake -S . -B build/ci-daf-sac-clang -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DECU_BUILD_TESTS=ON
+          -DECU_BUILD_LEGACY_CORE=OFF
+          -DECU_BUILD_SAC_MODULE=OFF
+          -DECU_BUILD_LINUX_SOCKETCAN=OFF
+          -DECU_BUILD_CORE_V2=ON
+          -DECU_BUILD_BENCH_RUNTIME=ON
+          -DECU_BUILD_DUT_PROFILE=ON
+          -DECU_BUILD_DAF_SAC_PROFILE=ON
+          -DECU_BUILD_DAF_SAC_APPLICATION=ON
+          -DECU_BUILD_LINUX_V2_PLATFORM=OFF
+      - name: Build application, DUT Profile and Bench tests
+        run: >
+          cmake --build build/ci-daf-sac-clang
+          --target ecu_daf_sac_application_tests ecu_daf_sac_profile_tests
+          ecu_dut_profile_tests ecu_bench_tests
+      - name: Test
+        run: >
+          ctest --test-dir build/ci-daf-sac-clang
+          -R 'ecu[.]bench[.]|ecu[.]dut_profile[.]|ecu[.]applications[.]daf_sac'
+          --output-on-failure --no-tests=error
+
+  daf-sac-application-windows-msvc:
+    name: DAF SAC Application MSVC (${{ matrix.arch }} / ${{ matrix.config }})
+    runs-on: windows-2022
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, Win32]
+        config: [Debug, Release]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: DUT and application architecture gates
+        shell: pwsh
+        run: |
+          python scripts/check_dut_profile_architecture.py
+          python scripts/check_daf_sac_profile_architecture.py
+          python scripts/check_daf_sac_application_architecture.py
+      - name: Configure portable application
+        shell: pwsh
+        run: >
+          cmake -S . -B "build/ci-daf-sac-msvc-${{ matrix.arch }}-${{ matrix.config }}"
+          -G "Visual Studio 17 2022"
+          -A "${{ matrix.arch }}"
+          -DECU_BUILD_TESTS=ON
+          -DECU_BUILD_LEGACY_CORE=OFF
+          -DECU_BUILD_SAC_MODULE=OFF
+          -DECU_BUILD_LINUX_SOCKETCAN=OFF
+          -DECU_BUILD_CORE_V2=ON
+          -DECU_BUILD_BENCH_RUNTIME=ON
+          -DECU_BUILD_DUT_PROFILE=ON
+          -DECU_BUILD_DAF_SAC_PROFILE=ON
+          -DECU_BUILD_DAF_SAC_APPLICATION=ON
+          -DECU_BUILD_LINUX_V2_PLATFORM=OFF
+      - name: Build application, DUT Profile and Bench tests
+        shell: pwsh
+        run: >
+          cmake --build "build/ci-daf-sac-msvc-${{ matrix.arch }}-${{ matrix.config }}"
+          --config "${{ matrix.config }}"
+          --target ecu_daf_sac_application_tests ecu_daf_sac_profile_tests
+          ecu_dut_profile_tests ecu_bench_tests
+      - name: Test
+        shell: pwsh
+        run: >
+          ctest --test-dir "build/ci-daf-sac-msvc-${{ matrix.arch }}-${{ matrix.config }}"
+          -C "${{ matrix.config }}"
+          -R "ecu[.]bench[.]|ecu[.]dut_profile[.]|ecu[.]applications[.]daf_sac"
+          --output-on-failure --no-tests=error
+
+  v2-default-linux-release:
+    name: Production V2 defaults Linux GCC
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build g++
+      - name: Configure WITHOUT component toggles
+        run: cmake -S . -B build/ci-v2-default-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Validate default graph
+        run: python3 scripts/check_v2_default_build.py build/ci-v2-default-linux --system Linux
+      - name: Build default application and Linux adapter tests
+        run: >
+          cmake --build build/ci-v2-default-linux
+          --target ecu_daf_sac_application_tests ecu_daf_sac_profile_tests
+          ecu_linux_v2_platform_tests
+      - name: Test
+        run: >
+          ctest --test-dir build/ci-v2-default-linux
+          -R 'ecu[.]applications[.]daf_sac|ecu[.]dut_profile[.]daf_sac|ecu[.]platform[.]linux_v2'
+          --output-on-failure --no-tests=error
+
+  v2-default-generic-release:
+    name: Production V2 defaults Generic non-Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build g++
+      - name: Configure WITHOUT component toggles
+        run: >
+          cmake -S . -B build/ci-v2-default-generic -G Ninja
+          -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_BUILD_TYPE=Release
+      - name: Validate default graph excludes Linux and V1
+        run: python3 scripts/check_v2_default_build.py build/ci-v2-default-generic --system Generic
+      - name: Build
+        run: >
+          cmake --build build/ci-v2-default-generic
+          --target ecu_daf_sac_application_tests ecu_daf_sac_profile_tests
+      - name: Test
+        run: >
+          ctest --test-dir build/ci-v2-default-generic
+          -R 'ecu[.]applications[.]daf_sac|ecu[.]dut_profile[.]daf_sac'
+          --output-on-failure --no-tests=error
+
+  v2-default-windows-release:
+    name: Production V2 defaults Windows MSVC x64
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure WITHOUT component toggles
+        shell: pwsh
+        run: >
+          cmake -S . -B build/ci-v2-default-windows
+          -G "Visual Studio 17 2022" -A x64
+      - name: Validate default graph excludes Linux and V1
+        shell: pwsh
+        run: python scripts/check_v2_default_build.py build/ci-v2-default-windows --system Windows
+      - name: Build
+        shell: pwsh
+        run: >
+          cmake --build build/ci-v2-default-windows --config Release
+          --target ecu_daf_sac_application_tests ecu_daf_sac_profile_tests
+      - name: Test
+        shell: pwsh
+        run: >
+          ctest --test-dir build/ci-v2-default-windows -C Release
+          -R "ecu[.]applications[.]daf_sac|ecu[.]dut_profile[.]daf_sac"
+          --output-on-failure --no-tests=error

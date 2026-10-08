@@ -38,7 +38,7 @@ build_and_test() {
   echo
   echo "=== Configure: $build_type ==="
   rm -rf "$build_dir"
-  cmake     -S "$ROOT_DIR"     -B "$build_dir"     -G Ninja     -DCMAKE_BUILD_TYPE="$build_type"     -DECU_BUILD_TESTS=ON     "$@"
+  cmake     -S "$ROOT_DIR"     -B "$build_dir"     -G Ninja     -DCMAKE_BUILD_TYPE="$build_type"     -DECU_BUILD_TESTS=ON     -DECU_BUILD_LEGACY_CORE=ON     -DECU_BUILD_SAC_MODULE=ON     -DECU_BUILD_LINUX_SOCKETCAN=ON     -DECU_BUILD_DUT_PROFILE=OFF     -DECU_BUILD_DAF_SAC_PROFILE=OFF     -DECU_BUILD_DAF_SAC_APPLICATION=OFF     -DECU_BUILD_LINUX_V2_PLATFORM=OFF     "$@"
 
   echo
   echo "=== Build: $build_type ==="
@@ -71,7 +71,7 @@ echo "CORE_ONLY_GRAPH=PASS"
 echo
 echo "=== Sanitizers ==="
 rm -rf "$SANITIZE_DIR"
-cmake   -S "$ROOT_DIR"   -B "$SANITIZE_DIR"   -G Ninja   -DCMAKE_BUILD_TYPE=Debug   -DECU_BUILD_TESTS=ON   -DECU_BUILD_SAC_MODULE=OFF   -DECU_BUILD_LINUX_SOCKETCAN=OFF   -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
+cmake   -S "$ROOT_DIR"   -B "$SANITIZE_DIR"   -G Ninja   -DCMAKE_BUILD_TYPE=Debug   -DECU_BUILD_TESTS=ON   -DECU_BUILD_LEGACY_CORE=ON   -DECU_BUILD_DUT_PROFILE=OFF   -DECU_BUILD_DAF_SAC_PROFILE=OFF   -DECU_BUILD_DAF_SAC_APPLICATION=OFF   -DECU_BUILD_LINUX_V2_PLATFORM=OFF   -DECU_BUILD_SAC_MODULE=OFF   -DECU_BUILD_LINUX_SOCKETCAN=OFF   -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
 
 cmake --build "$SANITIZE_DIR" --target   ecu_core_foundation_tests   ecu_core_runtime_registry_tests   ecu_core_observability_simulation_tests   ecu_j1939_core_tests   ecu_uds_core_tests
 
