@@ -258,6 +258,26 @@ int serve_loopback(const Router& router, const std::uint16_t port) {
 #endif
     return 1;
   }
+  // Linux may retain outgoing connections in TIME_WAIT after the listener
+  // exits. Reuse the *same* loopback address for a supervised quick restart.
+  // Windows requires exclusive binding instead: SO_REUSEADDR there permits
+  // unrelated processes to hijack a listening address.
+#ifdef _WIN32
+  const BOOL address_option = TRUE;
+  constexpr int kAddressOption = SO_EXCLUSIVEADDRUSE;
+#else
+  const int address_option = 1;
+  constexpr int kAddressOption = SO_REUSEADDR;
+#endif
+  if (setsockopt(listening, SOL_SOCKET, kAddressOption,
+                 reinterpret_cast<const char*>(&address_option),
+                 static_cast<int>(sizeof(address_option))) != 0) {
+    close_socket(listening);
+#ifdef _WIN32
+    WSACleanup();
+#endif
+    return 1;
+  }
   sockaddr_in address{};
   address.sin_family = AF_INET;
   address.sin_port = htons(port);

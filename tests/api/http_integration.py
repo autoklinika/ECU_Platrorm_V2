@@ -159,6 +159,36 @@ def run(binary):
                 process.kill()
                 process.communicate(timeout=4)
 
+        if os.name != "nt":
+            # Linux listener restart must work despite the first HTTP
+            # connection still being in TCP TIME_WAIT.
+            restarted = subprocess.Popen(
+                [binary, "--token-file", str(token_path), "--port", str(port)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            )
+            try:
+                for _ in range(40):
+                    if restarted.poll() is not None:
+                        raise AssertionError("HTTP listener cannot restart on same port")
+                    try:
+                        status, _, _ = request(
+                            port, "GET", "/api/v1/about",
+                            {"Authorization": "Bearer " + token})
+                        check(status == 200, "same-port restart response")
+                        break
+                    except OSError:
+                        time.sleep(0.05)
+                else:
+                    raise AssertionError("HTTP listener restart timed out")
+                print("ECU_API_HTTP_RESTART=PASS")
+            finally:
+                restarted.terminate()
+                try:
+                    restarted.communicate(timeout=4)
+                except subprocess.TimeoutExpired:
+                    restarted.kill()
+                    restarted.communicate(timeout=4)
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
