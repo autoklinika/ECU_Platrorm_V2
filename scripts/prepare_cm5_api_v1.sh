@@ -39,7 +39,11 @@ ctest --test-dir "$BUILD" -R '^ecu[.]api[.]' \
 # Build additional operator-only probes in their own output tree.
 # Compiling them never opens CAN or modifies the kernel.
 PROBE_BUILD=build/api-readout-linux
-cmake -S . -B "$PROBE_BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release \\n  -DECU_BUILD_APPLICATION_API=ON -DECU_BUILD_TESTS=ON\nnice -n 10 cmake --build "$PROBE_BUILD" \\n  --target ecu_daf_sac_core_v2_probe ecu_daf_sac_stage42_read_probe \\n  --parallel 2
+cmake -S . -B "$PROBE_BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DECU_BUILD_APPLICATION_API=ON -DECU_BUILD_TESTS=ON
+nice -n 10 cmake --build "$PROBE_BUILD" \
+  --target ecu_daf_sac_core_v2_probe ecu_daf_sac_stage42_read_probe \
+  --parallel 2
 
 BIN="$BUILD/src/api/ecu_api_http"
 [[ -x "$BIN" ]] || exit 4

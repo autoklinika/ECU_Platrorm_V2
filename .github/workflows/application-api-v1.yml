@@ -34,7 +34,7 @@ jobs:
           cmake -S . -B build/api-ci -G Ninja -DCMAKE_BUILD_TYPE=Debug
           -DECU_BUILD_APPLICATION_API=ON
       - name: Build
-        run: cmake --build build/api-ci --target ecu_api_http ecu_application_api_tests ecu_api_daf_sac_projection_tests ecu_api_readout_wire_tests ecu_api_readout_fixture --parallel 2
+        run: cmake --build build/api-ci --target ecu_api_http ecu_application_api_tests ecu_api_daf_sac_projection_tests ecu_api_readout_wire_tests ecu_api_readout_fixture ecu_daf_sac_core_v2_probe ecu_daf_sac_stage42_read_probe --parallel 2
       - name: Test authentication, DTO and HTTP fail-closed cases
         run: ctest --test-dir build/api-ci -R '^ecu[.]api[.]' --output-on-failure
 

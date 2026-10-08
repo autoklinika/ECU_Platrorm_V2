@@ -80,6 +80,11 @@ def main():
                        installer + rollback), "no_existing_service_mutation")
     must("PROBE_BUILD=build/api-readout-linux" in prep,
          "isolated_operator_probes")
+    must("--target ecu_daf_sac_core_v2_probe ecu_daf_sac_stage42_read_probe" in prep,
+         "both_operator_binaries_present")
+    must(r"\n  --parallel" not in prep and
+         r"\n  -DECU_BUILD_APPLICATION_API" not in prep,
+         "no-escaped-shell_newline_artifact")
     must('"--publish-readout"' in probe and
          'PUBLISH_READOUT=0' in probe, "explicit_readout_optin")
     print("ECU_API_CM5_DEPLOY_POLICY=PASS")
