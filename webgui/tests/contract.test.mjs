@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { CATALOGS } from "../src/i18n.mjs";
 
-const read = (path) => readFileSync(new URL("../" + path, import.meta.url), "utf8");
+const read = (path) => readFileSync(new URL("../" + path, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const html = read("index.html");
 const app = read("src/app.mjs");
 const css = read("styles.css");
