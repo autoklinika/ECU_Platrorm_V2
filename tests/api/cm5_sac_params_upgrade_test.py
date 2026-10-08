@@ -47,6 +47,10 @@ class UpgradeSafety(unittest.TestCase):
         self.assertIn('PRESERVED_REAL_DTC_READOUT', SMOKE)
         self.assertIn('PARAMETER_BEARER_REQUIRED', SMOKE)
         self.assertIn('PARAMETER_HISTORICAL_ONLY', SMOKE)
+        self.assertIn('status in (400, 405)', SMOKE)
+        self.assertIn('for attempt in {1..40}', UPGRADE)
+        self.assertIn('SAC_API_UPGRADE_ROLLBACK=HTTP_NOT_READY', UPGRADE)
+
         self.assertNotIn('print(token)', SMOKE)
         self.assertIn('grep -Fx "$revision" >/dev/null', PREP)
         self.assertIn('grep -Fx "$expected_sha" >/dev/null', UPGRADE)

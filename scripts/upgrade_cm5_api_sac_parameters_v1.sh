@@ -70,9 +70,22 @@ dest=/usr/local/libexec/ecu-platform-v2/ecu_api_http
 install -o root -g root -m 0755 "$base/ecu_api_http" "$dest.rollback.$$"
 mv -f "$dest.rollback.$$" "$dest"
 systemctl restart ecu-api-v1.service
-systemctl is-active --quiet ecu-api-v1.service
-[[ "$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' \
-   http://127.0.0.1:8878/api/v1/about)" == 401 ]] || exit 2
+# systemctl restart can return before the HTTP listener is ready.
+# Accept success only after the *restored* API enforces Bearer auth.
+ready=0
+for attempt in {1..40}; do
+  if systemctl is-active --quiet ecu-api-v1.service &&
+     [[ "$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' \
+       http://127.0.0.1:8878/api/v1/about)" == 401 ]]; then
+    ready=1
+    break
+  fi
+  sleep 0.2
+done
+[[ "$ready" == 1 ]] || {
+  echo SAC_API_UPGRADE_ROLLBACK=HTTP_NOT_READY >&2
+  exit 2
+}
 echo SAC_API_UPGRADE_ROLLBACK=PASS
 RECOVERY
 chmod 0700 "$backup/rollback.sh"

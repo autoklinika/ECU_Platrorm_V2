@@ -65,7 +65,10 @@ def main() -> None:
     check(preserved_dtc, "PRESERVED_REAL_DTC_READOUT")
     status, _, _ = api_request(
         "POST", "/api/v1/readouts/daf-sac/parameters/latest", token)
-    check(status == 405, "WRITE_METHOD_DENIED")
+    # Python http.client POST adds Content-Length: 0 by default. The API
+    # deliberately rejects body-framed requests with 400 BEFORE method
+    # dispatch, while a raw bodyless POST is rejected with 405.
+    check(status in (400, 405), "WRITE_METHOD_DENIED")
     status, _, _ = api_request(
         "GET", "/api/v1/can/transmit", token)
     check(status == 404, "CAN_TX_ROUTE_ABSENT")
