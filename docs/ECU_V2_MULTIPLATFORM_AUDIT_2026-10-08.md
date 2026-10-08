@@ -28,18 +28,18 @@ symulowany CMake Generic i sanitizery ASan/UBSan.
 
 | ID | Waga | Ustalenie | Działanie / status |
 |---|---|---|---|
-| A-001 | HIGH | CI obejmował CORE/Bench/DUT na Windows, ale pomijał konkretną aplikację SAC | Dodać osobne GCC, Clang, MSVC Debug/Release x64/Win32; PR CI wymagany |
+| A-001 | HIGH — ROZWIĄZANY | CI obejmował CORE/Bench/DUT na Windows, ale pomijał konkretną aplikację SAC | Wdrożono GCC/Clang/MSVC Debug/Release x64/Win32 oraz buildy domyślne; pełne CI 27/27 PASS dwukrotnie na `84292c6` |
 | A-002 | HIGH | Świeży CMake domyślnie wybierał legacy Core/SAC/SocketCAN, a pomijał aplikację V2 | Zmiana wartości domyślnych na V2, legacy opt-in, Linux V2 warunkowy, test grafu default |
 | A-003 | HIGH dla WebGUI | Obecny kiosk Cage/Chromium działa pod tym samym `ecu` UID/grupą co klient socketu uprzywilejowanego agenta | Obowiązkowa izolacja osobnego konta `ecu-kiosk` PRZED wdrożeniem realnego WebGUI; Stage D placeholder bez zmian |
 | A-004 | HIGH operacyjny | Pierwsze fizyczne kasowanie DTC poprzedniego SAC nie udowodniło trwałego wymazania; poprzedni wynik UNKNOWN | Nie resetować jednorazowego biletu; w tym audycie nie wykonywać `14`; restrykcje pozostają |
 | A-005 | MEDIUM | Z CAN passive PGN FEAE jest widoczny, ale podczas odczytu napięć monitor go nie obserwował | Status ciśnień pozostaje niepotwierdzony; nie dopisywać fikcyjnych wartości |
 | A-006 | HIGH dla WebGUI | Brak produkcyjnej warstwy API z autoryzacją, a kiosk wciąż korzysta z pliku placeholder | Nie podłączać GUI do agenta; przygotować osobną warstwę API po akceptacji architektury |
-| A-007 | WYMÓG | `main` ma osobną bramkę właściciela | RC na oddzielnym branchu, ewentualny draft PR; bez automatycznego merge |
+| A-007 | WYMÓG | `main` ma osobną bramkę właściciela | Draft PR #18 do `main` jest otwarty; bez automatycznego merge, wymagana osobna akceptacja właściciela |
 | A-008 | HIGH portability | Pierwszy GitHub MSVC build DUT Profile 4/4 FAIL na C4244 (konwersja `unsigned int` na `uint8_t` w wektorach testowych) | Wymuszony typ `std::array<std::uint8_t, 3U>`; ponowny Windows MSVC x64/Win32 Debug/Release **4/4 PASS**, workflow `37755575051` **18/18 PASS** |
 | A-009 | MEDIUM DTO | Snapshot identyfikacji nie przenosił jawnie informacji o niezaprogramowanym VIN F190/FF17 | `vin_unprogrammed` w AppSnapshot, schema 2, testy 250k/500k i pustego suffix |
 | A-010 | BLOCKER CI — ROZWIĄZANY | Początkowo GitHub OAuth CLI miał `repo`, ale nie `workflow` | Operator odnowił autoryzację 2026-10-08; zakres `workflow` potwierdzony, pełny RC opublikowany, Draft PR #18 utworzony |
 | A-011 | HIGH API safety | `kOperationCatalog` publikował `clear_dtc` jako dostępne, choć fizycznego skutku kasowania nie potwierdzono | Publiczna dostępność `clear_dtc=false`, osobna ręczna procedura z ograniczeniami bez zmian; dodatkowy test katalogu |
-| A-012 | HIGH portability | Nowy test aplikacji MSVC x64 Debug zakończył się `SEGFAULT`; pozostałe 26/27 zadań PR CI przeszło | 28 kolejnych lokalnych przypadków DUT/Bench w jednej funkcji `main` rozdzielono na 7 oddzielnych funkcji po 4 przypadki; kontrola stosu GCC i CTest PASS, potwierdzenie MSVC x64 Debug oczekuje |
+| A-012 | HIGH portability — ROZWIĄZANY | Pierwszy nowy test aplikacji MSVC x64 Debug zakończył się `SEGFAULT`; pozostałe 26/27 zadań PR CI przeszło | 28 kolejnych przypadków testowych DUT/Bench rozdzielono na 7 funkcji po 4 przypadki; poprawka **MSVC x64 Debug PASS**, pełna macierz 27/27 PASS na commicie `84292c6` |
 
 ## Zmiany bez naruszenia CORE freeze
 
@@ -71,8 +71,8 @@ ani transmisji do fizycznego DUT w ramach audytu.
 | CM5 ARM64 GCC: Core V2 Debug/Release/Generic/ASan+UBSan | PASS, 20/20 Core V2 testów |
 | CM5 ARM64 GCC: Bench + DUT + Application | PASS: Bench Stage 2, DUT i Application Debug/Release/Generic/ASan+UBSan |
 | Symulowany non-Linux Generic CMake | PASS: domyślna konfiguracja + kompilacja i CTest |
-| Linux x86_64 GCC / Clang GitHub CI | **PASS** — workflow `37755575051` (commit `46c55eb`), istniejące CORE/Bench/DUT |
-| Windows MSVC x64 + Win32 / Debug + Release | Istniejące CORE/Bench/DUT: 18/18 PASS w workflow `37755575051`; rozszerzone PR CI: 26/27 PASS, **Application x64 Debug SEGFAULT**, poprawka struktury testu wymaga ponownego wykonania |
+| Linux x86_64 GCC / Clang GitHub CI | **PASS** — pełny workflow PR #18 `37760830998`, 27/27 PASS dla kodu `84292c6` |
+| Windows MSVC x64 + Win32 / Debug + Release | **PASS** — Application, DUT, Bench, CORE i domyślny build na Windows x64 + Win32 / Debug + Release; PR CI `37760830998`, 27/27 PASS na `84292c6` |
 | WebGUI security isolation kiosk vs agent | **BLOCKED dla uruchomienia WebGUI** |
 | Hardware CAN/UDS 250/500 read-only | PASS we wcześniejszych, zachowanych dowodach; bez nowego TX |
 | DTC clear / EGR-VGT / flash / output control | poza zakresem release read-only |
@@ -80,3 +80,18 @@ ani transmisji do fizycznego DUT w ramach audytu.
 Nie zastępować `CI PASS` samym lokalnym buildem.
 Konkretną zgodę na produkcyjny merge można rozważać
 dopiero po udokumentowaniu wyników, zakresu i pozostałych blokad.
+
+## Evidence finalnej macierzy dla kodu aplikacji
+
+Commit zawierający ostatnią poprawkę kodu/testów: `84292c6dddd9190a7a04823ad1476421604841eb`.
+
+- Push CI: `https://github.com/autoklinika/ECU_Platrorm_V2/actions/runs/37760826277` — **27/27 PASS**.
+- Draft PR #18 CI: `https://github.com/autoklinika/ECU_Platrorm_V2/actions/runs/37760830998` — **27/27 PASS**, `MERGEABLE/CLEAN`.
+- Wszystkie scenariusze Windows MSVC aplikacji SAC: **x64 Debug PASS, x64 Release PASS, Win32 Debug PASS, Win32 Release PASS**.
+- CM5 ARM64 GCC: Application Debug/Release/Generic/ASan+UBSan **PASS**; CORE V2, Bench Runtime i opcjonalne narzędzia legacy przeszły wcześniejsze niezależne gates.
+- Przenośne moduły V2 nie zostały zmodyfikowane dla potrzeb systemu Windows; naprawa dotyczyła wyłącznie niezależnych testowych zakresów lokalnych o dużych strukturach sesji.
+- Brak użycia destrukcyjnego `14`, brak testów wyjść/flash i brak wymuszonego CAN TX podczas CI.
+
+Kandydat wydania jest technicznie gotowy **w zakresie obecnego backendu laboratoryjnego i diagnostyki odczytowej**. Nie jest to akceptacja przyszłego WebGUI ani API: izolacja procesu kiosku od Bench oraz autoryzacja API pozostają obowiązkowymi osobnymi bramkami.
+
+Raport podlega wersjonowaniu jako ostatnia korekta dokumentacji po powyższych wynikach; finalny SHA po korekcie raportu powinien mieć osobny zielony przebieg CI przed przyjęciem do produkcyjnego `main`.
