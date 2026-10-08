@@ -87,7 +87,8 @@ def run(binary):
             check(json.loads(body)["error"]["code"] == "backend_unavailable",
                   "typed error")
             for path in ("/api/v1/dut", "/api/v1/dut/capabilities",
-                         "/api/v1/dut/dtcs", "/api/v1/platform"):
+                         "/api/v1/dut/dtcs", "/api/v1/platform",
+                         "/api/v1/readouts/dtc/latest"):
                 status, _, _ = request(port, "GET", path, authorized)
                 check(status == 503, f"fail closed {path}")
             status, _, _ = request(port, "POST", "/api/v1/about", authorized)

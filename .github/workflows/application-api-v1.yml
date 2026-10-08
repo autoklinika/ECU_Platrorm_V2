@@ -34,7 +34,7 @@ jobs:
           cmake -S . -B build/api-ci -G Ninja -DCMAKE_BUILD_TYPE=Debug
           -DECU_BUILD_APPLICATION_API=ON
       - name: Build
-        run: cmake --build build/api-ci --target ecu_api_http ecu_application_api_tests ecu_api_daf_sac_projection_tests --parallel 2
+        run: cmake --build build/api-ci --target ecu_api_http ecu_application_api_tests ecu_api_daf_sac_projection_tests ecu_api_readout_wire_tests ecu_api_readout_fixture --parallel 2
       - name: Test authentication, DTO and HTTP fail-closed cases
         run: ctest --test-dir build/api-ci -R '^ecu[.]api[.]' --output-on-failure
 
@@ -61,7 +61,7 @@ jobs:
         run: >
           cmake --build "build/api-ci-${{matrix.arch }}-${{matrix.config }}"
           --config "${{matrix.config }}"
-          --target ecu_api_http ecu_application_api_tests ecu_api_daf_sac_projection_tests
+          --target ecu_api_http ecu_application_api_tests ecu_api_daf_sac_projection_tests ecu_api_readout_wire_tests
       - name: Test
         shell: pwsh
         run: >
@@ -82,6 +82,6 @@ jobs:
           -DECU_BUILD_APPLICATION_API=ON
           -DECU_BUILD_LINUX_V2_PLATFORM=OFF
       - name: Build portable API tests
-        run: cmake --build build/api-generic-ci --target ecu_application_api_tests ecu_api_daf_sac_projection_tests --parallel 2
+        run: cmake --build build/api-generic-ci --target ecu_application_api_tests ecu_api_daf_sac_projection_tests ecu_api_readout_wire_tests --parallel 2
       - name: Validate API without Linux or Windows sockets
         run: ctest --test-dir build/api-generic-ci -R '^ecu[.]api[.]' --output-on-failure

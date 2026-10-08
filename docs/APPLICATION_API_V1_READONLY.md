@@ -92,3 +92,80 @@ Confirmed profile: `0xDAF00050`, CAN Classic 500 kbit/s, UDS read-only. F190 sup
 API V1 now includes an **optional, separately linked C++ adapter** `ECU::api_daf_sac_projection`. It accepts a native, already completed `AppSnapshot` plus `SacDtcList` from Application Layer and emits generic, bounded `DtcInfo` with 6-digit UDS DTC codes, status bytes, requested and availability masks. It rejects incorrect 250k/500k profile pairings, incomplete or contradictory snapshots, invalid status bits, duplicate/out-of-range codes, missing completed-operation generation, mismatched Bench/DUT session identity, unfinished resource cleanup and invalid lifecycle states. Profile-supported read capabilities come from the existing DAF SAC operation catalog, excluding unsupported or unvalidated operations.
 
 **Important boundary:** no HTTP handler calls this adapter directly against the physical ECU. It is a pure projection library, tested using explicitly synthetic native snapshot fixtures. The real Stage 4.3 completed result is operator-generated evidence with a verified SHA-256, but is **not** an authenticated live application session. The `/api/v1/dut/dtcs` endpoint must continue returning `503 backend_unavailable` until a controlled application-owned cross-process snapshot publisher/reader supplies origin, capture time, freshness, session identity and operator authorization. Never parse the private raw UDS trace inside the HTTP server; never grant the API access to privileged Bench Agent commands or devices.
+
+## Application-owned completed readout IPC — Stage API V1.1
+
+### Strict semantics
+
+`GET /api/v1/readouts/dtc/latest` is a **completed historical operation**, not a
+live DUT status query. The response contains `source:
+"completed_application_operation"`, `live: false`, `captured_at_unix_ms`,
+`profile_id`, `completed_generation` and `dtcs` (protocol, status availability
+and requested masks, six-digit hexadecimal codes and their status bytes).
+Readouts are accepted for 24 hours after capture; expired evidence returns
+HTTP 410 `readout_expired`, missing evidence returns HTTP 503 and malformed or
+insecure snapshots return HTTP 502. The original live
+`/api/v1/dut/dtcs` endpoint still returns 503 until a separate, authorized
+current-session provider exists. No automatic action is triggered by HTTP.
+
+Transport: portable `ECU_COMPLETED_DTC_V1` canonical newline format
+(maximum 8192 bytes and 128 DTC entries). Parsing is exact, rejects duplicates,
+invalid masks and unknown fields, and preserves the UDS mask and 24-bit codes.
+One Linux-specific adapter publishes a new immutable inode by atomic rename
+after a native Application Layer operation reaches `dtcs_ready`, the Bench
+resource leases are released, the matching profile is verified, and its
+completion generation is nonzero. The companion reader checks file and
+directory ownership, group, exact modes, symlinks, hard-link count and schema
+before making it accessible through authenticated GET. It never invokes the
+Bench Agent, opens PF_CAN or transmits CAN frames.
+
+**Trust model:** Linux producer `ecu` is the trusted local lab operator;
+reader `ecu-api` has a separate account and read-only membership in
+`ecu-api-read`. The operating-system ownership boundary does not attest that
+an operator-owned file came from a specific physical ECU; it guarantees that
+the kiosk and arbitrary unauthenticated HTTP clients cannot overwrite or
+inject these snapshots. Hardware proof remains separately auditable.
+
+### Provisioning plan (requires operator's terminal and review)
+
+This is **not executed** by the API development PR. Only after production
+review, API/legacy CI PASS, and confirmation that CM5 `can0` is DOWN:
+
+- Create unprivileged system accounts `ecu-api` and read-only group
+  `ecu-api-read`. The `ecu-api` account must **never** be a member of the
+  privileged `ecu`, `gpio`, `spi`, `dialout` or `input` groups.
+- Create `/var/lib/ecu-platform-v2/api-readouts` owned
+  `ecu:ecu-api-read`, mode **2750** (setgid); the parent
+  `/var/lib/ecu-platform-v2` is root-owned, mode 0755. The published file
+  `dtc-latest.v1` is mode **0640**, owned `ecu:ecu-api-read`.
+- Generate a 256-bit random bearer token *on the host* under
+  `/etc/ecu-platform-v2/api/token` (root:`ecu-api`, mode 0640), never in Git,
+  HTML, JS or shell history. Keep parent credential directory inaccessible
+  to other accounts.
+- Install a tested `ecu_api_http` binary and the staged
+  `deploy/api/ecu-api-v1.service`, which runs with
+  `User=ecu-api`, `Group=ecu-api`, `SupplementaryGroups=ecu-api-read`,
+  empty Linux capabilities and an IPv4 loopback listener. Check the service
+  cannot connect to the restricted Bench Agent socket.
+- First smoke `/api/v1/about`, `/api/v1/interfaces` and the negative
+  authentication cases. **No live ECU request through API.**
+
+The operator's **physical SAC 500k proof runner** accepts the optional
+`all --publish-readout` flag. Without it, it runs unchanged. With it,
+the probe must come from a separate build with
+`-DECU_BUILD_APPLICATION_API=ON` (build target
+`ecu_daf_sac_stage42_read_probe` into `build/api-readout-linux`).
+Publishing is attempted only after a successful *read-only* native DTC
+operation; the generated evidence remains under the operator's control.
+The flag explicitly requires the pre-provisioned group-private directory
+and is rejected before CAN activity if that directory is missing.
+
+This PR does **not** use that opt-in flag on the physical SAC: the existing
+operator's successful Stage 4.3 trace stays private and is not silently
+re-imported or relabeled as a fresh Application Layer snapshot. The local
+end-to-end HTTP test uses an explicitly synthetic publisher fixture, including
+negative checks for file modes, symlinks, malformed content, expired results,
+no authorization and no confusion with live `/dtcs`.
+
+No WebGUI changes, production merge, installed user or enabled service are
+part of this stage.

@@ -9,7 +9,7 @@ namespace ecu::api::v1 {
 // Only application-owned observations are publishable. Missing data is not
 // interpreted as an inactive DUT, an empty DTC list, or a healthy bus.
 enum class ReadStatus : std::uint8_t {
-  ok, backend_unavailable, no_active_session, unsupported, invalid_snapshot
+  ok, backend_unavailable, no_active_session, unsupported, invalid_snapshot, expired_readout
 };
 
 template <class T>
@@ -82,6 +82,15 @@ struct DtcInfo {
   std::vector<DtcEntry> entries;
 };
 
+// Immutable point-in-time result, never the status of a currently attached
+// ECU. A fresh response means recently captured, NOT a live diagnostic stream.
+struct CompletedDtcReadout {
+  std::uint64_t captured_at_unix_ms{0U};
+  std::uint32_t profile_id{0U};
+  std::uint64_t completed_generation{0U};
+  DtcInfo dtcs{};
+};
+
 // Implementations must query authoritative application state; no facade method
 // is permitted to dispatch commands to CAN, Bench Agent or DUT hardware.
 class IReadModel {
@@ -103,6 +112,12 @@ class IReadModel {
     return {};
   }
   [[nodiscard]] virtual ReadResult<DtcInfo> dtcs() const {
+    return {};
+  }
+  // Historical readout, backed by a separate trusted producer. No method
+  // in this interface requests transmission or creates a DUT session.
+  [[nodiscard]] virtual ReadResult<CompletedDtcReadout>
+  latest_completed_dtcs() const {
     return {};
   }
 };

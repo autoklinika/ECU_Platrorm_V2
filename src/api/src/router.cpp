@@ -254,6 +254,23 @@ std::string serialize(const DtcInfo& value) {
   return out + "]}";
 }
 
+bool valid(const CompletedDtcReadout& value) {
+  return value.captured_at_unix_ms > 0U &&
+         value.profile_id != 0U &&
+         value.completed_generation > 0U &&
+         valid(value.dtcs);
+}
+
+std::string serialize(const CompletedDtcReadout& value) {
+  return std::string{"{\"source\":\"completed_application_operation\","
+                     "\"live\":false,\"captured_at_unix_ms\":"} +
+         std::to_string(value.captured_at_unix_ms) +
+         ",\"profile_id\":" + std::to_string(value.profile_id) +
+         ",\"completed_generation\":" +
+         std::to_string(value.completed_generation) +
+         ",\"dtcs\":" + serialize(value.dtcs) + "}";
+}
+
 template <class T>
 Response data_response(const ReadResult<T>& result) {
   switch (result.status) {
@@ -263,6 +280,8 @@ Response data_response(const ReadResult<T>& result) {
       return {404, "{\"schema_version\":1,\"error\":{\"code\":\"no_active_session\"}}"};
     case ReadStatus::unsupported:
       return {501, "{\"schema_version\":1,\"error\":{\"code\":\"unsupported\"}}"};
+    case ReadStatus::expired_readout:
+      return {410, "{\"schema_version\":1,\"error\":{\"code\":\"readout_expired\"}}"};
     case ReadStatus::invalid_snapshot:
       return {502, "{\"schema_version\":1,\"error\":{\"code\":\"invalid_snapshot\"}}"};
     case ReadStatus::ok:
@@ -313,10 +332,11 @@ bool Router::authenticated(const std::string_view authorization) const noexcept 
 }
 
 bool Router::known_path(std::string_view path) const noexcept {
-  constexpr std::array<std::string_view, 7> paths{
+  constexpr std::array<std::string_view, 8> paths{
       "/api/v1/about", "/api/v1/platform", "/api/v1/interfaces",
       "/api/v1/bench/session", "/api/v1/dut",
-      "/api/v1/dut/capabilities", "/api/v1/dut/dtcs"};
+      "/api/v1/dut/capabilities", "/api/v1/dut/dtcs",
+      "/api/v1/readouts/dtc/latest"};
   for (const auto allowed : paths)
     if (path == allowed) return true;
   return false;
@@ -374,6 +394,8 @@ Response Router::route(const Request& request) const {
     response = data_response(model_.capabilities());
   } else if (request.target == "/api/v1/dut/dtcs") {
     response = data_response(model_.dtcs());
+  } else if (request.target == "/api/v1/readouts/dtc/latest") {
+    response = data_response(model_.latest_completed_dtcs());
   } else {
     response = error(404, "not_found");
   }

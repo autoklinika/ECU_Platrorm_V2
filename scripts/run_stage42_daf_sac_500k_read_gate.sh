@@ -9,8 +9,13 @@ if [[ "${EUID}" -ne 0 || ! -t 0 || ! -t 1 ]]; then
   exit 2
 fi
 MODE="${1:-all}"
-if [[ "$#" -gt 1 || ( "$MODE" != all && "$MODE" != passive ) ]]; then
-  echo "Usage: sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh [passive|all]" >&2
+PUBLISH_READOUT=0
+READOUT_DIR=/var/lib/ecu-platform-v2/api-readouts
+if [[ "$#" -eq 2 && "$MODE" == all &&
+      "$2" == "--publish-readout" ]]; then
+  PUBLISH_READOUT=1
+elif [[ "$#" -gt 1 || ( "$MODE" != all && "$MODE" != passive ) ]]; then
+  echo "Usage: sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh [passive|all] [--publish-readout (all only)]" >&2
   exit 2
 fi
 TARGET_USER="${SUDO_USER:-}"
@@ -24,6 +29,10 @@ IFACE=can0
 BITRATE=500000
 ID_PROBE="$ROOT/build/daf-sac-core-v2-probe/tests/ecu_daf_sac_core_v2_probe"
 READ_PROBE="$ROOT/build/daf-sac-app-linux/tests/ecu_daf_sac_stage42_read_probe"
+if [[ "$PUBLISH_READOUT" == 1 ]]; then
+  # Never replace the installed restricted agent's legacy binary.
+  READ_PROBE="$ROOT/build/api-readout-linux/tests/ecu_daf_sac_stage42_read_probe"
+fi
 for tool in ip candump runuser getent cut install grep sed tee date stat chown sha256sum; do
   command -v "$tool" >/dev/null 2>&1 || {
     echo "SAC_500K_READ_GATE=FAIL missing-tool=$tool" >&2
@@ -41,6 +50,11 @@ fi
 # Fail closed without taking over an already running CAN session.
 if ip -o link show "$IFACE" | grep -qE '(<|,)UP(,|>)'; then
   echo "SAC_500K_READ_GATE=BUSY can0-already-UP" >&2
+  exit 4
+fi
+if [[ "$PUBLISH_READOUT" == 1 ]] &&
+    ! runuser -u "$TARGET_USER" -- test -w "$READOUT_DIR"; then
+  echo "SAC_API_READOUT_PREFLIGHT=FAIL directory-not-writable" >&2
   exit 4
 fi
 HOME_DIR="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
@@ -198,7 +212,11 @@ echo "SAC_500K_IDENTIFY=PASS" | tee -a "$SUMMARY"
 READ_FAILURES=0
 for mode in parameters dtc; do
   echo "SAC_500K_READ_STAGE=$mode" | tee -a "$SUMMARY"
-  if runuser -u "$TARGET_USER" -- "$READ_PROBE" "$IFACE" "$mode" "$BITRATE" 2>&1 \
+  PROBE_ARGS=("$IFACE" "$mode" "$BITRATE")
+  if [[ "$PUBLISH_READOUT" == 1 && "$mode" == dtc ]]; then
+    PROBE_ARGS+=("$READOUT_DIR")
+  fi
+  if runuser -u "$TARGET_USER" -- "$READ_PROBE" "${PROBE_ARGS[@]}" 2>&1 \
       | tee "$PREFIX.$mode.txt"; then
     if grep -q '^SAC_STAGE42_READ_PHYSICAL=PASS$' "$PREFIX.$mode.txt"; then
       echo "SAC_500K_READ_RESULT=PASS mode=$mode" | tee -a "$SUMMARY"

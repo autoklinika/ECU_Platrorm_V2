@@ -82,6 +82,23 @@ ReadResult<DtcInfo> project_daf_sac_completed_dtc_read(
   return {ReadStatus::ok, out};
 }
 
+ReadResult<CompletedDtcReadout> capture_daf_sac_completed_readout(
+    const sac::AppSnapshot& snapshot, const profiles::SacDtcList& dtcs,
+    const std::uint64_t captured_at_unix_ms) {
+  if (captured_at_unix_ms == 0U)
+    return {ReadStatus::invalid_snapshot, {}};
+  auto converted = project_daf_sac_completed_dtc_read(snapshot, dtcs);
+  if (converted.status != ReadStatus::ok)
+    return {converted.status, {}};
+  CompletedDtcReadout result{};
+  result.captured_at_unix_ms = captured_at_unix_ms;
+  result.profile_id = snapshot.profile_id;
+  result.completed_generation =
+      snapshot.bench.last_completed_operation_generation;
+  result.dtcs = std::move(converted.value);
+  return {ReadStatus::ok, std::move(result)};
+}
+
 ReadResult<CapabilitiesInfo> project_daf_sac_capabilities(
     const sac::AppSnapshot& snapshot) {
   if (!valid_sac_profile(snapshot))

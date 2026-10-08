@@ -1184,3 +1184,46 @@ if(TARGET ECU::api_daf_sac_projection)
   add_test(NAME ecu.api.daf_sac_projection
     COMMAND ecu_api_daf_sac_projection_tests)
 endif()
+
+# Only the opt-in physical read-only probe may publish a completed application
+# snapshot. No API HTTP endpoint gains permission to start diagnostic work.
+if(TARGET ecu_daf_sac_stage42_read_probe AND
+   TARGET ECU::api_daf_sac_projection AND
+   TARGET ECU::api_linux_readout_store)
+  target_link_libraries(ecu_daf_sac_stage42_read_probe PRIVATE
+    ECU::api_daf_sac_projection ECU::api_linux_readout_store)
+  target_compile_definitions(ecu_daf_sac_stage42_read_probe PRIVATE
+    ECU_STAGE42_API_SNAPSHOT_EXPORT=1)
+endif()
+
+if(TARGET ECU::api_linux_readout_store AND
+   TARGET ECU::api_daf_sac_projection AND TARGET ecu_api_http)
+  add_executable(ecu_api_readout_fixture api/readout_store_fixture.cpp)
+  target_link_libraries(ecu_api_readout_fixture PRIVATE
+    ECU::api_daf_sac_projection ECU::api_linux_readout_store)
+  target_compile_features(ecu_api_readout_fixture PRIVATE cxx_std_17)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(ecu_api_readout_fixture PRIVATE
+      -Wall -Wextra -Wpedantic -Werror)
+  endif()
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME ecu.api.readout_ipc
+    COMMAND "${Python3_EXECUTABLE}"
+      "${PROJECT_SOURCE_DIR}/tests/api/readout_ipc_integration.py"
+      "$<TARGET_FILE:ecu_api_http>"
+      "$<TARGET_FILE:ecu_api_readout_fixture>")
+  set_tests_properties(ecu.api.readout_ipc PROPERTIES TIMEOUT 25)
+endif()
+
+if(TARGET ECU::application_api)
+  add_executable(ecu_api_readout_wire_tests api/readout_wire_tests.cpp)
+  target_link_libraries(ecu_api_readout_wire_tests PRIVATE ECU::application_api)
+  target_compile_features(ecu_api_readout_wire_tests PRIVATE cxx_std_17)
+  if(MSVC)
+    target_compile_options(ecu_api_readout_wire_tests PRIVATE /W4 /WX)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(ecu_api_readout_wire_tests PRIVATE
+      -Wall -Wextra -Wpedantic -Werror)
+  endif()
+  add_test(NAME ecu.api.readout_wire COMMAND ecu_api_readout_wire_tests)
+endif()

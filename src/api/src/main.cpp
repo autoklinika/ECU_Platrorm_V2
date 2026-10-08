@@ -15,6 +15,10 @@
 #ifndef _WIN32
 #include <sys/stat.h>
 #endif
+#ifdef ECU_API_HAVE_LINUX_LINK
+#include <grp.h>
+#include <pwd.h>
+#endif
 
 namespace {
 
@@ -50,6 +54,9 @@ bool parse_port(const std::string& text, std::uint16_t& port) {
 int main(int argc, char* argv[]) {
   std::string token_file;
   std::string can_interface;
+  std::string readout_directory;
+  std::string readout_owner;
+  std::string readout_group;
   std::uint16_t port = 8878U;
   for (int index = 1; index < argc; ++index) {
     const std::string key{argv[index]};
@@ -64,6 +71,12 @@ int main(int argc, char* argv[]) {
       if (!parse_port(value, port)) return 2;
     } else if (key == "--can-interface") {
       can_interface = value;
+    } else if (key == "--readout-dir") {
+      readout_directory = value;
+    } else if (key == "--readout-owner") {
+      readout_owner = value;
+    } else if (key == "--readout-group") {
+      readout_group = value;
     } else {
       std::cerr << "ECU_API_ARGS=INVALID\n";
       return 2;
@@ -77,11 +90,36 @@ int main(int argc, char* argv[]) {
   }
   std::unique_ptr<ecu::api::v1::IReadModel> model;
 #ifdef ECU_API_HAVE_LINUX_LINK
-  if (!can_interface.empty()) {
-    model = std::make_unique<ecu::api::v1::LinuxLinkReadModel>(can_interface);
+  const bool readout_enabled = !readout_directory.empty() ||
+      !readout_owner.empty() || !readout_group.empty();
+  uid_t producer_uid = 0;
+  gid_t reader_gid = 0;
+  if (readout_enabled) {
+    if (readout_directory.empty() || readout_owner.empty() ||
+        readout_group.empty()) {
+      std::cerr << "ECU_API_READOUT_CONFIG=INCOMPLETE\n";
+      return 2;
+    }
+    const auto* owner = ::getpwnam(readout_owner.c_str());
+    if (owner == nullptr || owner->pw_uid == 0) {
+      std::cerr << "ECU_API_READOUT_CONFIG=INVALID\n";
+      return 2;
+    }
+    producer_uid = owner->pw_uid;
+    const auto* group = ::getgrnam(readout_group.c_str());
+    if (group == nullptr) {
+      std::cerr << "ECU_API_READOUT_CONFIG=INVALID\n";
+      return 2;
+    }
+    reader_gid = group->gr_gid;
+  }
+  if (!can_interface.empty() || readout_enabled) {
+    model = std::make_unique<ecu::api::v1::LinuxLinkReadModel>(
+        can_interface, readout_directory, producer_uid, reader_gid);
   }
 #else
-  if (!can_interface.empty()) {
+  if (!can_interface.empty() || !readout_directory.empty() ||
+      !readout_owner.empty() || !readout_group.empty()) {
     std::cerr << "ECU_API_PLATFORM=UNSUPPORTED\n";
     return 2;
   }

@@ -1,4 +1,8 @@
 #include "ecu/applications/daf_sac/application.hpp"
+#ifdef ECU_STAGE42_API_SNAPSHOT_EXPORT
+#include "ecu/api/daf_sac_projection.hpp"
+#include "ecu/api/linux_readout_store.hpp"
+#endif
 #include "ecu/core_v2/protocol/isotp/isotp_diagnostic_transport.hpp"
 #include "ecu/core_v2/protocol/isotp/isotp_endpoint.hpp"
 #include "ecu/core_v2/protocol/uds/uds_client.hpp"
@@ -124,17 +128,23 @@ namespace uds = ecu::core::v2::protocol::uds;
 }  // namespace
 
 int main(int argc, char** argv) {
-  if ((argc != 3 && argc != 4) ||
+  bool export_requested = false;
+#ifdef ECU_STAGE42_API_SNAPSHOT_EXPORT
+  export_requested = argc == 5;
+#endif
+  if ((argc != 3 && argc != 4 && !export_requested) ||
       (std::string_view{argv[2]} != "parameters" &&
-       std::string_view{argv[2]} != "dtc")) {
+       std::string_view{argv[2]} != "dtc") ||
+      (export_requested && std::string_view{argv[2]} != "dtc")) {
     std::cerr << "usage: ecu_daf_sac_stage42_read_probe <ifname> "
-                 "<parameters|dtc> [250000|500000] (NO DTC CLEAR)\n";
+                 "<parameters|dtc> [250000|500000]"
+                 " [optional-readout-directory-for-dtc-only] (NO DTC CLEAR)\n";
     return 2;
   }
   // Preserve the installed root-owned agent's 3-argument 250k contract.
   // 500k is available only by explicit, operator-selected fourth argument.
   daf::CanBitrateProfile bitrate_profile = daf::CanBitrateProfile::k250k;
-  if (argc == 4) {
+  if (argc == 4 || export_requested) {
     const std::string_view chosen{argv[3]};
     if (chosen == "500000") {
       bitrate_profile = daf::CanBitrateProfile::k500k;
@@ -292,6 +302,26 @@ int main(int argc, char** argv) {
           bus.state() == transport::CanBusState::running) {
         return failed("cleanup-incomplete", &application);
       }
+#ifdef ECU_STAGE42_API_SNAPSHOT_EXPORT
+      if (export_requested) {
+        const auto snapshot = application.snapshot();
+        const auto& dtcs = application.dtcs();
+        const auto captured_at =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+        if (captured_at <= 0) return failed("invalid-wallclock");
+        const auto projection =
+            ecu::api::v1::capture_daf_sac_completed_readout(
+                snapshot, dtcs, static_cast<std::uint64_t>(captured_at));
+        if (projection.status != ecu::api::v1::ReadStatus::ok ||
+            !ecu::api::v1::publish_linux_readout(
+                argv[4], projection.value)) {
+          return failed("completed-readout-export");
+        }
+        std::cout << "SAC_API_DTC_READOUT_PUBLISHED=PASS"
+                     " historical-completed-operation\n";
+      }
+#endif
       std::cout << "SAC_STAGE42_READ_PHYSICAL=PASS\n";
       return 0;
     }
