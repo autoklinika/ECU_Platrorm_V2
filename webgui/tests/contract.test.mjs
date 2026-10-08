@@ -47,6 +47,13 @@ test("refined V1 skin stays flat, lightweight and kiosk-friendly", () => {
   assert.doesNotMatch(css, /(?:linear|radial|conic)-gradient\(|backdrop-filter|@keyframes/i);
 });
 
+test("all WebGUI elements hide the pointer without disabling touch or click", () => {
+  assert.ok(css.includes("body * {\n  cursor: none !important;"));
+  assert.match(css, /touch-action: manipulation/);
+  assert.ok(app.includes('sidebarToggle.addEventListener("click"'));
+  assert.ok(!css.includes("pointer-events: none !important"));
+});
+
 test("WebGUI has no diagnostic, hardware or privileged-agent path", () => {
   const frontend = [
     html, css, app, read("src/i18n.mjs"), read("src/domain-text.mjs"),

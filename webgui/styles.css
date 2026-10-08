@@ -256,3 +256,10 @@ button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .sidebar-veil, .side-panel { transition: none; }
 }
+
+/* Touchscreen kiosk: hide the visual mouse cursor without changing input. */
+html,
+body,
+body * {
+  cursor: none !important;
+}

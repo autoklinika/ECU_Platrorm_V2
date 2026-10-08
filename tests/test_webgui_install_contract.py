@@ -96,6 +96,16 @@ class SecurityContractTest(unittest.TestCase):
         self.assertIn("systemctl is-active --quiet ecu-kiosk.service", install)
         self.assertIn('pgrep -u ecu-kiosk -x chromium', install)
 
+    def test_cursor_patch_is_a_css_only_kiosk_release(self):
+        script = (BASE / "scripts/deploy_cursor_css_cm5.sh").read_text()
+        self.assertIn('cursor: none !important;', script)
+        self.assertIn('chmod 0755 "$staged"', script)
+        self.assertIn('mv -Tf "$base/.next-cursor-$$" "$current"', script)
+        self.assertIn("CURSOR_UPDATE=ROLLED_BACK", script)
+        self.assertIn("systemctl restart ecu-kiosk.service", script)
+        self.assertNotIn("systemctl restart ecu-webgui-static.service", script)
+        self.assertNotIn("systemctl restart ecu-platform-v2-bench", script)
+
     def test_recovery_is_defined_before_restart(self):
         install = (BASE / "scripts" / "install_cm5_webgui_v1.sh").read_text()
         rollback = (DEPLOY / "rollback_kiosk.sh").read_text()

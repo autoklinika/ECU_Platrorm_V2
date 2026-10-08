@@ -152,3 +152,19 @@ Viewport-geometry checks passed at 1280x720, 1920x1080, 1024x768,
 Only WebGUI styling and reference screenshots changed in this refinement.
 No live kiosk or DUT services were modified. All production integration
 and security gates specified above remain pending.
+
+
+## Touchscreen cursor visibility
+
+The kiosk now uses a CSS-only rule to hide the mouse pointer across all
+WebGUI elements, including buttons and empty areas. Touch and click events
+remain enabled; no change to the Cage service, input driver, Chromium flags,
+API, Core or Bench Runtime is required. This initially affects regular
+desktop browser previews of the same WebGUI too.
+
+On a CM5 already running a root-owned WebGUI release, apply only this CSS
+update via scripts/deploy_cursor_css_cm5.sh using a single local sudo
+command. The update creates a new versioned static release, atomically
+switches the static root and restarts only ecu-kiosk.service, restoring
+the prior release if the update fails. Physical pointer visibility and
+touch responsiveness require human confirmation after the cutover.
