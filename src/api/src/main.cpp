@@ -21,9 +21,9 @@ namespace {
 bool read_token(const std::string& path, std::string& token) {
 #ifndef _WIN32
   struct stat info{};
-  if (stat(path.c_str(), &info) != 0 ||
-      !S_ISREG(info.st_mode) || (info.st_mode & S_IROTH) != 0 ||
-      (info.st_mode & S_IWOTH) != 0) return false;
+  if (lstat(path.c_str(), &info) != 0 ||
+      !S_ISREG(info.st_mode) ||
+      (info.st_mode & (S_IWGRP | S_IRWXO)) != 0) return false;
 #endif
   std::ifstream file(path);
   if (!file || !std::getline(file, token)) return false;

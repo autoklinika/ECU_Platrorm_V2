@@ -68,3 +68,20 @@ jobs:
           ctest --test-dir "build/api-ci-${{matrix.arch }}-${{matrix.config }}"
           -C "${{matrix.config }}" -R '^ecu[.]api[.]'
           --output-on-failure
+
+  api-generic-portable:
+    name: API portable contracts (Generic OS)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure generic contracts without OS-specific HTTP transport
+        run: >
+          cmake -S . -B build/api-generic-ci -G Ninja
+          -DCMAKE_SYSTEM_NAME=Generic
+          -DECU_BUILD_APPLICATION_API=ON
+          -DECU_BUILD_LINUX_V2_PLATFORM=OFF
+      - name: Build portable API tests
+        run: cmake --build build/api-generic-ci --target ecu_application_api_tests --parallel 2
+      - name: Validate API without Linux or Windows sockets
+        run: ctest --test-dir build/api-generic-ci -R '^ecu[.]api[.]router$' --output-on-failure

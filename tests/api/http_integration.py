@@ -45,6 +45,18 @@ def run(binary):
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", 0))
             port = probe.getsockname()[1]
+        if os.name != "nt":
+            permissive = Path(directory) / "permissive"
+            permissive.write_text(token + "\n", encoding="ascii")
+            os.chmod(permissive, 0o666)
+            check(subprocess.run([binary, "--token-file", str(permissive)],
+                                 capture_output=True, timeout=2).returncode != 0,
+                  "insecure token file refused")
+            symlink_path = Path(directory) / "symlink-token"
+            symlink_path.symlink_to(token_path)
+            check(subprocess.run([binary, "--token-file", str(symlink_path)],
+                                 capture_output=True, timeout=2).returncode != 0,
+                  "symlink token file refused")
         process = subprocess.Popen(
             [binary, "--token-file", str(token_path), "--port", str(port)],
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,

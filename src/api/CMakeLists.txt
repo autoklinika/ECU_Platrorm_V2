@@ -22,7 +22,8 @@ endif()
 target_compile_definitions(ecu_application_api PRIVATE
   ECU_API_BUILD_REVISION="${ECU_API_BUILD_SHA}")
 
-add_executable(ecu_api_http
+if(WIN32 OR UNIX)
+  add_executable(ecu_api_http
   src/http_transport.cpp
   src/main.cpp
 )
@@ -37,8 +38,14 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND TARGET ECU::platform_linux_v2)
   target_link_libraries(ecu_api_http PRIVATE ECU::platform_linux_v2)
   target_compile_definitions(ecu_api_http PRIVATE ECU_API_HAVE_LINUX_LINK=1)
 endif()
+endif() # HTTP sockets only on supported host OSes.
 
-foreach(target ecu_application_api ecu_api_http)
+set(_ecu_api_targets ecu_application_api)
+if(TARGET ecu_api_http)
+  list(APPEND _ecu_api_targets ecu_api_http)
+endif()
+
+foreach(target IN LISTS _ecu_api_targets)
   if(MSVC)
     target_compile_options(${target} PRIVATE /W4 /WX)
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

@@ -6,7 +6,7 @@ Status: isolated API branch; **not merged or deployed**. Kiosk/WebGUI PR #19 is 
 
 WebGUI -> authenticated Application API -> injected `IReadModel` -> application-owned snapshots -> Bench Runtime / DUT Profiles -> Core V2.
 
-- C++17 `ecu_application_api`: portable DTOs, read-only provider interface, validation, versioned JSON router; no CAN hardware dependency.
+- C++17 `ecu_application_api`: portable DTOs, read-only provider interface, validation, versioned JSON router; no CAN hardware dependency. Cross-compiles for Generic targets without any HTTP transport.
 - C++17 `ecu_api_http`: thin loopback-only HTTP/1.1 GET transport with Windows Winsock / Unix sockets. Not a general-purpose HTTP server, no arbitrary endpoints or proxy routes.
 - Optional Linux read adapter: `query_socketcan_link` from **existing** Linux V2 adapter; queries kernel netlink without opening PF_CAN, modifying link state, transmitting frames or connecting to Bench Agent. Interface is explicit configuration (`--can-interface can0`).
 - Bench projection: existing `BenchSessionSnapshot` and selected `DutProfileDefinition` are adapted without changing Core/Bench. The selected profile never implies physical DUT presence.
