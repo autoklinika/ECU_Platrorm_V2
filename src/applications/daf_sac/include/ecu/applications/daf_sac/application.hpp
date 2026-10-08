@@ -37,7 +37,8 @@ struct OperationDescriptor {
 
 inline constexpr std::array<OperationDescriptor, 6U> kOperationCatalog{{
     {AppOperation::identify, "identify", true, true, true},
-    {AppOperation::read_dtc, "read_dtc", true, true, false},
+    // Physically read via 19 02 FF on both 250k and 500k SAC DUTs.
+    {AppOperation::read_dtc, "read_dtc", true, true, true},
     {AppOperation::clear_dtc, "clear_dtc", true, false, false},
     {AppOperation::live_parameters, "live_parameters", true, true, false},
     {AppOperation::actuator_test, "actuator_test", false, false, false},

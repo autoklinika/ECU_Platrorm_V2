@@ -2,7 +2,9 @@
 
 Data: 2026-10-08
 Gałąź: `stage4.3/daf-sac-500k-read-proof`
-Status: **PASYWNY CAN 500 KBIT/S PASS / IDENTYFIKACJA UDS FAIL (ODPOWIEDŹ PRZYJĘTA, WERYFIKACJA NIEUDANA) / PARAMETRY I DTC NIEODCZYTANE**
+Status: **STAGE 4.3 PHYSICAL READ-ONLY GATE PASS (500 KBIT/S); IDENTYFIKACJA CZĘŚCIOWA — VIN FF17; CIŚNIENIA / PGN FEAE W AKTYWNEJ SESJI NIEZWERYFIKOWANE**
+
+Poniżej zachowano chronologię prób z wcześniejszymi błędami. **Końcowy stan i kryteria akceptacji znajdują się w ostatniej sekcji dokumentu.**
 
 ## Sytuacja wyjściowa
 
@@ -220,3 +222,96 @@ Można wykonać ponownie tę samą operatorową bramę
 `sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh all`,
 ponieważ jest ograniczona do odczytu, nie resetuje,
 nie kasuje DTC ani nie steruje wyjściami.
+
+## WYNIK KOŃCOWY — fizyczny Stage 4.3, 2026-10-08 10:17
+
+**READ-ONLY PHYSICAL GATE = PASS** dla nowego SAC `500000 bit/s`,
+profil DUT `0xDAF00050`. Warunek odbioru dotyczy warstwy komunikacji,
+identyfikacji dostępnych danych, odczytu FE96 i pamięci DTC.
+Nie oznacza pełnej sprawności wszystkich układów SAC ani potwierdzenia
+obsługi aktywnego PGN ciśnienia.
+
+### Potwierdzone bezpośrednio na sprzęcie
+
+| Kontrola | Wynik |
+|---|---|
+| CAN 500 kbit/s, Classic, 29-bit | PASS |
+| Listen-only 5 s | 16 368 ramek, 16 360 RX wg kernela, RX errors 0, TX delta 0, CAN error frames 0 |
+| Normal CAN | 500 kbit/s, FD off, bus-off 0 |
+| ISO-TP i UDS `22 F190` | PASS: `62 F190`, 17 bajtów `FF`, status `UNPROGRAMMED_FF17`, bez fikcyjnego VIN |
+| `22 F188` — Software | PASS: `2027746` |
+| `22 F192` — Hardware | PASS: `K127968` (końcowe spacje w danych) |
+| `22 FE96` — permanent / ignition | PASS: `28 V / 28 V` |
+| `10 03 -> 19 02 FF` | PASS: `59 02`, maska `0x8B`, 13 DTC |
+| Połączenia Bench i CAN | 0 aktywnych rezerwacji, `can0 DOWN` po zakończeniu |
+| Ingerencja w pamięć / kasowanie | BRAK: `14` nie był wysłany |
+
+Surowy lokalny ślad aktywnego UDS jest zachowany wyłącznie na CM5:
+`~/.ecu-platform-v2/daf-sac/500k-proof/read-500k-20261008T081749Z-422826.active-uds.log`.
+SHA-256: `423cd78e64f6e797e22d6acaf742802c87d5d45737411a688baee06559dcb5ad`.
+Należy chronić plik jako potencjalnie zawierający identyfikatory ECU.
+
+Powtórna analiza ISO-TP/UDS **offline**: 32 ramki diagnostyczne,
+0 błędów składania, 0 żądań `14`, 0 odpowiedzi `54`;
+`7F 22 78` wystąpiło 2 razy, a `7F 19 78` raz
+(`ResponsePending`, po którym nastąpiła właściwa odpowiedź).
+`SAC_TRACE_DTC_LIST_COUNTS=13`; `SAC_TRACE_RESULT=NO_CLEAR_REQUEST_OBSERVED`.
+
+### Odczytane kody DTC
+
+Stan źródłowy, bez przypisywania opisów DAF bez dokumentacji OEM:
+
+| DTC (24-bit UDS) | Status |
+|---|---|
+| `3A0002` | `08` |
+| `DFF7E9` | `8B` |
+| `DCF7E9` | `8B` |
+| `E0F7E9` | `8B` |
+| `DEF7E9` | `8B` |
+| `D9F7E9` | `8B` |
+| `DBF7E9` | `8B` |
+| `DDF7E9` | `8B` |
+| `DAF7E9` | `8B` |
+| `08F9E2` | `8B` |
+| `77F9E5` | `8B` |
+| `74F9E3` | `8B` |
+| `09F9E2` | `89` |
+
+`0x8B` jako `statusAvailabilityMask` to maska obsługiwanych
+bitów UDS, a status poszczególnych kodów widnieje w kolumnie.
+Obecność kodów w warunkach laboratoryjnych nie dowodzi usterki
+płyty sterownika bez diagnostyki warunków podłączenia.
+
+### Oddzielna obserwacja: PGN FEAE
+
+W pasywnym nasłuchu z tego DUT widać
+`0x18FEAE30 [8] FF FF FE FE FF FF FF FF`.
+Bajty `FE FE` oznaczają brak prawidłowych wartości ciśnienia.
+Natomiast podczas 800 ms próbki `FE96` aplikacja raportowała
+`SAC_PGN_FEAE_OBSERVED=0`; **nie ma potwierdzenia, że PGN
+był emitowany w czasie tej konkretnej aktywnej próbki**.
+Aktywny log filtruje wyłącznie identyfikatory diagnostyczne UDS.
+Sam kod monitora ciśnienia poprawnie zachowuje obecność PGN
+oddzielnie od poprawności wartości; istnieją testy jednostkowe.
+Nie zmieniono parsera/timeoutów PGN na podstawie tej rozbieżności.
+
+Duża liczba identycznych ramek z pojedynczego ECU w trybie
+LISTEN-ONLY może wynikać z retransmisji bez potwierdzeń ACK;
+nie należy interpretować jej jako zweryfikowanej częstotliwości
+regularnej transmisji PGN w docelowym pojeździe.
+
+### Decyzja i granice etapu
+
+- **Stage 4.3: ACCEPT READ-ONLY PHYSICAL COMMUNICATION 500k.**
+- DTC read ma `physically_validated=true` w katalogu operacji
+  (testowane na osobnych SAC 250k i 500k).
+- `live_parameters.physically_validated=false` pozostaje, ponieważ
+  pełne wartości ciśnień nie były dostępne; odczyt FE96 jest PASS.
+- `clear_dtc.physically_validated=false` pozostaje.
+  Kasowanie dla 500k jest zablokowane zarówno w DUT Application,
+  jak i w zdalnym root-owned agencie.
+- VIN jest nieobecny w rozumieniu danych F190; obsługa
+  `UNPROGRAMMED_FF17` nie dopisuje ani nie zapisuje VIN do ECU.
+- CORE V2 / Bench Runtime / `main`: bez zmian.
+- Nie wykonywać dodatkowego kasowania, testów output control
+  ani flash w ramach tego etapu.

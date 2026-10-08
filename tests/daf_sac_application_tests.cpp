@@ -626,8 +626,10 @@ int main() {
       app::operation_available(app::AppOperation::live_parameters) &&
       !app::operation_available(app::AppOperation::actuator_test) &&
       !app::operation_available(app::AppOperation::program_ecu) &&
-      !app::kOperationCatalog[2U].physically_validated,
-      "Stage 4.2 services declared; destructive DTC unverified on hardware");
+      app::kOperationCatalog[1U].physically_validated &&
+      !app::kOperationCatalog[2U].physically_validated &&
+      !app::kOperationCatalog[3U].physically_validated,
+      "SAC DTC read validated on both DUTs; destructive clear and pressure remain unverified");
 
   {
     Fixture f;
