@@ -18,4 +18,11 @@ namespace ecu::api::v1 {
 [[nodiscard]] bool publish_linux_readout(
     const std::string& directory, const CompletedDtcReadout& record);
 
+[[nodiscard]] ReadResult<CompletedSacParameters>
+load_linux_sac_parameters(
+    const std::string& directory, uid_t producer_uid, gid_t reader_gid,
+    std::uint64_t now_unix_ms, std::uint64_t maximum_age_ms);
+[[nodiscard]] bool publish_linux_sac_parameters(
+    const std::string& directory, const CompletedSacParameters& record);
+
 }  // namespace ecu::api::v1

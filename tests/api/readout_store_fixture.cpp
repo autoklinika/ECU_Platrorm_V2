@@ -39,6 +39,26 @@ int main(int argc, char** argv) {
   if (captured.status != api::ReadStatus::ok ||
       !api::publish_linux_readout(argv[1], captured.value))
     return 1;
+  // Publish synthetic completed native parameters through the SAME secure
+  // Linux store; this fixture never opens CAN or controls a real DUT.
+  snapshot.state = application::AppState::parameters_ready;
+  snapshot.dtcs_available = false;
+  snapshot.dtc_count = 0U;
+  snapshot.voltage_available = true;
+  snapshot.pressure_received = true;
+  sac::SacVoltage voltage{};
+  voltage.valid = true;
+  voltage.permanent_v = 27.9F;
+  voltage.ignition_v = 27.9F;
+  sac::SacPressure pressure{};
+  pressure.received = true;
+  const auto parameter_snapshot =
+      api::capture_daf_sac_completed_parameters(
+          snapshot, voltage, pressure, static_cast<std::uint64_t>(now));
+  if (parameter_snapshot.status != api::ReadStatus::ok ||
+      !api::publish_linux_sac_parameters(
+          argv[1], parameter_snapshot.value))
+    return 1;
   std::cout << "ECU_API_SYNTHETIC_FIXTURE=PASS\n";
   return 0;
 }

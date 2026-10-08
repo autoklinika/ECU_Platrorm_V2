@@ -173,4 +173,121 @@ ReadResult<CompletedDtcReadout> decode_completed_readout(
   return {ReadStatus::ok, std::move(value)};
 }
 
+namespace {
+constexpr std::string_view kSacParameterMagic{
+    "ECU_COMPLETED_SAC_PARAMETERS_V1"};
+
+bool valid_sac_parameters(const CompletedSacParameters& value) noexcept {
+  return value.captured_at_unix_ms != 0U &&
+         (value.profile_id == 0xDAF00025U ||
+          value.profile_id == 0xDAF00050U) &&
+         value.completed_generation != 0U &&
+         value.permanent_decivolt <= 600U &&
+         value.ignition_decivolt <= 600U &&
+         (!value.pressure1_valid ||
+          (value.pgn_feae_observed && value.pressure1_centibar <= 2024U)) &&
+         (!value.pressure2_valid ||
+          (value.pgn_feae_observed && value.pressure2_centibar <= 2024U)) &&
+         (value.pressure1_valid || value.pressure1_centibar == 0U) &&
+         (value.pressure2_valid || value.pressure2_centibar == 0U);
+}
+
+bool read_numeric_field(std::string_view& src, const std::string_view key,
+                        std::uint64_t& value) noexcept {
+  std::string_view line;
+  return pop_field(src, key, line) && decimal(line, value);
+}
+
+bool read_optional_pressure(std::string_view& src,
+                            const std::string_view key,
+                            bool& available, std::uint16_t& amount) noexcept {
+  std::string_view value;
+  if (!pop_field(src, key, value)) return false;
+  if (value == "NA") {
+    available = false;
+    amount = 0U;
+    return true;
+  }
+  std::uint64_t parsed = 0U;
+  if (!decimal(value, parsed) || parsed > 2024U) return false;
+  amount = static_cast<std::uint16_t>(parsed);
+  available = true;
+  return true;
+}
+}  // namespace
+
+bool encode_completed_sac_parameters(
+    const CompletedSacParameters& value, std::string& destination) {
+  destination.clear();
+  if (!valid_sac_parameters(value)) return false;
+  std::string payload{kSacParameterMagic};
+  payload += "\n";
+  payload += "captured_at_unix_ms=" +
+             std::to_string(value.captured_at_unix_ms) + "\n";
+  payload += "profile_id=" + std::to_string(value.profile_id) + "\n";
+  payload += "completed_generation=" +
+             std::to_string(value.completed_generation) + "\n";
+  payload += "permanent_decivolt=" +
+             std::to_string(value.permanent_decivolt) + "\n";
+  payload += "ignition_decivolt=" +
+             std::to_string(value.ignition_decivolt) + "\n";
+  payload += "pgn_feae_observed=";
+  payload += value.pgn_feae_observed ? "1\n" : "0\n";
+  payload += "pressure1_centibar=";
+  payload += value.pressure1_valid ?
+      std::to_string(value.pressure1_centibar) : "NA";
+  payload += "\npressure2_centibar=";
+  payload += value.pressure2_valid ?
+      std::to_string(value.pressure2_centibar) : "NA";
+  payload += "\nEND\n";
+  if (payload.size() > kMaxReadoutBytes) return false;
+  destination = std::move(payload);
+  return true;
+}
+
+ReadResult<CompletedSacParameters> decode_completed_sac_parameters(
+    std::string_view source) {
+  if (source.empty() || source.size() > kMaxReadoutBytes)
+    return {ReadStatus::invalid_snapshot, {}};
+  std::string_view line;
+  if (!pop_line(source, line) || line != kSacParameterMagic)
+    return {ReadStatus::invalid_snapshot, {}};
+  CompletedSacParameters result{};
+  std::uint64_t number = 0U;
+  if (!read_numeric_field(source, "captured_at_unix_ms=", number) ||
+      number == 0U)
+    return {ReadStatus::invalid_snapshot, {}};
+  result.captured_at_unix_ms = number;
+  if (!read_numeric_field(source, "profile_id=", number) ||
+      number > (std::numeric_limits<std::uint32_t>::max)())
+    return {ReadStatus::invalid_snapshot, {}};
+  result.profile_id = static_cast<std::uint32_t>(number);
+  if (!read_numeric_field(source, "completed_generation=", number) ||
+      number == 0U)
+    return {ReadStatus::invalid_snapshot, {}};
+  result.completed_generation = number;
+  if (!read_numeric_field(source, "permanent_decivolt=", number) ||
+      number > 600U)
+    return {ReadStatus::invalid_snapshot, {}};
+  result.permanent_decivolt = static_cast<std::uint16_t>(number);
+  if (!read_numeric_field(source, "ignition_decivolt=", number) ||
+      number > 600U)
+    return {ReadStatus::invalid_snapshot, {}};
+  result.ignition_decivolt = static_cast<std::uint16_t>(number);
+  if (!pop_field(source, "pgn_feae_observed=", line) ||
+      (line != "0" && line != "1"))
+    return {ReadStatus::invalid_snapshot, {}};
+  result.pgn_feae_observed = line == "1";
+  if (!read_optional_pressure(source, "pressure1_centibar=",
+                              result.pressure1_valid,
+                              result.pressure1_centibar) ||
+      !read_optional_pressure(source, "pressure2_centibar=",
+                              result.pressure2_valid,
+                              result.pressure2_centibar) ||
+      !pop_line(source, line) || line != "END" ||
+      !source.empty() || !valid_sac_parameters(result))
+    return {ReadStatus::invalid_snapshot, {}};
+  return {ReadStatus::ok, result};
+}
+
 }  // namespace ecu::api::v1

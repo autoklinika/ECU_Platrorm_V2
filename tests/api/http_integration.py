@@ -88,7 +88,8 @@ def run(binary):
                   "typed error")
             for path in ("/api/v1/dut", "/api/v1/dut/capabilities",
                          "/api/v1/dut/dtcs", "/api/v1/platform",
-                         "/api/v1/readouts/dtc/latest"):
+                         "/api/v1/readouts/dtc/latest",
+                         "/api/v1/readouts/daf-sac/parameters/latest"):
                 status, _, _ = request(port, "GET", path, authorized)
                 check(status == 503, f"fail closed {path}")
             status, _, _ = request(port, "POST", "/api/v1/about", authorized)

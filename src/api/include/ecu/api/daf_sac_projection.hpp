@@ -18,6 +18,14 @@ namespace ecu::api::v1 {
     const ecu::dut_profiles::daf_sac::SacDtcList& dtcs,
     std::uint64_t captured_at_unix_ms);
 
+// Strictly completed native parameters result from the SAME SAC app state.
+[[nodiscard]] ReadResult<CompletedSacParameters>
+capture_daf_sac_completed_parameters(
+    const ecu::applications::daf_sac::AppSnapshot& snapshot,
+    const ecu::dut_profiles::daf_sac::SacVoltage& voltage,
+    const ecu::dut_profiles::daf_sac::SacPressure& pressure,
+    std::uint64_t captured_at_unix_ms);
+
 [[nodiscard]] ReadResult<CapabilitiesInfo> project_daf_sac_capabilities(
     const ecu::applications::daf_sac::AppSnapshot& snapshot);
 

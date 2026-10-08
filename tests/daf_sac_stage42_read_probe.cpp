@@ -135,10 +135,11 @@ int main(int argc, char** argv) {
   if ((argc != 3 && argc != 4 && !export_requested) ||
       (std::string_view{argv[2]} != "parameters" &&
        std::string_view{argv[2]} != "dtc") ||
-      (export_requested && std::string_view{argv[2]} != "dtc")) {
+      (export_requested && argc != 5)) {
     std::cerr << "usage: ecu_daf_sac_stage42_read_probe <ifname> "
                  "<parameters|dtc> [250000|500000]"
-                 " [optional-readout-directory-for-dtc-only] (NO DTC CLEAR)\n";
+                 " [optional-readout-directory-for-completed-readonly-result]"
+                 " (NO DTC CLEAR)\n";
     return 2;
   }
   // Preserve the installed root-owned agent's 3-argument 250k contract.
@@ -305,21 +306,33 @@ int main(int argc, char** argv) {
 #ifdef ECU_STAGE42_API_SNAPSHOT_EXPORT
       if (export_requested) {
         const auto snapshot = application.snapshot();
-        const auto& dtcs = application.dtcs();
         const auto captured_at =
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
         if (captured_at <= 0) return failed("invalid-wallclock");
-        const auto projection =
-            ecu::api::v1::capture_daf_sac_completed_readout(
-                snapshot, dtcs, static_cast<std::uint64_t>(captured_at));
-        if (projection.status != ecu::api::v1::ReadStatus::ok ||
-            !ecu::api::v1::publish_linux_readout(
-                argv[4], projection.value)) {
-          return failed("completed-readout-export");
+        const auto instant = static_cast<std::uint64_t>(captured_at);
+        if (mode == "parameters") {
+          const auto converted =
+              ecu::api::v1::capture_daf_sac_completed_parameters(
+                  snapshot, application.voltage(), application.pressure(),
+                  instant);
+          if (converted.status != ecu::api::v1::ReadStatus::ok ||
+              !ecu::api::v1::publish_linux_sac_parameters(
+                  argv[4], converted.value))
+            return failed("completed-parameters-export");
+          std::cout << "SAC_API_PARAMETERS_READOUT_PUBLISHED=PASS"
+                       " historical-completed-operation\n";
+        } else {
+          const auto converted =
+              ecu::api::v1::capture_daf_sac_completed_readout(
+                  snapshot, application.dtcs(), instant);
+          if (converted.status != ecu::api::v1::ReadStatus::ok ||
+              !ecu::api::v1::publish_linux_readout(
+                  argv[4], converted.value))
+            return failed("completed-readout-export");
+          std::cout << "SAC_API_DTC_READOUT_PUBLISHED=PASS"
+                       " historical-completed-operation\n";
         }
-        std::cout << "SAC_API_DTC_READOUT_PUBLISHED=PASS"
-                     " historical-completed-operation\n";
       }
 #endif
       std::cout << "SAC_STAGE42_READ_PHYSICAL=PASS\n";

@@ -261,6 +261,55 @@ bool valid(const CompletedDtcReadout& value) {
          valid(value.dtcs);
 }
 
+bool valid(const CompletedSacParameters& value) {
+  return value.captured_at_unix_ms != 0U &&
+         (value.profile_id == 0xDAF00025U ||
+          value.profile_id == 0xDAF00050U) &&
+         value.completed_generation != 0U &&
+         value.permanent_decivolt <= 600U &&
+         value.ignition_decivolt <= 600U &&
+         (!value.pressure1_valid ||
+          (value.pgn_feae_observed && value.pressure1_centibar <= 2024U)) &&
+         (!value.pressure2_valid ||
+          (value.pgn_feae_observed && value.pressure2_centibar <= 2024U)) &&
+         (!value.pressure1_valid || value.pgn_feae_observed) &&
+         (!value.pressure2_valid || value.pgn_feae_observed) &&
+         (value.pressure1_valid || value.pressure1_centibar == 0U) &&
+         (value.pressure2_valid || value.pressure2_centibar == 0U);
+}
+
+std::string decimal_fixed(std::uint16_t count, std::uint16_t divisor,
+                          const std::size_t fraction_digits) {
+  auto fraction = std::to_string(count % divisor);
+  if (fraction.size() < fraction_digits) {
+    fraction.insert(0, fraction_digits - fraction.size(), '0');
+  }
+  return std::to_string(count / divisor) + "." + fraction;
+}
+
+std::string serialize(const CompletedSacParameters& value) {
+  std::string output{
+      "{\"source\":\"completed_application_operation\","
+      "\"live\":false,\"captured_at_unix_ms\":"};
+  output += std::to_string(value.captured_at_unix_ms) +
+            ",\"profile_id\":" + std::to_string(value.profile_id) +
+            ",\"completed_generation\":" +
+            std::to_string(value.completed_generation) +
+            ",\"parameters\":{\"permanent_voltage_v\":" +
+            decimal_fixed(value.permanent_decivolt, 10U, 1U) +
+            ",\"ignition_voltage_v\":" +
+            decimal_fixed(value.ignition_decivolt, 10U, 1U) +
+            ",\"pgn_feae_observed\":" +
+            json_bool(value.pgn_feae_observed) +
+            ",\"pressure1_bar\":";
+  output += value.pressure1_valid ?
+      decimal_fixed(value.pressure1_centibar, 100U, 2U) : "null";
+  output += ",\"pressure2_bar\":";
+  output += value.pressure2_valid ?
+      decimal_fixed(value.pressure2_centibar, 100U, 2U) : "null";
+  return output + "}}";
+}
+
 std::string serialize(const CompletedDtcReadout& value) {
   return std::string{"{\"source\":\"completed_application_operation\","
                      "\"live\":false,\"captured_at_unix_ms\":"} +
@@ -332,11 +381,12 @@ bool Router::authenticated(const std::string_view authorization) const noexcept 
 }
 
 bool Router::known_path(std::string_view path) const noexcept {
-  constexpr std::array<std::string_view, 8> paths{
+  constexpr std::array<std::string_view, 9> paths{
       "/api/v1/about", "/api/v1/platform", "/api/v1/interfaces",
       "/api/v1/bench/session", "/api/v1/dut",
       "/api/v1/dut/capabilities", "/api/v1/dut/dtcs",
-      "/api/v1/readouts/dtc/latest"};
+      "/api/v1/readouts/dtc/latest",
+      "/api/v1/readouts/daf-sac/parameters/latest"};
   for (const auto allowed : paths)
     if (path == allowed) return true;
   return false;
@@ -396,6 +446,9 @@ Response Router::route(const Request& request) const {
     response = data_response(model_.dtcs());
   } else if (request.target == "/api/v1/readouts/dtc/latest") {
     response = data_response(model_.latest_completed_dtcs());
+  } else if (request.target ==
+             "/api/v1/readouts/daf-sac/parameters/latest") {
+    response = data_response(model_.latest_completed_sac_parameters());
   } else {
     response = error(404, "not_found");
   }

@@ -11,6 +11,8 @@ class LinuxLinkReadModel final : public IReadModel {
   [[nodiscard]] ReadResult<InterfacesInfo> interfaces() const override;
   [[nodiscard]] ReadResult<CompletedDtcReadout>
   latest_completed_dtcs() const override;
+  [[nodiscard]] ReadResult<CompletedSacParameters>
+  latest_completed_sac_parameters() const override;
  private:
   std::string interface_name_;
   std::string readout_directory_;

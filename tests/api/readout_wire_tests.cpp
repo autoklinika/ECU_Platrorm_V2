@@ -85,6 +85,67 @@ int main() {
   input.completed_generation = 0U;
   require(!encode_completed_readout(input, packet),
           "missing completion generation denied");
+  CompletedSacParameters params{};
+  params.profile_id = 0xDAF00050U;
+  params.captured_at_unix_ms = 1791492382691ULL;
+  params.completed_generation = 3U;
+  params.permanent_decivolt = 279U;
+  params.ignition_decivolt = 279U;
+  params.pgn_feae_observed = true;
+  require(encode_completed_sac_parameters(params, packet),
+          "valid-parameter-publish");
+  require(packet.find("ECU_COMPLETED_SAC_PARAMETERS_V1\n") == 0U &&
+          packet.find("pressure1_centibar=NA\n") != std::string::npos &&
+          packet.find("pressure2_centibar=NA\n") != std::string::npos,
+          "unavailable-pressure-canonical");
+  auto decoded = decode_completed_sac_parameters(packet);
+  require(decoded.status == ReadStatus::ok &&
+          decoded.value.permanent_decivolt == 279U &&
+          !decoded.value.pressure1_valid &&
+          decoded.value.pgn_feae_observed,
+          "strict-parameter-roundtrip");
+  auto broken = packet;
+  const auto point = broken.find("pressure1_centibar=NA");
+  require(point != std::string::npos, "pressure field exists");
+  broken.replace(point, std::string{"pressure1_centibar=NA"}.size(), "pressure1_centibar=0");
+  require(decode_completed_sac_parameters(broken).status ==
+              ReadStatus::ok,
+          "actual-zero-pressure-is-valid-only-when-explicit");
+  broken = packet;
+  broken.replace(point, std::string{"pressure1_centibar=NA"}.size(), "pressure1_centibar=-1");
+  require(decode_completed_sac_parameters(broken).status ==
+              ReadStatus::invalid_snapshot, "negative-pressure-rejected");
+  broken = packet;
+  broken.replace(point, std::string{"pressure1_centibar=NA"}.size(), "pressure1_centibar=9999");
+  require(decode_completed_sac_parameters(broken).status ==
+              ReadStatus::invalid_snapshot, "overflow-pressure-rejected");
+  broken = packet;
+  broken.replace(0U, 1U, "X");
+  require(decode_completed_sac_parameters(broken).status ==
+              ReadStatus::invalid_snapshot, "unknown-parameter-schema");
+  require(decode_completed_sac_parameters(packet + "extra").status ==
+              ReadStatus::invalid_snapshot, "trailing-content-rejected");
+  broken = packet;
+  const auto gen = broken.find("completed_generation=3");
+  broken.replace(gen, std::string{"completed_generation=3"}.size(), "completed_generation=0");
+  require(decode_completed_sac_parameters(broken).status ==
+              ReadStatus::invalid_snapshot, "zero-generation-rejected");
+  params.profile_id = 0xDEADBEEFU;
+  require(!encode_completed_sac_parameters(params, packet),
+          "reject-non-SAC-profile");
+  params.profile_id = 0xDAF00050U;
+  params.pressure1_valid = true;
+  params.pressure1_centibar = 1208U;
+  require(encode_completed_sac_parameters(params, packet),
+          "measured-pressure-encoded");
+  decoded = decode_completed_sac_parameters(packet);
+  require(decoded.status == ReadStatus::ok &&
+          decoded.value.pressure1_valid &&
+          decoded.value.pressure1_centibar == 1208U,
+          "measured-pressure-roundtrip");
+  params.pgn_feae_observed = false;
+  require(!encode_completed_sac_parameters(params, packet),
+          "no-pressure-measurement-without-pgn");
   std::cout << "ECU_API_READOUT_WIRE=PASS\n";
   return 0;
 }

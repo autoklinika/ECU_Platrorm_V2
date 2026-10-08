@@ -214,7 +214,7 @@ READ_FAILURES=0
 for mode in parameters dtc; do
   echo "SAC_500K_READ_STAGE=$mode" | tee -a "$SUMMARY"
   PROBE_ARGS=("$IFACE" "$mode" "$BITRATE")
-  if [[ "$PUBLISH_READOUT" == 1 && "$mode" == dtc ]]; then
+  if [[ "$PUBLISH_READOUT" == 1 ]]; then
     PROBE_ARGS+=("$READOUT_DIR")
   fi
   if runuser -u "$TARGET_USER" -- "$READ_PROBE" "${PROBE_ARGS[@]}" 2>&1 \

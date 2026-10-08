@@ -86,6 +86,32 @@ struct OversizedModel final : IReadModel {
   }
 };
 
+struct SacParametersModel final : IReadModel {
+  ReadResult<CompletedSacParameters>
+  latest_completed_sac_parameters() const override {
+    CompletedSacParameters readout{};
+    readout.profile_id = 0xDAF00050U;
+    readout.captured_at_unix_ms = 1791492382691ULL;
+    readout.completed_generation = 3U;
+    readout.permanent_decivolt = 279U;
+    readout.ignition_decivolt = 279U;
+    readout.pgn_feae_observed = true;
+    return {ReadStatus::ok, readout};
+  }
+};
+
+struct InvalidSacParametersModel final : IReadModel {
+  ReadResult<CompletedSacParameters>
+  latest_completed_sac_parameters() const override {
+    CompletedSacParameters readout{};
+    readout.profile_id = 0xDAF00050U;
+    readout.captured_at_unix_ms = 1791492382691ULL;
+    readout.completed_generation = 3U;
+    readout.permanent_decivolt = 700U;
+    return {ReadStatus::ok, readout};
+  }
+};
+
 }  // namespace
 
 int main() {
@@ -209,6 +235,36 @@ int main() {
   existing.state = ecu::bench::BenchSessionState::unconfigured;
   check(project_bench(existing).status == ReadStatus::invalid_snapshot,
         "invalid-native-lifecycle-rejected");
+  test = good;
+  test.target = "/api/v1/readouts/daf-sac/parameters/latest";
+  SacParametersModel param_model{};
+  Router parameter_router{param_model, token, 8878U};
+  const auto sac_parameters = parameter_router.route(test);
+  check(sac_parameters.status == 200,
+        "completed-SAC-parameters-get-only");
+  check(sac_parameters.body.find("\"permanent_voltage_v\":27.9") !=
+            std::string::npos &&
+        sac_parameters.body.find("\"pressure1_bar\":null") !=
+            std::string::npos &&
+        sac_parameters.body.find("\"pgn_feae_observed\":true") !=
+            std::string::npos &&
+        sac_parameters.body.find("\"live\":false") !=
+            std::string::npos,
+        "accurate-historical-measurement-json");
+  test.method = "POST";
+  check(parameter_router.route(test).status == 405,
+        "parameters-no-write-method");
+  test.method = "GET";
+  test.authorization.clear();
+  check(parameter_router.route(test).status == 401,
+        "parameters-require-auth");
+  test.authorization = good.authorization;
+  check(no_backend.route(test).status == 503,
+        "parameters-missing-fails-closed");
+  InvalidSacParametersModel invalid_params{};
+  Router corrupt_param_router{invalid_params, token, 8878U};
+  check(corrupt_param_router.route(test).status == 502,
+        "parameters-invalid-backend-fails-closed");
   std::cout << "ECU_API_ROUTER=PASS\n";
   return 0;
 }

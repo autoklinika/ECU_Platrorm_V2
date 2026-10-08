@@ -63,6 +63,11 @@ def run(server, fixture):
                     time.sleep(0.04)
             else:
                 raise AssertionError("API did not bind its loopback listener")
+            parameter_url = "/api/v1/readouts/daf-sac/parameters/latest"
+            status, response = request(port, token, parameter_url)
+            require(status == 503 and
+                    response["error"]["code"] == "backend_unavailable",
+                    "no SAC parameters are ever invented")
             url = "/api/v1/readouts/dtc/latest"
             status, response = request(port, token, url)
             require(status == 503 and
@@ -88,6 +93,49 @@ def run(server, fixture):
                     [x["code"] for x in data["dtcs"]["entries"]] ==
                     ["3A0002", "08F9E2"], "typed readout body from file")
             require(data["captured_at_unix_ms"] > 0, "timestamp present")
+            parameter_file = data_dir / "sac-parameters-latest.v1"
+            require((parameter_file.stat().st_mode & 0o7777) == 0o640,
+                    "parameter result file has trusted 0640 mode")
+            status, parameter_response = request(port, token, parameter_url)
+            require(status == 200, "parameter API from same secure store")
+            param = parameter_response["data"]
+            require(param["source"] == "completed_application_operation" and
+                    param["live"] is False and
+                    param["profile_id"] == 0xDAF00050 and
+                    param["completed_generation"] == 12 and
+                    param["parameters"]["permanent_voltage_v"] == 27.9 and
+                    param["parameters"]["ignition_voltage_v"] == 27.9 and
+                    param["parameters"]["pgn_feae_observed"] is True and
+                    param["parameters"]["pressure1_bar"] is None and
+                    param["parameters"]["pressure2_bar"] is None,
+                    "proper voltage and explicitly unavailable pressure")
+            status, _ = request(port, token, parameter_url,
+                                authenticated=False)
+            require(status == 401, "parameter endpoint requires bearer")
+            os.chmod(parameter_file, 0o666)
+            status, _ = request(port, token, parameter_url)
+            require(status == 502, "unsafe parameter file mode rejected")
+            os.chmod(parameter_file, 0o640)
+            original_param = parameter_file.read_text(encoding="ascii")
+            parameter_file.write_text(original_param.replace(
+                "captured_at_unix_ms=" +
+                str(param["captured_at_unix_ms"]), "captured_at_unix_ms=1"))
+            status, _ = request(port, token, parameter_url)
+            require(status == 410, "stale parameter record expires")
+            parameter_file.write_text(original_param.replace(
+                "pressure1_centibar=NA", "pressure1_centibar=9999"))
+            status, _ = request(port, token, parameter_url)
+            require(status == 502, "invalid pressure record rejected")
+            parameter_file.unlink()
+            parameter_file.symlink_to("/etc/passwd")
+            status, _ = request(port, token, parameter_url)
+            require(status == 502, "parameter symlink is rejected")
+            require(subprocess.run([fixture, str(data_dir)],
+                                   capture_output=True, timeout=4).returncode == 0,
+                    "parameter publisher replaces malicious symlink")
+            status, _ = request(port, token, parameter_url)
+            require(status == 200, "valid parameters restored")
+
             status, _ = request(port, token, "/api/v1/dut/dtcs")
             require(status == 503, "historical readout never becomes live DTC")
             os.chmod(file, 0o666)
@@ -98,9 +146,11 @@ def run(server, fixture):
             file.write_text(raw.replace("entry_count=2\n", "entry_count=5\n"))
             status, _ = request(port, token, url)
             require(status == 502, "corrupt record fails closed")
+            latest_timestamp_line = next(
+                x for x in raw.splitlines()
+                if x.startswith("captured_at_unix_ms="))
             file.write_text(raw.replace(
-                "captured_at_unix_ms=" + str(data["captured_at_unix_ms"]),
-                "captured_at_unix_ms=1"))
+                latest_timestamp_line, "captured_at_unix_ms=1"))
             status, response = request(port, token, url)
             require(status == 410 and
                     response["error"]["code"] == "readout_expired",

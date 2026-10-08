@@ -91,6 +91,21 @@ struct CompletedDtcReadout {
   DtcInfo dtcs{};
 };
 
+// One completed DAF SAC parameter operation, never a continuous/live stream.
+// Quantities are fixed-point so Linux/Windows/Generic serialize identically.
+struct CompletedSacParameters {
+  std::uint64_t captured_at_unix_ms{0U};
+  std::uint32_t profile_id{0U};
+  std::uint64_t completed_generation{0U};
+  std::uint16_t permanent_decivolt{0U};
+  std::uint16_t ignition_decivolt{0U};
+  bool pgn_feae_observed{false};
+  bool pressure1_valid{false};
+  bool pressure2_valid{false};
+  std::uint16_t pressure1_centibar{0U};
+  std::uint16_t pressure2_centibar{0U};
+};
+
 // Implementations must query authoritative application state; no facade method
 // is permitted to dispatch commands to CAN, Bench Agent or DUT hardware.
 class IReadModel {
@@ -112,6 +127,11 @@ class IReadModel {
     return {};
   }
   [[nodiscard]] virtual ReadResult<DtcInfo> dtcs() const {
+    return {};
+  }
+  // A separate optional completed SAC parameter record. Never initiates I/O.
+  [[nodiscard]] virtual ReadResult<CompletedSacParameters>
+  latest_completed_sac_parameters() const {
     return {};
   }
   // Historical readout, backed by a separate trusted producer. No method

@@ -95,13 +95,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Shell syntax and Python parser
         run: |
-          for script in scripts/prepare_cm5_api_v1.sh scripts/install_cm5_api_v1.sh scripts/rollback_cm5_api_v1.sh scripts/run_stage42_daf_sac_500k_read_gate.sh; do
+          for script in scripts/prepare_cm5_api_v1.sh scripts/install_cm5_api_v1.sh scripts/rollback_cm5_api_v1.sh scripts/run_stage42_daf_sac_500k_read_gate.sh scripts/prepare_cm5_api_parameters_v1.sh scripts/upgrade_cm5_api_sac_parameters_v1.sh; do
             bash -n "$script"
           done
           python3 -m py_compile scripts/verify_cm5_api_v1.py
           python3 tests/api/cm5_deploy_policy_test.py
           python3 tests/api/cm5_smoke_http_test.py
           python3 tests/api/cm5_smoke_main_test.py
+          python3 tests/api/cm5_sac_params_upgrade_test.py
+          python3 -m py_compile scripts/check_cm5_sac_parameters_upgrade.py
       - name: Privileged installation and rollback are unavailable to normal user
         run: |
           if bash scripts/install_cm5_api_v1.sh > /tmp/api-install-denied.log 2>&1; then

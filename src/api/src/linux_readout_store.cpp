@@ -14,7 +14,8 @@
 
 namespace ecu::api::v1 {
 namespace {
-constexpr const char* kFinalName = "dtc-latest.v1";
+constexpr const char* kDtcName = "dtc-latest.v1";
+constexpr const char* kParametersName = "sac-parameters-latest.v1";
 
 // Open each component without following symlinks, including the parents. This
 // avoids replacing the trusted producer directory via an ancestor symlink.
@@ -85,10 +86,16 @@ bool write_all(int fd, std::string_view bytes) noexcept {
 
 }  // namespace
 
-ReadResult<CompletedDtcReadout> load_linux_readout(
+namespace {
+// All completion records use EXACTLY the existing secure file boundary:
+// nofollow ancestors, strict owner/mode, one-link inode, bounded bytes and
+// freshness/future-clock validation. File names are fixed code constants.
+template <typename T, typename Decoder>
+ReadResult<T> load_named_record(
     const std::string& directory, const uid_t producer_uid,
     const gid_t reader_gid, const std::uint64_t now_unix_ms,
-    const std::uint64_t maximum_age_ms) {
+    const std::uint64_t maximum_age_ms,
+    const char* final_name, Decoder decode) {
   if (now_unix_ms == 0U || maximum_age_ms == 0U)
     return {ReadStatus::backend_unavailable, {}};
 
@@ -98,7 +105,7 @@ ReadResult<CompletedDtcReadout> load_linux_readout(
     ::close(dir);
     return {ReadStatus::invalid_snapshot, {}};
   }
-  const int file = ::openat(dir, kFinalName,
+  const int file = ::openat(dir, final_name,
                             O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
   const int open_error = errno;
   ::close(dir);
@@ -132,7 +139,7 @@ ReadResult<CompletedDtcReadout> load_linux_readout(
   ::close(file);
   if (!unchanged) return {ReadStatus::invalid_snapshot, {}};
 
-  auto parsed = decode_completed_readout(bytes);
+  auto parsed = decode(bytes);
   if (parsed.status != ReadStatus::ok) return parsed;
 
   constexpr std::uint64_t kMaxClockSkewMs = 2000U;
@@ -145,10 +152,11 @@ ReadResult<CompletedDtcReadout> load_linux_readout(
   return parsed;
 }
 
-bool publish_linux_readout(const std::string& directory,
-                           const CompletedDtcReadout& record) {
-  std::string encoded;
-  if (!encode_completed_readout(record, encoded)) return false;
+bool publish_named_bytes(const std::string& directory,
+                         const std::string_view encoded,
+                         const char* final_name,
+                         const char* temp_prefix) {
+  if (encoded.empty() || encoded.size() > kMaxReadoutBytes) return false;
   const int dir = open_directory(directory);
   if (dir < 0) return false;
   struct stat directory_info{};
@@ -158,7 +166,7 @@ bool publish_linux_readout(const std::string& directory,
     return false;
   }
   const auto temp_name =
-      ".dtc-latest." + std::to_string(::getpid()) + ".tmp";
+      std::string{temp_prefix} + std::to_string(::getpid()) + ".tmp";
   const int file = ::openat(dir, temp_name.c_str(),
                            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
                            0600);
@@ -172,7 +180,7 @@ bool publish_linux_readout(const std::string& directory,
   const bool closed = ::close(file) == 0;
   bool committed = false;
   if (written && closed) {
-    committed = ::renameat(dir, temp_name.c_str(), dir, kFinalName) == 0;
+    committed = ::renameat(dir, temp_name.c_str(), dir, final_name) == 0;
     if (committed && ::fsync(dir) != 0) committed = false;
   }
   if (!committed) {
@@ -180,6 +188,41 @@ bool publish_linux_readout(const std::string& directory,
   }
   ::close(dir);
   return committed;
+}
+
+}  // namespace
+
+ReadResult<CompletedDtcReadout> load_linux_readout(
+    const std::string& directory, const uid_t producer_uid,
+    const gid_t reader_gid, const std::uint64_t now_unix_ms,
+    const std::uint64_t maximum_age_ms) {
+  return load_named_record<CompletedDtcReadout>(
+      directory, producer_uid, reader_gid, now_unix_ms, maximum_age_ms,
+      kDtcName, decode_completed_readout);
+}
+
+ReadResult<CompletedSacParameters> load_linux_sac_parameters(
+    const std::string& directory, const uid_t producer_uid,
+    const gid_t reader_gid, const std::uint64_t now_unix_ms,
+    const std::uint64_t maximum_age_ms) {
+  return load_named_record<CompletedSacParameters>(
+      directory, producer_uid, reader_gid, now_unix_ms, maximum_age_ms,
+      kParametersName, decode_completed_sac_parameters);
+}
+
+bool publish_linux_readout(const std::string& directory,
+                           const CompletedDtcReadout& record) {
+  std::string encoded;
+  if (!encode_completed_readout(record, encoded)) return false;
+  return publish_named_bytes(directory, encoded, kDtcName, ".dtc-latest.");
+}
+
+bool publish_linux_sac_parameters(const std::string& directory,
+                                  const CompletedSacParameters& record) {
+  std::string encoded;
+  if (!encode_completed_sac_parameters(record, encoded)) return false;
+  return publish_named_bytes(
+      directory, encoded, kParametersName, ".sac-parameters-latest.");
 }
 
 }  // namespace ecu::api::v1

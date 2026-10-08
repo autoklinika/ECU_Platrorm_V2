@@ -49,4 +49,18 @@ LinuxLinkReadModel::latest_completed_dtcs() const {
                             kMaxReadoutAgeMs);
 }
 
+ReadResult<CompletedSacParameters>
+LinuxLinkReadModel::latest_completed_sac_parameters() const {
+  if (readout_directory_.empty() || producer_uid_ == 0)
+    return {ReadStatus::backend_unavailable, {}};
+  const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count();
+  if (now <= 0)
+    return {ReadStatus::backend_unavailable, {}};
+  constexpr std::uint64_t kMaxReadoutAgeMs = 24U * 60U * 60U * 1000U;
+  return load_linux_sac_parameters(
+      readout_directory_, producer_uid_, reader_gid_,
+      static_cast<std::uint64_t>(now), kMaxReadoutAgeMs);
+}
+
 }  // namespace ecu::api::v1

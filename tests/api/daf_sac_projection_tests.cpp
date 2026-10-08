@@ -156,6 +156,78 @@ int main() {
   snapshot.bitrate = 250000U;
   require(synthetic.dtcs().status == api::ReadStatus::ok, "250k-profile");
 
+  // Identical native Bench cleanup gate, now for completed parameters.
+  snapshot.profile_id = sac::profile_id(sac::CanBitrateProfile::k500k);
+  snapshot.bench.dut_profile_id = snapshot.profile_id;
+  snapshot.bitrate = 500000U;
+  snapshot.state = app::AppState::parameters_ready;
+  snapshot.voltage_available = true;
+  snapshot.pressure_received = true;
+  snapshot.pressure1_valid = false;
+  snapshot.pressure2_valid = false;
+  sac::SacVoltage voltage{};
+  voltage.valid = true;
+  voltage.permanent_v = 27.9F;
+  voltage.ignition_v = 27.9F;
+  sac::SacPressure pressure{};
+  pressure.received = true;
+  const auto readout = api::capture_daf_sac_completed_parameters(
+      snapshot, voltage, pressure, 1791492382691ULL);
+  require(readout.status == api::ReadStatus::ok,
+          "completed-parameters-projection");
+  require(readout.value.permanent_decivolt == 279U &&
+          readout.value.ignition_decivolt == 279U &&
+          !readout.value.pressure1_valid &&
+          !readout.value.pressure2_valid &&
+          readout.value.pgn_feae_observed,
+          "historical-voltage-and-unavailable-pressure");
+  snapshot.bench.active_resource_count = 1U;
+  require(api::capture_daf_sac_completed_parameters(
+      snapshot, voltage, pressure, 100U).status ==
+          api::ReadStatus::invalid_snapshot,
+          "reject-parameter-export-before-resource-release");
+  snapshot.bench.active_resource_count = 0U;
+  snapshot.state = app::AppState::reading_parameters;
+  require(api::capture_daf_sac_completed_parameters(
+      snapshot, voltage, pressure, 100U).status ==
+          api::ReadStatus::backend_unavailable,
+          "reject-parameter-export-before-operation-complete");
+  snapshot.state = app::AppState::parameters_ready;
+  snapshot.bench.dut_profile_id = 0xDEADBEEFU;
+  require(api::capture_daf_sac_completed_parameters(
+      snapshot, voltage, pressure, 100U).status ==
+          api::ReadStatus::invalid_snapshot,
+          "reject-parameter-export-from-mixed-profile");
+  snapshot.bench.dut_profile_id = snapshot.profile_id;
+  pressure.pressure1_valid = true;
+  pressure.pressure1_bar = 12.08F;
+  snapshot.pressure1_valid = true;
+  const auto measured = api::capture_daf_sac_completed_parameters(
+      snapshot, voltage, pressure, 100U);
+  require(measured.status == api::ReadStatus::ok &&
+          measured.value.pressure1_valid &&
+          measured.value.pressure1_centibar == 1208U,
+          "real-pressure-honors-centibar-resolution");
+  pressure.received = false;
+  snapshot.pressure_received = false;
+  require(api::capture_daf_sac_completed_parameters(
+      snapshot, voltage, pressure, 100U).status ==
+          api::ReadStatus::invalid_snapshot,
+          "no-pressure-value-without-pgn");
+  pressure.received = true;
+  snapshot.pressure_received = true;
+  pressure.pressure1_bar = -1.0F;
+  require(api::capture_daf_sac_completed_parameters(
+      snapshot, voltage, pressure, 100U).status ==
+          api::ReadStatus::invalid_snapshot,
+          "reject-negative-pressure");
+  pressure.pressure1_valid = false;
+  snapshot.pressure1_valid = false;
+  voltage.valid = false;
+  require(api::capture_daf_sac_completed_parameters(
+      snapshot, voltage, pressure, 100U).status ==
+          api::ReadStatus::backend_unavailable,
+          "no-voltage-cannot-be-presented-as-valid");
   std::cout << "ECU_API_DAF_SAC_PROJECTION=PASS\n";
   return 0;
 }

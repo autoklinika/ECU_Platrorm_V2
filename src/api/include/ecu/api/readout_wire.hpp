@@ -14,4 +14,11 @@ inline constexpr std::size_t kMaxReadoutDtcs = 128U;
 [[nodiscard]] ReadResult<CompletedDtcReadout> decode_completed_readout(
     std::string_view source);
 
+// Separate named file inside the SAME existing trusted readout directory.
+// Explicit NA for unavailable pressure channels, never synthetic zero bar.
+[[nodiscard]] bool encode_completed_sac_parameters(
+    const CompletedSacParameters& value, std::string& destination);
+[[nodiscard]] ReadResult<CompletedSacParameters>
+decode_completed_sac_parameters(std::string_view source);
+
 }  // namespace ecu::api::v1

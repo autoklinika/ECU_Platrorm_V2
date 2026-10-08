@@ -3,6 +3,8 @@
 #include "ecu/dut_profiles/daf_sac/profile.hpp"
 
 #include <array>
+#include <cmath>
+#include <limits>
 #include <cstdint>
 #include <string>
 
@@ -97,6 +99,74 @@ ReadResult<CompletedDtcReadout> capture_daf_sac_completed_readout(
       snapshot.bench.last_completed_operation_generation;
   result.dtcs = std::move(converted.value);
   return {ReadStatus::ok, std::move(result)};
+}
+
+ReadResult<CompletedSacParameters> capture_daf_sac_completed_parameters(
+    const sac::AppSnapshot& snapshot,
+    const profiles::SacVoltage& voltage,
+    const profiles::SacPressure& pressure,
+    const std::uint64_t captured_at_unix_ms) {
+  if (!valid_sac_profile(snapshot) || captured_at_unix_ms == 0U)
+    return {ReadStatus::invalid_snapshot, {}};
+  if (snapshot.state != sac::AppState::parameters_ready ||
+      snapshot.status != sac::AppStatus::ok ||
+      !snapshot.voltage_available || !voltage.valid)
+    return {ReadStatus::backend_unavailable, {}};
+  // Match the already-enforced DTC publisher lifecycle: no active CAN lease,
+  // uncompleted operation, mismatched DUT profile or unsafe cleanup.
+  if (snapshot.clear_acknowledged ||
+      snapshot.bench.schema_version !=
+          ecu::bench::BenchSessionSnapshot::kSchemaVersion ||
+      !snapshot.bench.configured ||
+      snapshot.bench.state != ecu::bench::BenchSessionState::ready ||
+      snapshot.bench.status != ecu::bench::BenchSessionStatus::ok ||
+      snapshot.bench.dut_profile_id != snapshot.profile_id ||
+      snapshot.bench.last_completed_operation_generation == 0U ||
+      snapshot.bench.operation_generation != 0U ||
+      snapshot.bench.cleanup_required ||
+      snapshot.bench.active_resource_count != 0U ||
+      snapshot.pressure_received != pressure.received ||
+      snapshot.pressure1_valid != pressure.pressure1_valid ||
+      snapshot.pressure2_valid != pressure.pressure2_valid)
+    return {ReadStatus::invalid_snapshot, {}};
+
+  auto to_fixed = [](const float value, const float scale,
+                     const std::uint16_t maximum, std::uint16_t& result) {
+    if (!std::isfinite(value) || value < 0.0F ||
+        value > static_cast<float>(maximum) / scale)
+      return false;
+    const auto count = std::lround(static_cast<double>(value) * scale);
+    if (count < 0L || count > static_cast<long>(maximum))
+      return false;
+    result = static_cast<std::uint16_t>(count);
+    return true;
+  };
+
+  CompletedSacParameters result{};
+  result.captured_at_unix_ms = captured_at_unix_ms;
+  result.profile_id = snapshot.profile_id;
+  result.completed_generation =
+      snapshot.bench.last_completed_operation_generation;
+  if (!to_fixed(voltage.permanent_v, 10.0F, 600U,
+                result.permanent_decivolt) ||
+      !to_fixed(voltage.ignition_v, 10.0F, 600U,
+                result.ignition_decivolt) ||
+      (!pressure.received &&
+       (pressure.pressure1_valid || pressure.pressure2_valid)))
+    return {ReadStatus::invalid_snapshot, {}};
+
+  result.pgn_feae_observed = pressure.received;
+  result.pressure1_valid = pressure.pressure1_valid;
+  result.pressure2_valid = pressure.pressure2_valid;
+  if (result.pressure1_valid &&
+      !to_fixed(pressure.pressure1_bar, 100.0F, 2024U,
+                result.pressure1_centibar))
+    return {ReadStatus::invalid_snapshot, {}};
+  if (result.pressure2_valid &&
+      !to_fixed(pressure.pressure2_bar, 100.0F, 2024U,
+                result.pressure2_centibar))
+    return {ReadStatus::invalid_snapshot, {}};
+  return {ReadStatus::ok, result};
 }
 
 ReadResult<CapabilitiesInfo> project_daf_sac_capabilities(
