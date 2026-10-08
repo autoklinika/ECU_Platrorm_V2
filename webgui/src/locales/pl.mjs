@@ -1,5 +1,11 @@
 // Wyłącznie interfejs. Opisy DTC i dane domenowe są tłumaczone oddzielnie.
 export default Object.freeze({
+  "dtc.descriptionUnavailable": "Brak zweryfikowanego opisu",
+  "dtc.close": "OK",
+  "dtc.details": "Szczegóły DTC",
+  "dtc.description": "OPIS",
+  "sac.parametersTitle": "PARAMETRY",
+  "sac.menu": "MENU",
   "header.connection": "Połączenie:",
   "header.interface": "Interfejs:",
   "header.bitrate": "Bitrate:",
@@ -55,5 +61,23 @@ export default Object.freeze({
   "dtc.status": "Bajt statusu",
   "dtc.missing": "Brak zakończonego odczytu aplikacji (nie oznacza braku DTC)",
   "dtc.expired": "Odczyt archiwalny wygasł (24 godziny)",
-  "dtc.zero": "Zakończony odczyt zawiera zero DTC"
+  "dtc.zero": "Zakończony odczyt zawiera zero DTC",
+  "navigation.sac": "Nawigacja DAF SAC",
+  "catalog.noModules": "W tej kategorii nie ma jeszcze zweryfikowanych profili modułów.",
+  "sac.dtc": "DTC",
+  "sac.activations": "Aktywacje",
+  "sac.programming": "Programowanie",
+  "sac.dtcTitle": "DAF SAC — DTC",
+  "sac.activationsTitle": "DAF SAC — Aktywacje",
+  "sac.programmingTitle": "DAF SAC — Programowanie",
+  "sac.restricted": "Niedostępne. Nie wdrożono autoryzowanej operacji backendowej ani blokad bezpieczeństwa. Ten ekran nie steruje DUT.",
+  "sac.parameterExplanation": "Cztery parametry laboratoryjne. Wartości pojawią się dopiero po publikacji zweryfikowanego odczytu aplikacji, nigdy z dawnych logów.",
+  "sac.noReadout": "API V1 nie udostępnia zweryfikowanego odczytu parametrów SAC. Żaden pomiar nie jest uruchamiany.",
+  "sac.parameters": "Parametry laboratoryjne DAF SAC",
+  "sac.permanentVoltage": "Zasilanie permanentne",
+  "sac.ignitionVoltage": "Zasilanie zapłonu",
+  "sac.pressure1": "Ciśnienie 1",
+  "sac.pressure2": "Ciśnienie 2",
+  "sac.sidebarHint": "Rozwiń lewy panel w górnym pasku, aby przejść do DTC, Aktywacji i Programowania.",
+  "dtc.profileMismatch": "Ostatni zakończony odczyt dotyczy innego DUT, nie DAF SAC."
 });

@@ -321,3 +321,251 @@ body * {
   .data-panel, .auth-panel { padding: 14px; }
   .readout-meta { grid-template-columns: 1fr; }
 }
+
+
+/* The legacy Qt/QML aesthetic, isolated to TESTS catalogue and SAC.
+ * Reference: legacy Theme.qml / StyledButton.qml / SACMenuPage.qml.
+ * No QML controller or device operations are ported into this browser UI. */
+.legacy-page {
+  background: #f3f3f3;
+  color: #202020;
+  display: flex;
+  flex-direction: column;
+}
+.legacy-page h1 {
+  border-bottom: 0;
+  color: #202020;
+  font-size: 39px;
+  margin: 8px 0 18px;
+  padding: 0;
+  text-align: center;
+}
+.legacy-page .tiles--category,
+.legacy-page .tiles--manufacturer {
+  grid-template-columns: repeat(3, 220px);
+  gap: 28px;
+  max-width: 744px;
+  margin: auto;
+  align-items: center;
+  justify-content: center;
+}
+.legacy-page .tiles--modules {
+  grid-template-columns: 340px;
+  max-width: 360px;
+  margin: auto;
+  justify-content: center;
+}
+.legacy-page .tile, .legacy-page .back-button,
+.side-navigation button, .dtc-detail-dialog .back-button {
+  border: 3px solid #2a84c9;
+  border-radius: 16px;
+  background: #59c8ff;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+}
+.legacy-page .tile {
+  min-height: 110px;
+  font-size: 27px;
+  padding: 15px;
+}
+.legacy-page .tiles--modules .tile { min-height: 140px; font-size: 34px; }
+.legacy-page .tile:hover, .legacy-page .back-button:hover,
+.side-navigation button:hover, .dtc-detail-dialog .back-button:hover {
+  background: #7dd6ff;
+}
+.legacy-page .tile:active, .legacy-page .back-button:active,
+.side-navigation button:active, .dtc-detail-dialog .back-button:active {
+  background: #2fa4ff;
+}
+.legacy-page .back-button {
+  display: block;
+  min-width: 220px;
+  min-height: 80px;
+  padding: 12px 24px;
+  margin: auto auto 8px;
+  font-size: 25px;
+}
+.legacy-page .field-label { color: #606060; }
+.legacy-page--sac h1 { text-align: left; font-size: 30px; }
+.legacy-page--sac .back-button {
+  min-height: 68px;
+  margin: 20px 0 0;
+}
+.legacy-page--sac .legacy-parameter-panel {
+  width: min(100%, 1080px);
+  max-width: 1080px;
+  margin: 12px auto;
+  padding: 22px 24px 25px;
+  border: 1px solid #cfcfcf;
+  border-radius: 20px;
+  background: #fff;
+}
+.legacy-parameter-panel h2 {
+  text-align: center;
+  font-size: 34px;
+  font-weight: 700;
+  margin: 0 0 16px;
+}
+.legacy-parameter-list {
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #cfcfcf;
+  border-radius: 14px;
+}
+.legacy-parameter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 155px 48px;
+  align-items: center;
+  height: 58px;
+  padding: 0 15px;
+  gap: 6px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 23px;
+}
+.legacy-parameter-row:nth-child(odd) { background: #f6f6f6; }
+.legacy-parameter-row:nth-child(even) { background: #fff; }
+.legacy-parameter-row output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #777;
+}
+.legacy-parameter-unit { text-align: right; color: #777; }
+#sac-side-navigation.side-navigation {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  padding: 18px 14px;
+}
+.side-navigation__heading {
+  color: #202020;
+  padding: 13px 10px;
+  border-bottom: 1px solid #cfcfcf;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 700;
+}
+.side-panel:has(.side-navigation:not([hidden])) {
+  width: 350px;
+  max-width: min(90vw, 350px);
+  background: #f3f3f3;
+}
+.side-navigation button {
+  min-height: 72px;
+  font-size: 23px;
+}
+.side-navigation button[aria-current="page"] {
+  background: #2fa4ff;
+  border-color: #1264a0;
+}
+.legacy-page--sac .data-panel {
+  width: 100%;
+  max-width: none;
+  border: 1px solid #cfcfcf;
+  border-radius: 18px;
+  background: #fff;
+}
+.legacy-page--sac .readout-table th {
+  background: #efefef;
+  color: #202020;
+  font-size: 18px;
+}
+.legacy-page--sac .readout-table td {
+  font-size: 19px;
+}
+.legacy-page--sac .readout-table tbody tr:nth-child(odd) {
+  background: #f6f6f6;
+}
+.dtc-detail-open {
+  background: transparent;
+  border: none;
+  color: #226da8;
+  text-decoration: underline;
+  font-size: inherit;
+  font-weight: 600;
+  padding: 10px;
+  min-width: 120px;
+  text-align: left;
+}
+.dtc-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0,0,0,.5);
+}
+.dtc-detail-dialog {
+  width: min(900px, 100%);
+  padding: 28px;
+  background: #fff;
+  border: 1px solid #cfcfcf;
+  border-radius: 22px;
+  color: #202020;
+}
+.dtc-detail-dialog h2 { font-size: 30px; margin: 0 0 18px; }
+.dtc-detail-text { font-size: 21px; line-height: 1.55; }
+.dtc-detail-dialog .back-button { min-width: 220px; min-height: 70px; display: block; margin: 24px auto 0; }
+@media (max-width: 860px) {
+  .legacy-page .tiles--category, .legacy-page .tiles--manufacturer {
+    grid-template-columns: repeat(2, minmax(0, 220px));
+    max-width: 500px;
+  }
+}
+@media (max-width: 610px) {
+  .legacy-page .tiles--category, .legacy-page .tiles--manufacturer,
+  .legacy-page .tiles--modules {
+    grid-template-columns: 1fr;
+    width: 100%;
+    gap: 12px;
+    margin: 15px auto;
+  }
+  .legacy-page .tile { min-height: 100px; font-size: 23px; }
+  .legacy-page .back-button { min-height: 67px; margin: 18px auto 0; }
+  .legacy-page .tiles--modules .tile { min-height: 115px; }
+  .legacy-page--sac .legacy-parameter-panel { padding: 14px; }
+  .legacy-parameter-row {
+    font-size: 16px;
+    grid-template-columns: minmax(0,1fr) 68px 30px;
+    padding: 0 6px;
+  }
+  .legacy-page--sac .readout-table th,
+  .legacy-page--sac .readout-table td { font-size: 14px; padding: 8px 4px; }
+  .dtc-detail-open { min-width: 0; padding: 8px 1px; }
+}
+
+/* 1280x720 kiosk: preserve all four SAC rows and the Back control on screen. */
+.legacy-page--sac { padding: 18px 28px 18px; }
+.legacy-page--sac h1 { margin: 0 0 7px; font-size: 30px; }
+.legacy-page--sac .field-label {
+  font-size: 15px;
+  line-height: 1.3;
+  margin: 2px 0 6px;
+}
+.legacy-page--sac .data-state {
+  font-size: 16px;
+  min-height: 20px;
+  margin: 5px 0;
+}
+.legacy-page--sac .legacy-parameter-panel {
+  padding: 14px 18px 16px;
+  margin: 6px auto;
+}
+.legacy-parameter-panel h2 { font-size: 29px; margin: 0 0 9px; }
+.legacy-parameter-list { padding: 6px; }
+.legacy-parameter-row { height: 50px; }
+.legacy-page--sac .back-button {
+  flex-shrink: 0;
+  align-self: center;
+  width: 220px;
+  min-height: 58px;
+  margin: 10px auto 0;
+}
+.topbar__field { overflow: hidden; }
+.topbar__value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 610px) {
+  .legacy-page--sac { padding: 15px 16px; }
+  .legacy-page--sac .legacy-parameter-panel { padding: 8px 12px; }
+}

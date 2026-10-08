@@ -1,5 +1,11 @@
 // UI copy only. ECU/DTC domain descriptions do not belong in this catalog.
 export default Object.freeze({
+  "dtc.descriptionUnavailable": "Description not verified",
+  "dtc.close": "OK",
+  "dtc.details": "DTC details",
+  "dtc.description": "DESCRIPTION",
+  "sac.parametersTitle": "PARAMETERS",
+  "sac.menu": "MENU",
   "header.connection": "Connection:",
   "header.interface": "Interface:",
   "header.bitrate": "Bitrate:",
@@ -55,5 +61,23 @@ export default Object.freeze({
   "dtc.status": "Status byte",
   "dtc.missing": "No completed application readout available (not a zero-DTC result)",
   "dtc.expired": "Completed readout expired (24-hour retention)",
-  "dtc.zero": "Completed readout contains zero DTCs"
+  "dtc.zero": "Completed readout contains zero DTCs",
+  "navigation.sac": "DAF SAC navigation",
+  "catalog.noModules": "No validated module profiles are available in this category yet.",
+  "sac.dtc": "DTC",
+  "sac.activations": "Activations",
+  "sac.programming": "Programming",
+  "sac.dtcTitle": "DAF SAC — DTC",
+  "sac.activationsTitle": "DAF SAC — Activations",
+  "sac.programmingTitle": "DAF SAC — Programming",
+  "sac.restricted": "Unavailable. No authorized backend operation and safety gate are implemented. This screen cannot control a DUT.",
+  "sac.parameterExplanation": "Four laboratory parameters. Values appear only after a verified readout has been published by the application, never from archived evidence.",
+  "sac.noReadout": "No verified SAC parameter readout is available from API V1. No measurement is running.",
+  "sac.parameters": "DAF SAC laboratory parameters",
+  "sac.permanentVoltage": "Battery Permanent",
+  "sac.ignitionVoltage": "Battery Ignition",
+  "sac.pressure1": "Pressure 1",
+  "sac.pressure2": "Pressure 2",
+  "sac.sidebarHint": "Open the top-left side panel to view DTC, Activations and Programming.",
+  "dtc.profileMismatch": "The latest completed readout belongs to another DUT, not DAF SAC."
 });

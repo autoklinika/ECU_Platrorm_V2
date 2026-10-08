@@ -7,6 +7,7 @@ on:
       - "docs/WEBGUI_HOME_V1_I18N.md"
       - "docs/CM5_WEBGUI_KIOSK_DEPLOYMENT_V1.md"
       - "docs/WEBGUI_API_V1_CLIENT_GATE.md"
+      - "docs/WEBGUI_TEST_CATALOG_DAF_SAC_LEGACY_REFERENCE.md"
       - "deploy/webgui/**"
       - "scripts/install_cm5_webgui_v1.sh"
       - "scripts/deploy_cursor_css_cm5.sh"
@@ -14,7 +15,9 @@ on:
       - "scripts/probe_cm5_wayland_sandbox.sh"
       - "tests/test_webgui_install_contract.py"
       - "tests/test_webgui_api_deploy_contract.py"
+      - "tests/test_webgui_test_catalog_deploy.py"
       - "scripts/deploy_cm5_webgui_api_v1.sh"
+      - "scripts/deploy_cm5_webgui_test_catalog_v1.sh"
       - ".github/workflows/webgui-ui.yml"
   pull_request:
     paths:
@@ -22,6 +25,7 @@ on:
       - "docs/WEBGUI_HOME_V1_I18N.md"
       - "docs/CM5_WEBGUI_KIOSK_DEPLOYMENT_V1.md"
       - "docs/WEBGUI_API_V1_CLIENT_GATE.md"
+      - "docs/WEBGUI_TEST_CATALOG_DAF_SAC_LEGACY_REFERENCE.md"
       - "deploy/webgui/**"
       - "scripts/install_cm5_webgui_v1.sh"
       - "scripts/deploy_cursor_css_cm5.sh"
@@ -29,7 +33,9 @@ on:
       - "scripts/probe_cm5_wayland_sandbox.sh"
       - "tests/test_webgui_install_contract.py"
       - "tests/test_webgui_api_deploy_contract.py"
+      - "tests/test_webgui_test_catalog_deploy.py"
       - "scripts/deploy_cm5_webgui_api_v1.sh"
+      - "scripts/deploy_cm5_webgui_test_catalog_v1.sh"
       - ".github/workflows/webgui-ui.yml"
 
 permissions:
@@ -63,9 +69,12 @@ jobs:
         run: python -m unittest discover -s tests -p test_webgui_install_contract.py -v
       - name: API client candidate deployment contract
         run: python -m unittest discover -s tests -p test_webgui_api_deploy_contract.py -v
+      - name: Read-only TESTS catalog candidate safety checks
+        run: python -m unittest discover -s tests -p test_webgui_test_catalog_deploy.py -v
       - name: Bash installer syntax
         if: runner.os == 'Linux'
         run: |
+          bash -n scripts/deploy_cm5_webgui_test_catalog_v1.sh
           bash -n scripts/deploy_cm5_webgui_api_v1.sh
           bash -n scripts/install_cm5_webgui_v1.sh
           bash -n scripts/deploy_cursor_css_cm5.sh

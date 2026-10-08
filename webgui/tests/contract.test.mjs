@@ -114,7 +114,67 @@ test("there are no hard-coded source-language-only labels in alternate views", (
   const allKeys = [...keys, ...ariaKeys];
   assert.ok(allKeys.length > 14);
   for (const key of allKeys) {
-    assert.match(key, /^[a-z]+\.[A-Za-z]+$/);
+    assert.match(key, /^[a-z]+\.[A-Za-z0-9]+$/);
     assert.ok(Object.hasOwn(CATALOGS.en, key), "Missing English UI key: " + key);
   }
+});
+
+
+test("legacy-inspired TESTS / TRUCK / DAF / SAC hierarchy and independent placeholders", () => {
+  const section = (name) => {
+    const match = html.match(new RegExp('<section class="[^"]*" data-page="' + name +
+      '" hidden>([\\s\\S]*?)<\\/section>'));
+    assert.ok(match, "missing route " + name);
+    return match[1];
+  };
+  for (const page of ["tests", "test-truck", "test-agri", "test-ohv",
+    "truck-man", "truck-daf", "truck-scania", "truck-iveco", "truck-mb",
+    "daf-sac", "sac-dtc", "sac-activations", "sac-programming"]) section(page);
+  for (const [from, routes] of [
+    ["tests", ["test-truck", "test-agri", "test-ohv"]],
+    ["test-truck", ["truck-man", "truck-daf", "truck-scania", "truck-iveco", "truck-mb"]],
+    ["truck-daf", ["daf-sac"]]
+  ]) {
+    const found = [...section(from).matchAll(/class="tile" data-route="([^"]+)"/g)]
+      .map((entry) => entry[1]);
+    assert.deepEqual(found, routes, from);
+  }
+  for (const page of ["test-agri", "test-ohv", "truck-man", "truck-scania",
+    "truck-iveco", "truck-mb"]) {
+    assert.match(section(page), /catalog.noModules/);
+  }
+});
+
+test("SAC parameters follow legacy four-row presentation and stay fail-closed", () => {
+  const match = html.match(/<section class="page legacy-page legacy-page--sac" data-page="daf-sac" hidden>([\s\S]*?)<\/section>/);
+  assert.ok(match);
+  const parameterIds = [...match[1].matchAll(/<output id="([^"]+)">—<\/output>/g)]
+    .map((entry) => entry[1]);
+  assert.deepEqual(parameterIds, [
+    "sac-pressure-1", "sac-pressure-2", "sac-permanent-voltage", "sac-ignition-voltage"
+  ]);
+  assert.match(match[1], /legacy-parameter-panel/);
+  assert.match(match[1], /sac.noReadout/);
+  assert.match(app, /SAC_DTC_PROFILES/);
+  assert.match(app, /readout\.dtcs\.protocol\.toLowerCase\(\) !== "uds"/);
+  assert.doesNotMatch(app, /read_dtcs\(|startDTCRead|clearDTC|CockpitController|SystemController/);
+  assert.doesNotMatch(html, /\bERASE\b|\bFLASH\b|\bSTART\b/);
+});
+
+test("SAC contextual navigation and DTC details are read-only", () => {
+  const nav = html.match(/<nav id="sac-side-navigation"[\s\S]*?<\/nav>/);
+  assert.ok(nav);
+  for (const name of ["sac-dtc", "sac-activations", "sac-programming"]) {
+    assert.ok(nav[0].includes('data-route="' + name + '"'));
+  }
+  assert.match(app, /sacNavigation\.hidden = !SAC_PAGES\.has\(page\)/);
+  assert.match(app, /detailOverlay\.hidden = true/);
+  assert.match(app, /detailButton\.dataset\.dtcCode/);
+  assert.match(app, /document\.createElement\("button"\)/);
+  assert.match(html, /id="dtc-detail-overlay" hidden/);
+  assert.match(html, /dtc.description/);
+  for (const page of ["sac-activations", "sac-programming"]) {
+    assert.match(html, new RegExp('data-page="' + page + '"[\\s\\S]*?sac.restricted'));
+  }
+  assert.doesNotMatch(html, /on(click|touchstart)=/i);
 });

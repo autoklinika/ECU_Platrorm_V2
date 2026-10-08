@@ -3,10 +3,21 @@ import {
 } from "./i18n.mjs";
 import { ApiSession, ApiError } from "./api-client.mjs";
 
-const PAGES = new Set(["home", "tests", "can", "settings", "language"]);
+const PAGES = new Set([
+  "home", "tests", "test-truck", "test-agri", "test-ohv",
+  "truck-man", "truck-daf", "truck-scania", "truck-iveco", "truck-mb",
+  "daf-sac", "sac-dtc", "sac-activations", "sac-programming",
+  "can", "settings", "language"
+]);
+const SAC_PAGES = new Set(["daf-sac", "sac-dtc", "sac-activations", "sac-programming"]);
+const SAC_DTC_PROFILES = new Set([0xDAF00025, 0xDAF00050]);
 const root = document.getElementById("application");
 const sidebarToggle = document.getElementById("sidebar-toggle");
 const sidebar = document.getElementById("side-panel");
+const sacNavigation = document.getElementById("sac-side-navigation");
+const detailOverlay = document.getElementById("dtc-detail-overlay");
+const detailClose = document.getElementById("dtc-detail-close");
+const dtcRows = document.getElementById("dtc-rows");
 const sidebarVeil = document.getElementById("sidebar-veil");
 const clock = document.getElementById("local-clock");
 const tokenInput = document.getElementById("api-token");
@@ -51,7 +62,16 @@ function renderRoute() {
   root.querySelectorAll("[data-page]").forEach((section) => {
     section.hidden = section.dataset.page !== page;
   });
+  // SAC tools are context-specific: never visible for another DUT or catalog.
+  sacNavigation.hidden = !SAC_PAGES.has(page);
+  sidebarToggle.textContent = SAC_PAGES.has(page) ? t("sac.menu") : "Ecu Bench Platform";
+  closeDtcDetails();
+  sacNavigation.querySelectorAll("button[data-route]").forEach((button) => {
+    const active = button.dataset.route === page;
+    button.setAttribute("aria-current", active ? "page" : "false");
+  });
   setSidebarOpen(false);
+  document.getElementById("main-content").scrollTop = 0;
 }
 
 function formatLocalTimestamp(date) {
@@ -122,10 +142,44 @@ function renderCan() {
   }
 }
 
+function closeDtcDetails() {
+  detailOverlay.hidden = true;
+  document.getElementById("dtc-detail-text").textContent = "";
+}
+
+function openDtcDetails(code, status) {
+  if (routeFromHash() !== "sac-dtc" || !session.connected ||
+      !results.readout || !SAC_DTC_PROFILES.has(results.readout.profile_id) ||
+      !results.readout.dtcs.entries.some((item) =>
+        item.code === code && item.status_mask === status)) return;
+  const panel = document.getElementById("dtc-detail-text");
+  panel.replaceChildren();
+  const heading = document.createElement("p");
+  heading.textContent = "DTC " + code + " · " + t("dtc.status") +
+    " 0x" + status.toString(16).padStart(2, "0").toUpperCase();
+  const explanation = document.createElement("p");
+  explanation.textContent = t("dtc.descriptionUnavailable");
+  panel.append(heading, explanation);
+  detailOverlay.hidden = false;
+  detailClose.focus();
+}
+
+function renderSacParameters() {
+  // V1 API does not expose a completed SAC measurement readout. We MUST NOT
+  // display old laboratory voltages as live/current measurements.
+  for (const name of ["sac-permanent-voltage", "sac-ignition-voltage",
+                      "sac-pressure-1", "sac-pressure-2"]) text(name, "—");
+  text("sac-parameters-status", t(session.connected && results.about
+    ? "sac.noReadout" : "api.signInRequired"));
+}
+
 function renderDtc() {
   const details = document.getElementById("dtc-details");
   const rows = document.getElementById("dtc-rows");
+  const status = document.getElementById("dtc-status");
+  status.hidden = false;
   details.hidden = true;
+  closeDtcDetails();
   rows.replaceChildren();
   if (!session.connected) {
     text("dtc-status", t("api.signInRequired"));
@@ -143,7 +197,17 @@ function renderDtc() {
     return;
   }
   const readout = results.readout;
-  text("dtc-status", t("dtc.historical"));
+  // A latest readout may refer to any ECU. Never attribute it to DAF SAC
+  // without the validated SAC profile ID and a UDS-origin readout.
+  if (!SAC_DTC_PROFILES.has(readout.profile_id) ||
+      readout.dtcs.protocol.toLowerCase() !== "uds") {
+    text("dtc-status", t("dtc.profileMismatch"));
+    return;
+  }
+  // The static DTC section already labels this as historical. Status text
+  // stays reserved for missing/expired/error conditions, never duplicated.
+  status.hidden = true;
+  status.textContent = "";
   text("dtc-captured", formatLocalTimestamp(new Date(readout.captured_at_unix_ms)));
   text("dtc-profile", String(readout.profile_id));
   text("dtc-protocol", readout.dtcs.protocol);
@@ -152,7 +216,7 @@ function renderDtc() {
   if (readout.dtcs.entries.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 2;
+    cell.colSpan = 3;
     cell.textContent = t("dtc.zero");
     row.append(cell);
     rows.append(row);
@@ -160,10 +224,20 @@ function renderDtc() {
   for (const item of readout.dtcs.entries) {
     const row = document.createElement("tr");
     const code = document.createElement("td");
+    const description = document.createElement("td");
     const mask = document.createElement("td");
-    code.textContent = item.code;
+    const detailButton = document.createElement("button");
+    detailButton.type = "button";
+    detailButton.className = "dtc-detail-open";
+    detailButton.textContent = item.code;
+    detailButton.dataset.dtcCode = item.code;
+    detailButton.dataset.dtcStatus = String(item.status_mask);
+    detailButton.setAttribute("aria-label", "DTC " + item.code +
+      " — " + t("dtc.details"));
+    code.append(detailButton);
+    description.textContent = t("dtc.descriptionUnavailable");
     mask.textContent = "0x" + item.status_mask.toString(16).padStart(2, "0").toUpperCase();
-    row.append(code, mask);
+    row.append(code, description, mask);
     rows.append(row);
   }
 }
@@ -184,9 +258,11 @@ function renderApi() {
     ? (results.dut.profile_label || "ID " + results.dut.profile_id) : "—");
   renderCan();
   renderDtc();
+  renderSacParameters();
 }
 
 function signOut(message = "api.notAuthenticated") {
+  closeDtcDetails();
   ++refreshVersion;
   session.signOut();
   tokenInput.value = "";
@@ -266,12 +342,24 @@ function renderLocale(locale) {
     button.setAttribute("aria-pressed", String(button.dataset.locale === currentLocale));
   });
   renderApi();
+  renderRoute();
 }
 
 sidebarToggle.addEventListener("click", () => setSidebarOpen(!sidebarOpen));
 sidebarVeil.addEventListener("click", () => setSidebarOpen(false));
 connectButton.addEventListener("click", connect);
 disconnectButton.addEventListener("click", () => signOut());
+detailClose.addEventListener("click", closeDtcDetails);
+detailOverlay.addEventListener("click", (event) => {
+  if (event.target === detailOverlay) closeDtcDetails();
+});
+dtcRows.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const button = target.closest("button[data-dtc-code]");
+  if (!button || !dtcRows.contains(button)) return;
+  openDtcDetails(button.dataset.dtcCode, Number(button.dataset.dtcStatus));
+});
 tokenInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") { event.preventDefault(); connect(); }
 });
@@ -292,6 +380,10 @@ root.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !detailOverlay.hidden) {
+    closeDtcDetails();
+    return;
+  }
   if (event.key === "Escape" && sidebarOpen) {
     setSidebarOpen(false);
     sidebarToggle.focus();
