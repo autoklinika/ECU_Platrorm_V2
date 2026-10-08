@@ -1168,3 +1168,19 @@ if(TARGET ECU::application_api)
     set_tests_properties(ecu.api.http_security PROPERTIES TIMEOUT 20)
   endif()
 endif()
+
+if(TARGET ECU::api_daf_sac_projection)
+  add_executable(ecu_api_daf_sac_projection_tests
+    api/daf_sac_projection_tests.cpp)
+  target_link_libraries(ecu_api_daf_sac_projection_tests
+    PRIVATE ECU::api_daf_sac_projection)
+  target_compile_features(ecu_api_daf_sac_projection_tests PRIVATE cxx_std_17)
+  if(MSVC)
+    target_compile_options(ecu_api_daf_sac_projection_tests PRIVATE /W4 /WX)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(ecu_api_daf_sac_projection_tests PRIVATE
+      -Wall -Wextra -Wpedantic -Werror)
+  endif()
+  add_test(NAME ecu.api.daf_sac_projection
+    COMMAND ecu_api_daf_sac_projection_tests)
+endif()

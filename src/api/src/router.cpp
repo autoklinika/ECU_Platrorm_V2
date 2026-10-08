@@ -175,10 +175,18 @@ bool valid(const CapabilitiesInfo& value) {
 }
 
 bool valid(const DtcInfo& value) {
-  if (!identifier(value.protocol, 32U) || value.entries.size() > 256U)
+  if (!identifier(value.protocol, 32U) ||
+      value.requested_status_mask == 0U || value.entries.size() > 256U)
     return false;
-  for (const auto& entry : value.entries)
-    if (!identifier(entry.code, 32U, true)) return false;
+  for (std::size_t i = 0U; i < value.entries.size(); ++i) {
+    const auto& entry = value.entries[i];
+    if (!identifier(entry.code, 32U, true) ||
+        (entry.status_mask &
+         static_cast<std::uint8_t>(~value.status_availability_mask)) != 0U)
+      return false;
+    for (std::size_t j = 0U; j < i; ++j)
+      if (value.entries[j].code == entry.code) return false;
+  }
   return true;
 }
 
@@ -233,6 +241,10 @@ std::string serialize(const CapabilitiesInfo& value) {
 
 std::string serialize(const DtcInfo& value) {
   std::string out{"{\"protocol\":" + json_string(value.protocol) +
+                  ",\"status_availability_mask\":" +
+                  std::to_string(value.status_availability_mask) +
+                  ",\"requested_status_mask\":" +
+                  std::to_string(value.requested_status_mask) +
                   ",\"entries\":["};
   for (const auto& entry : value.entries) {
     if (out.back() != '[') out += ',';

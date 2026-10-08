@@ -41,7 +41,7 @@ struct TestModel final : IReadModel {
   }
   ReadResult<DtcInfo> dtcs() const override {
     ++calls;
-    return {ReadStatus::ok, {"uds", {{"ABC", 0x8bU}}}};
+    return {ReadStatus::ok, {"uds", 0x8bU, 0xffU, {{"ABC", 0x8bU}}}};
   }
 };
 
@@ -64,7 +64,7 @@ struct InvalidModel final : IReadModel {
     return {ReadStatus::ok, {{static_cast<ReadCapability>(255U)}}};
   }
   ReadResult<DtcInfo> dtcs() const override {
-    return {ReadStatus::ok, {"uds", {{"<script>", 0x01U}}}};
+    return {ReadStatus::ok, {"uds", 0x8bU, 0xffU, {{"<script>", 0x01U}}}};
   }
 };
 
@@ -80,7 +80,7 @@ struct OversizedModel final : IReadModel {
     return {ReadStatus::ok, {{ReadCapability::dtc_read, ReadCapability::dtc_read}}};
   }
   ReadResult<DtcInfo> dtcs() const override {
-    DtcInfo value{"uds", {}};
+    DtcInfo value{"uds", 0x8bU, 0xffU, {}};
     value.entries.resize(257U, {"P0001", 1U});
     return {ReadStatus::ok, std::move(value)};
   }

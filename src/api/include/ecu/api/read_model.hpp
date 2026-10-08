@@ -75,6 +75,10 @@ struct DtcEntry {
 
 struct DtcInfo {
   std::string protocol;
+  // These masks come from the actual read operation; never infer them from
+  // codes in a diagnostic session or the absence of DTC entries.
+  std::uint8_t status_availability_mask{0U};
+  std::uint8_t requested_status_mask{0U};
   std::vector<DtcEntry> entries;
 };
 

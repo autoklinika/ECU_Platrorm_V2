@@ -45,6 +45,20 @@ if(TARGET ecu_api_http)
   list(APPEND _ecu_api_targets ecu_api_http)
 endif()
 
+# Optional DUT-specific projections are separate from generic API contracts.
+# This library only converts completed application snapshots; no physical I/O.
+if(TARGET ECU::app_daf_sac)
+  add_library(ecu_api_daf_sac_projection STATIC src/daf_sac_projection.cpp)
+  add_library(ECU::api_daf_sac_projection ALIAS ecu_api_daf_sac_projection)
+  target_include_directories(ecu_api_daf_sac_projection PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+  target_link_libraries(ecu_api_daf_sac_projection
+    PUBLIC ECU::application_api ECU::app_daf_sac)
+  target_compile_features(ecu_api_daf_sac_projection PUBLIC cxx_std_17)
+  set_target_properties(ecu_api_daf_sac_projection PROPERTIES CXX_EXTENSIONS OFF)
+  list(APPEND _ecu_api_targets ecu_api_daf_sac_projection)
+endif()
+
 foreach(target IN LISTS _ecu_api_targets)
   if(MSVC)
     target_compile_options(${target} PRIVATE /W4 /WX)
