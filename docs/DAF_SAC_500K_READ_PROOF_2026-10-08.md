@@ -2,7 +2,7 @@
 
 Data: 2026-10-08
 Gałąź: `stage4.3/daf-sac-500k-read-proof`
-Status: **SOFTWARE PASS / FIZYCZNY ODCZYT 500 kbit/s JESZCZE NIEURUCHOMIONY**
+Status: **PASYWNY CAN 500 KBIT/S PASS / IDENTYFIKACJA UDS FAIL (ODPOWIEDŹ PRZYJĘTA, WERYFIKACJA NIEUDANA) / PARAMETRY I DTC NIEODCZYTANE**
 
 ## Sytuacja wyjściowa
 
@@ -35,10 +35,9 @@ wysyłają poleceń). Stały root-owned agent nie jest przebudowywany
 ani instalowany ponownie i nadal obsługuje tylko znany wariant 250k.
 Operatorowe narzędzia kasowania dla poprzedniego SAC nie są uruchamiane.
 
-## Jedyny fizyczny test operatora 500 kbit/s (odczyty)
+## Test operatora 500 kbit/s (wyłącznie odczyty)
 
-**Po potwierdzeniu zasilania i gotowości nowego ECU** uruchomić na CM5
-z interaktywnego terminala:
+**Pierwszy test fizyczny został już wykonany 2026-10-08 i ujawnił błąd identyfikacji.** Poniższe polecenie służy teraz do jego powtórnej, wyłącznie odczytowej diagnostyki z rozszerzoną obserwowalnością na CM5:
 
 ```bash
 cd ~/ECU_Platrorm_V2
@@ -58,7 +57,9 @@ To jest sekwencja bezpieczna dla historii DTC:
    nie zakłada zgodności formatów DID/PGN innej rewizji OEM.
 5. Zachowuje raporty w prywatnym katalogu
    `~/.ecu-platform-v2/daf-sac/500k-proof/` (`0700`, pliki `0600`).
-   VIN na standardowym wyjściu oraz w logach jest anonimizowany.
+   VIN na standardowym wyjściu oraz w raporcie identyfikacji jest anonimizowany.
+   **Surowy log aktywnego UDS może zawierać VIN i musi pozostać prywatny**;
+   skrypt drukuje tylko SHA-256 i ścieżkę tego logu.
    `can0` pozostaje DOWN w każdym zwykłym zakończeniu.
 6. Nie wykonuje `0x14` ClearDiagnosticInformation, resetowania,
    adaptacji, procedur zabezpieczających, sterowania wyjściami ani flash.
@@ -83,17 +84,77 @@ ponieważ jego kontrakt jest nadal przypięty do poprzedniego profilu.
 - Fizyczny read-only probe: stary, trójargumentowy kontrakt 250k dla
   zainstalowanego agenta zachowany; jawny czwarty argument `500000`
   służy tylko nowemu operatorowemu gate.
-- Test błędnego stanu `can0`: obecny interfejs 250k/DOWN odrzuca
-  probe 500k **przed transmisją**.
+- Test błędnego stanu `can0`: gdy interfejs jest DOWN, probe 500k
+  odrzuca próbę **przed transmisją**, zachowując licznik TX.
 - Debug/Release/Generic/ASan+UBSan, testy architektury, brak TTY
-  i inne regresje: wyniki odnotować po wykonaniu pełnej walidacji.
+  i inne regresje: **PASS lokalnie**.
 
 ## Granice akceptacji
 
-Sukces testów offline nie dowodzi fizycznej łączności z drugim SAC.
-Test fizyczny wymaga jednorazowego uruchomienia skryptu z `sudo` przez
-operatora — interfejs zdalnego terminala nie udostępnia uprawnienia
-`CAP_NET_ADMIN` ani polecenia sudo. Nie wolno deklarować PASS na
-500 kbit/s bez wyniku aktywnego testu i identyfikacji nowego ECU.
+Pasywny odbiór CAN 500 kbit/s został potwierdzony na fizycznym SAC,
+ale nie potwierdzono jeszcze poprawnej identyfikacji DID.
+Test fizyczny wymaga interaktywnego uruchomienia skryptu z `sudo` przez
+operatora — zdalny terminal nie udostępnia uprawnienia
+`CAP_NET_ADMIN` ani polecenia sudo. Nie wolno deklarować pełnego PASS
+nowego sterownika bez identyfikacji i dalszych odczytów.
 Po uzyskaniu wyniku rozwój powinien pozostać w DUT Profile / Bench
 Application, o ile nie wystąpi rzeczywisty błąd CORE V2.
+
+## Pierwszy fizyczny test nowego SAC — 2026-10-08 09:48 (operator)
+
+`sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh all`:
+- `SAC_500K_PASSIVE_RX_PACKETS_DELTA=15743`, 5 s,
+  `SAC_500K_PASSIVE_DATA_FRAMES=15749`;
+- `RX_ERRORS_DELTA=0`, `TX_PACKETS_DELTA=0`, `ERROR_FRAMES=0`;
+- wszystkie zarejestrowane dane CAN miały
+  `0x18FEAE30 [8] FF FF FE FE FF FF FF FF`.
+  Obecność ruchu potwierdza poprawny fizyczny bitrate 500 kbit/s,
+  ale kod `0xFE` na pozycjach ciśnień oznacza „niedostępne”,
+  nie potwierdza sprawnych torów ciśnieniowych;
+- aktywny profil: CAN Classic, nominal 500000 bit/s,
+  `fd=0`, `listen_only=0`, `bus_off=0`;
+- `SAC_PROFILE_SERVICE=FAIL uds_status=0 transport_failure=0 nrc=0x0`.
+  W V2 `uds_status=0` jest `UdsStatus::ok`. Błąd nastąpił
+  **po zaakceptowanej odpowiedzi UDS**, przy ścisłej walidacji
+  odpowiedzi `22`: pozytywny SID, DID, długość i drukowalne ASCII.
+  Nie wiadomo jeszcze, **który** z `F190/F188/F192` był przyczyną.
+  Brak zarejestrowanej aktywnej odpowiedzi UDS w pierwszym runie;
+- `SAC_500K_IDENTIFY=FAIL`, dlatego parametry i DTC nie były
+  odczytane (prawidłowy fail-closed). `can0 DOWN` po teście.
+
+Prywatny plik dowodowy nasłuchu:
+`~/.ecu-platform-v2/daf-sac/500k-proof/read-500k-20261008T074846Z-420754.passive.log`.
+Nie udostępniać pełnego VIN ani surowych logów aktywnego UDS publicznie.
+
+## Korekta obserwowalności po pierwszym failu
+
+Dodano do `IdentificationProgram` wyłącznie **metadane**
+`IdentificationReplyDiagnostic`, bez przechowywania surowych
+wartości VIN/software/hardware. Na błędzie probe wypisuje
+`SAC_IDENT_REPLY_META`: `requested_did`, `observed_did`,
+`response_length`, `issue` oraz, tylko dla niedrukowalnego bajtu,
+jego `invalid_octet_offset` i `invalid_octet_value`.
+Powody: `invalid-positive-header`, `unexpected-did`,
+`invalid-text-length`, `non-printable-character` lub `none`
+dla błędów transportowych/NRC. Parsowanie zostało **bez zmian** —
+żadnego automatycznego akceptowania nieznanych danych OEM.
+
+Aktualny runner 500k dodatkowo przechwytuje w trybie normal
+aktywny ruch `0x18DA30F9/0x18DAF930` **przed wysłaniem** UDS,
+zachowuje plik `*.active-uds.log` w prywatnym katalogu
+`500k-proof` i wypisuje jedynie SHA-256 i lokalną ścieżkę.
+Nie należy kopiować tego pliku do repo GitHub ani wklejać
+niezamazanych wartości VIN w komunikatorach.
+
+Testy symulacyjne: `62 F188` z NUL, `62 F188` bez danych
+i `62` z nieoczekiwanym DID, w każdym przypadku UDS=OK,
+NRC=0 i jednoznaczny powód odmowy; testy kończą się
+bezpiecznym zamknięciem zasobów. Kompilacja/testy
+Linux Debug, Release, Generic i ASan/UBSan: PASS lokalnie.
+
+Kolejny **wyłącznie odczytowy** run tej samej komendy
+`sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh all`
+powinien dostarczyć konkretne metadane pozwalające
+ustalić rzeczywisty format DID. Dopiero na podstawie
+wyniku można rozważyć zmianę parsera konkretnego
+wariantu SAC, bez rozluźniania walidacji 250k.

@@ -164,6 +164,14 @@ class ScriptedDiagnosticTransport final
     dropped_did_ = did;
   }
 
+  // Test-only corruption of a positive 0x62 response. Raw field values
+  // are never exposed by the product's identification diagnostics.
+  void corrupt_positive_did(
+      const std::uint16_t did, const std::uint8_t mode) noexcept {
+    corrupted_did_ = did;
+    corruption_mode_ = mode;
+  }
+
  private:
   static std::uint8_t byte_value(const std::byte value) noexcept {
     return std::to_integer<std::uint8_t>(value);
@@ -184,6 +192,15 @@ class ScriptedDiagnosticTransport final
       response_[3U + index] =
           static_cast<std::byte>(
               static_cast<std::uint8_t>(value[index]));
+    }
+    if (did == corrupted_did_) {
+      if (corruption_mode_ == 1U) {
+        response_[3U] = std::byte{0x00U}; // unexpected NUL
+      } else if (corruption_mode_ == 2U) {
+        response_length_ = 3U; // 62 DID with no data
+      } else if (corruption_mode_ == 3U) {
+        response_[2U] = std::byte{0x99U}; // wrong DID, valid 62 SID
+      }
     }
     response_completion_ = now;
     received_ready_ = true;
@@ -239,6 +256,8 @@ class ScriptedDiagnosticTransport final
   std::uint16_t rejected_did_{0U};
   std::uint8_t rejected_nrc_{0U};
   std::uint16_t dropped_did_{0U};
+  std::uint16_t corrupted_did_{0U};
+  std::uint8_t corruption_mode_{0U};
 };
 
 [[nodiscard]] uds::UdsClientConfig uds_config() noexcept {
@@ -406,11 +425,63 @@ int main() {
             program.result().software.view() == "SAC-SW-PROOF" &&
             program.result().hardware.view() == "SAC-HW-PROOF",
         "SAC VIN/software/hardware values survive Core V2 UDS path");
+    failures += require(
+        program.last_reply_diagnostic().issue ==
+            daf::IdentificationReplyIssue::none &&
+        program.last_reply_diagnostic().requested_did == daf::kDidHardware &&
+        program.last_reply_diagnostic().observed_did == daf::kDidHardware,
+        "successful identification preserves metadata without storing text");
 
     failures += require(
         endpoint.safe_stop() == bench::BenchComponentStatus::ok &&
             endpoint.stop() == bench::BenchComponentStatus::ok,
         "SAC read-only profile follows common safe-stop cleanup");
+  }
+
+  for (std::uint8_t error_mode : {1U, 2U, 3U}) {
+    TestClock clock;
+    ScriptedDiagnosticTransport diagnostic_transport{};
+    diagnostic_transport.corrupt_positive_did(
+        daf::kDidSoftware, error_mode);
+    uds::UdsClient client{diagnostic_transport, uds_config()};
+    daf::IdentificationProgram program{
+        daf::CanBitrateProfile::k500k,
+        client, clock, execution_contract()};
+    dp::DutProfileSessionEndpoint endpoint{fixture.plan, program};
+    failures += require(
+        endpoint.prepare() == bench::BenchComponentStatus::ok &&
+        endpoint.activate() == bench::BenchComponentStatus::ok,
+        "500k malformed positive DID fixture starts");
+
+    bool faulted = false;
+    for (std::size_t iteration = 0U; iteration < 20U && !faulted;
+         ++iteration) {
+      faulted =
+          endpoint.service() == bench::BenchComponentStatus::fault;
+      clock.advance(std::chrono::milliseconds{1});
+    }
+    const auto info = program.last_reply_diagnostic();
+    const auto expected =
+        error_mode == 1U
+            ? daf::IdentificationReplyIssue::non_printable_character
+            : error_mode == 2U
+                  ? daf::IdentificationReplyIssue::invalid_text_length
+                  : daf::IdentificationReplyIssue::unexpected_did;
+    failures += require(
+        faulted && program.last_uds_status() == uds::UdsStatus::ok &&
+        program.last_nrc() == 0U &&
+        info.requested_did == daf::kDidSoftware &&
+        info.response_length >= 3U && info.issue == expected &&
+        (error_mode != 1U ||
+         (info.invalid_octet_offset == 3U &&
+          info.invalid_octet_value == 0U)) &&
+        (error_mode != 2U || info.response_length == 3U) &&
+        (error_mode != 3U || info.observed_did == 0xF199U),
+        "500k positive UDS reply parse failure classified without leaking text");
+    failures += require(
+        endpoint.safe_stop() == bench::BenchComponentStatus::ok &&
+        endpoint.stop() == bench::BenchComponentStatus::ok,
+        "malformed positive DID always safely stops the DUT profile");
   }
 
   {

@@ -60,6 +60,7 @@ ecu::bench::BenchComponentStatus IdentificationProgram::prepare(
 
   uds_.reset();
   result_ = {};
+  reply_diagnostic_ = {};
   last_nrc_ = 0U;
   last_uds_status_ =
       ecu::core::v2::protocol::uds::UdsStatus::idle;
@@ -78,6 +79,7 @@ ecu::bench::BenchComponentStatus IdentificationProgram::activate(
   }
 
   result_ = {};
+  reply_diagnostic_ = {};
   last_nrc_ = 0U;
   last_uds_status_ =
       ecu::core::v2::protocol::uds::UdsStatus::idle;
@@ -187,6 +189,11 @@ const IdentificationResult& IdentificationProgram::result() const noexcept {
   return result_;
 }
 
+IdentificationReplyDiagnostic IdentificationProgram::last_reply_diagnostic()
+    const noexcept {
+  return reply_diagnostic_;
+}
+
 std::uint8_t IdentificationProgram::last_nrc() const noexcept {
   return last_nrc_;
 }
@@ -252,6 +259,8 @@ bool IdentificationProgram::plan_matches(
 ecu::bench::BenchComponentStatus IdentificationProgram::start_did(
     const std::uint16_t did,
     const Step wait_step) noexcept {
+  reply_diagnostic_ = {};
+  reply_diagnostic_.requested_did = did;
   if (uds_.busy() || uds_.has_response()) {
     return fail();
   }
@@ -317,37 +326,47 @@ bool IdentificationProgram::parse_text_did(
     TextField& target) noexcept {
   using UdsStatus = ecu::core::v2::protocol::uds::UdsStatus;
 
+  // Failure evidence must not reveal VIN/software/hardware text. Only the
+  // requested/observed DID, sizes and the first NON-PRINTABLE byte are kept.
+  reply_diagnostic_ = {};
+  reply_diagnostic_.requested_did = expected_did;
+  reply_diagnostic_.response_length = response.length;
+  if (response.length >= 3U) {
+    reply_diagnostic_.observed_did = static_cast<std::uint16_t>(
+        (static_cast<std::uint16_t>(
+             byte_value(response.payload[1U])) << 8U) |
+        byte_value(response.payload[2U]));
+  }
   if (response.status != UdsStatus::ok ||
-      response.length < 4U ||
+      response.length < 3U ||
       byte_value(response.payload[0U]) != 0x62U) {
+    reply_diagnostic_.issue =
+        IdentificationReplyIssue::invalid_positive_header;
     return false;
   }
-
-  const auto did = static_cast<std::uint16_t>(
-      (static_cast<std::uint16_t>(
-           byte_value(response.payload[1U]))
-       << 8U) |
-      byte_value(response.payload[2U]));
-
-  if (did != expected_did) {
+  if (reply_diagnostic_.observed_did != expected_did) {
+    reply_diagnostic_.issue = IdentificationReplyIssue::unexpected_did;
     return false;
   }
 
   const std::size_t value_length = response.length - 3U;
   if (value_length == 0U ||
       value_length >= TextField::kCapacity) {
+    reply_diagnostic_.issue = IdentificationReplyIssue::invalid_text_length;
     return false;
   }
 
   target = {};
   target.length = value_length;
   for (std::size_t index = 0U;
-       index < value_length;
-       ++index) {
-    const auto raw =
-        byte_value(response.payload[index + 3U]);
+       index < value_length; ++index) {
+    const auto raw = byte_value(response.payload[index + 3U]);
     if (raw < 0x20U || raw > 0x7EU) {
       target = {};
+      reply_diagnostic_.issue =
+          IdentificationReplyIssue::non_printable_character;
+      reply_diagnostic_.invalid_octet_offset = index + 3U;
+      reply_diagnostic_.invalid_octet_value = raw;
       return false;
     }
     target.data[index] = static_cast<char>(raw);
@@ -368,6 +387,7 @@ void IdentificationProgram::reset_state() noexcept {
   step_ = Step::idle;
   status_ = IdentificationProgramStatus::idle;
   result_ = {};
+  reply_diagnostic_ = {};
   last_nrc_ = 0U;
   last_uds_status_ =
       ecu::core::v2::protocol::uds::UdsStatus::idle;

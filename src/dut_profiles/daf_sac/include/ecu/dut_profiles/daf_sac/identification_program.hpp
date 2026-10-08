@@ -29,6 +29,25 @@ struct IdentificationResult {
   TextField hardware{};
 };
 
+// Privacy-safe metadata for a rejected ReadDataByIdentifier response.
+// Never stores or exposes VIN, software text or raw UDS payload.
+enum class IdentificationReplyIssue : std::uint8_t {
+  none,
+  invalid_positive_header,
+  unexpected_did,
+  invalid_text_length,
+  non_printable_character,
+};
+
+struct IdentificationReplyDiagnostic {
+  IdentificationReplyIssue issue{IdentificationReplyIssue::none};
+  std::uint16_t requested_did{0U};
+  std::uint16_t observed_did{0U};
+  std::size_t response_length{0U};
+  std::size_t invalid_octet_offset{0U}; // relative to the UDS response PDU
+  std::uint8_t invalid_octet_value{0U}; // only emitted for non-printable bytes
+};
+
 enum class IdentificationProgramStatus : std::uint8_t {
   idle,
   prepared,
@@ -65,6 +84,8 @@ class IdentificationProgram final
 
   [[nodiscard]] IdentificationProgramStatus status() const noexcept;
   [[nodiscard]] const IdentificationResult& result() const noexcept;
+  [[nodiscard]] IdentificationReplyDiagnostic last_reply_diagnostic()
+      const noexcept;
   [[nodiscard]] std::uint8_t last_nrc() const noexcept;
   [[nodiscard]] ecu::core::v2::protocol::uds::UdsStatus
   last_uds_status() const noexcept;
@@ -112,6 +133,7 @@ class IdentificationProgram final
   Step step_{Step::idle};
   IdentificationProgramStatus status_{IdentificationProgramStatus::idle};
   IdentificationResult result_{};
+  IdentificationReplyDiagnostic reply_diagnostic_{};
   std::uint8_t last_nrc_{0U};
   ecu::core::v2::protocol::uds::UdsStatus last_uds_status_{
       ecu::core::v2::protocol::uds::UdsStatus::idle};

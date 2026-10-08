@@ -58,6 +58,19 @@ program_execution() noexcept {
          !link.listen_only_enabled;
 }
 
+[[nodiscard]] const char* issue_text(
+    const daf::IdentificationReplyIssue issue) noexcept {
+  using Issue = daf::IdentificationReplyIssue;
+  switch (issue) {
+    case Issue::none: return "none";
+    case Issue::invalid_positive_header: return "invalid-positive-header";
+    case Issue::unexpected_did: return "unexpected-did";
+    case Issue::invalid_text_length: return "invalid-text-length";
+    case Issue::non_printable_character: return "non-printable-character";
+  }
+  return "invalid-enum";
+}
+
 void print_link(
     const platform::SocketCanLinkQueryResult& query) {
   std::cout
@@ -304,6 +317,17 @@ int main(int argc, char** argv) {
     const auto service =
         profile_endpoint.service();
     if (service == bench::BenchComponentStatus::fault) {
+      const auto reply = program.last_reply_diagnostic();
+      std::cerr << "SAC_IDENT_REPLY_META requested_did=0x" << std::hex
+                << reply.requested_did
+                << " observed_did=0x" << reply.observed_did
+                << std::dec
+                << " response_length=" << reply.response_length
+                << " issue=" << issue_text(reply.issue)
+                << " invalid_octet_offset=" << reply.invalid_octet_offset
+                << " invalid_octet_value=0x" << std::hex
+                << static_cast<unsigned int>(reply.invalid_octet_value)
+                << std::dec << '\n';
       std::cerr
           << "SAC_PROFILE_SERVICE=FAIL uds_status="
           << static_cast<unsigned int>(program.last_uds_status())

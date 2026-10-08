@@ -24,7 +24,7 @@ IFACE=can0
 BITRATE=500000
 ID_PROBE="$ROOT/build/daf-sac-core-v2-probe/tests/ecu_daf_sac_core_v2_probe"
 READ_PROBE="$ROOT/build/daf-sac-app-linux/tests/ecu_daf_sac_stage42_read_probe"
-for tool in ip candump runuser getent cut install grep sed tee date stat chown; do
+for tool in ip candump runuser getent cut install grep sed tee date stat chown sha256sum; do
   command -v "$tool" >/dev/null 2>&1 || {
     echo "SAC_500K_READ_GATE=FAIL missing-tool=$tool" >&2
     exit 1
@@ -65,6 +65,8 @@ umask 077
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 PREFIX="$EVIDENCE_DIR/read-500k-$STAMP-$$"
 PASSIVE_LOG="$PREFIX.passive.log"
+ACTIVE_LOG="$PREFIX.active-uds.log"
+ACTIVE_ERR="$PREFIX.active-uds.stderr"
 SUMMARY="$PREFIX.summary.txt"
 OWN_CAN=0
 CAPTURE_PID=""
@@ -74,6 +76,11 @@ cleanup() {
   if [[ -n "$CAPTURE_PID" ]]; then
     kill -TERM "$CAPTURE_PID" 2>/dev/null || true
     wait "$CAPTURE_PID" 2>/dev/null || true
+    CAPTURE_PID=""
+  fi
+  if [[ -f "$ACTIVE_LOG" && -s "$ACTIVE_LOG" ]]; then
+    echo "SAC_500K_ACTIVE_TRACE_SHA256=$(sha256sum "$ACTIVE_LOG" | cut -d' ' -f1)"
+    echo "SAC_500K_ACTIVE_TRACE_PATH=$ACTIVE_LOG"
   fi
   if [[ "$OWN_CAN" == 1 ]]; then
     ip link set "$IFACE" down >/dev/null 2>&1 || true
@@ -162,6 +169,19 @@ if ! grep -q 'bitrate 500000' "$LINK_INFO" ||
   echo "SAC_500K_READ_GATE=FAIL wrong-active-link-profile" | tee -a "$SUMMARY"
   exit 1
 fi
+# Filter the raw capture to the known 29-bit diagnostic CAN IDs. This log
+# may contain a VIN and is NEVER printed, publicly uploaded or committed.
+# Start after CAN UP, before any active UDS request; preserve even on failure.
+candump -D -ta -e \
+  "$IFACE,18DA30F9:1FFFFFFF,18DAF930:1FFFFFFF" \
+  > "$ACTIVE_LOG" 2> "$ACTIVE_ERR" &
+CAPTURE_PID=$!
+sleep 0.25
+if ! kill -0 "$CAPTURE_PID" 2>/dev/null; then
+  echo "SAC_500K_READ_GATE=FAIL active-trace-recorder" | tee -a "$SUMMARY"
+  exit 1
+fi
+echo "SAC_500K_ACTIVE_TRACE=CAPTURING_PRIVATE_UDS" | tee -a "$SUMMARY"
 echo "SAC_500K_READ_STAGE=IDENTIFICATION" | tee -a "$SUMMARY"
 if ! runuser -u "$TARGET_USER" -- "$ID_PROBE" "$IFACE" "$BITRATE" 2>&1 \
     | sed -E 's/^(SAC_VIN=).*/\1[REDACTED]/' \
