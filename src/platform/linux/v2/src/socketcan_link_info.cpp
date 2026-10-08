@@ -313,7 +313,8 @@ SocketCanLinkQueryResult query_socketcan_link(
   int remaining = static_cast<int>(received);
   for (auto* message =
            reinterpret_cast<nlmsghdr*>(buffer);
-       NLMSG_OK(message, remaining);
+       remaining >= static_cast<int>(sizeof(nlmsghdr)) &&
+       NLMSG_OK(message, static_cast<unsigned int>(remaining));
        message = NLMSG_NEXT(message, remaining)) {
     if (message->nlmsg_type == NLMSG_ERROR) {
       return {
