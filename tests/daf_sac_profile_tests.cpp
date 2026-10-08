@@ -486,7 +486,8 @@ int main() {
         "500k blank VIN proof releases transport resources");
   }
 
-  for (const auto invalid_marker : {2U, 3U, 4U}) {
+  for (const auto invalid_marker :
+       std::array<std::uint8_t, 3U>{2U, 3U, 4U}) {
     TestClock clock;
     ScriptedDiagnosticTransport diagnostic_transport{};
     diagnostic_transport.set_vin_marker(invalid_marker);
@@ -547,7 +548,8 @@ int main() {
         "250k strict VIN failure remains fail-closed");
   }
 
-  for (std::uint8_t error_mode : {1U, 2U, 3U}) {
+  for (const auto error_mode :
+       std::array<std::uint8_t, 3U>{1U, 2U, 3U}) {
     TestClock clock;
     ScriptedDiagnosticTransport diagnostic_transport{};
     diagnostic_transport.corrupt_positive_did(

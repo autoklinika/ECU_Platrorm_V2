@@ -76,8 +76,12 @@ bash scripts/validate_daf_sac_application.sh
 
 The application gate includes Debug, Release, Generic, ASan/UBSan,
 architecture checks, negative security tests and read-only simulation.
-GitHub CI additionally builds Linux x86_64 GCC/Clang and Windows MSVC
-x64/Win32 Debug/Release. The CM5 ARM64 build is validated locally.
+Existing GitHub CI covers Linux x86_64 GCC/Clang and Windows MSVC
+x64/Win32 Debug/Release for CORE/Bench/DUT Profile. The expanded
+DAF SAC **Application** and default-build CI matrix is proposed by the
+full release-candidate branch and requires explicit GitHub workflow-write
+permission before it can run remotely. The CM5 ARM64 build is validated
+locally.
 
 **All physical tests are separate, explicit operator actions.** In
 particular, never execute the DTC-clear operator tools as part of a build,

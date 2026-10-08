@@ -644,6 +644,8 @@ int main() {
         "real UDS identification program completes through Bench service");
     const auto snapshot = f.application.snapshot();
     failures += require(snapshot.identification_available &&
+        !snapshot.vin_unprogrammed &&
+        snapshot.schema_version == app::AppSnapshot::kSchemaVersion &&
         std::string_view{snapshot.vin_suffix.data()} == "0001" &&
         snapshot.bench.state == bench::BenchSessionState::ready &&
         snapshot.bench.active_resource_count == 0U &&
@@ -789,6 +791,9 @@ int main() {
         f.application.identification().vin_unprogrammed_ff17 &&
         f.application.identification().vin.view().empty() &&
         f.application.snapshot().identification_available &&
+        f.application.snapshot().vin_unprogrammed &&
+        f.application.snapshot().schema_version ==
+            app::AppSnapshot::kSchemaVersion &&
         f.application.snapshot().vin_suffix ==
             std::array<char, 5U>{} &&
         f.resources.active_count() == 0U,

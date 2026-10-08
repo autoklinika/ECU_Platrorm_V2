@@ -139,7 +139,7 @@ w frontendzie.
 
 ## 6. Proponowana powierzchnia backend API (nieudostępniona jeszcze w sieci)
 
-Kontrakt typowany z `AppSnapshot::kSchemaVersion = 1`, tłumaczony
+Kontrakt typowany z `AppSnapshot::kSchemaVersion = 2` (po audycie 2026-10-08: jawny `vin_unprogrammed`), tłumaczony
 do JSON w osobnym serwerze. Native C++ layout nie jest wire ABI.
 
 - `GET /api/v2/duts`: katalog wybranych i dopuszczonych DUT Profile,
