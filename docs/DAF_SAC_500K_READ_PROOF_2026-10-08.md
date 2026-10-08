@@ -158,3 +158,65 @@ powinien dostarczyć konkretne metadane pozwalające
 ustalić rzeczywisty format DID. Dopiero na podstawie
 wyniku można rozważyć zmianę parsera konkretnego
 wariantu SAC, bez rozluźniania walidacji 250k.
+
+## Odczyt surowego F190 i poprawka dla braku VIN — 2026-10-08
+
+Operator wykonał drugi fizyczny test 500k. CAN passive:
+15742 pakiety / 5 s, zero RX errors, zero transmisji;
+CAN Classic 500000 i `bus_off=0`. Aktywne UDS:
+`SAC_IDENT_REPLY_META requested_did=0xF190 observed_did=0xF190
+response_length=20 issue=non-printable-character
+invalid_octet_offset=3 invalid_octet_value=0xFF`.
+Dzięki rejestracji znamy przyczynę odrzucenia pierwszego DID.
+
+Prywatny surowy ślad:
+`~/.ecu-platform-v2/daf-sac/500k-proof/read-500k-20261008T075918Z-421777.active-uds.log`.
+SHA-256: `0277343dd53b40d6e936fa58b9834d21173a9b305f0cdbcdeed4b064de1c8c57`.
+Przeprowadzona wyłącznie lokalnie reassemblacja ISO-TP daje:
+**jedną pozytywną odpowiedź `62 F1 90` długości 20 i dokładnie
+17 bajtów `FF` jako całe pole VIN**, bez błędów sekwencji.
+Poprzedza ją jedna ujemna odpowiedź przejściowa na `22`.
+Nie ma odpowiedzi F188 ani F192, ponieważ stary parser przerwał
+pracę po F190. Zawartość samego VIN nie była eksportowana ani
+publikowana.
+
+### Zasada interpretacji
+
+`FF` razy 17 jest stanem **brak dostępnego/zaprogramowanego VIN**
+w odpowiedzi DID, a **nie poprawnym numerem VIN**.
+Przy 500k, wyłącznie na `F190`, dokładnie `62 F1 90` i 17x`FF`
+otrzymuje status `vin_unprogrammed_ff17=true`,
+z pozostawieniem pustego `TextField`.
+Wariant 250k nie akceptuje tego stanu. Niedrukowalne bajty
+o innych wzorcach, same zera, częściowe `FF`, zły DID czy zła
+długość nadal dają błąd.
+
+Dla poprawnie rozpoznanego znacznika w profilu 500k program
+odczytuje dalej F188 i F192, zachowując ścisłą walidację tych
+wartości. Brak VIN nie jest już powodem przerwania osobnych,
+wyłącznie odczytowych sprawdzeń FE96 i DTC; wymagamy nadal
+poprawnej identyfikacji pozostałych dwóch DID.
+
+Operatorowy proof wypisuje:
+`SAC_VIN_STATUS=UNPROGRAMMED_FF17`,
+`SAC_IDENTIFICATION_COMPLETENESS=PARTIAL_NO_VIN`,
+a **nie** `SAC_VIN=` z fikcyjnym identyfikatorem.
+Aplikacja nie produkuje też w takim przypadku `vin_suffix`.
+
+### Walidacja i granice
+
+Symulator UDS/DUT i aplikacji sprawdza kompletne FF17 500k,
+akceptację odczytów następnych DID, odrzucenie innych
+niepoprawnych wariantów, zachowanie strict 250k, pusty
+sufiks VIN GUI, brak wycieku zasobów i brak transmisji kasowania.
+Brama Debug/Release/Generic/ASan+UBSan: **PASS lokalnie**.
+Nie zmieniano CORE V2, Bench Runtime ani chronionego stałego
+agenta 250k.
+
+Pozostałe do ustalenia w fizycznym teście: odpowiedzi
+`F188`, `F192`, `FE96`, `19 02 FF`.
+**Nie twierdzimy, że fizyczne te usługi już działają**.
+Można wykonać ponownie tę samą operatorową bramę
+`sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh all`,
+ponieważ jest ograniczona do odczytu, nie resetuje,
+nie kasuje DTC ani nie steruje wyjściami.

@@ -310,6 +310,12 @@ class ScriptedTransport final : public transport::IDiagnosticTransport {
         response_[3U + i] = std::byte{
             static_cast<unsigned char>(value[i])};
       }
+      if (did == daf::kDidVin && blank_vin_ff17) {
+        response_size_ = 20U;
+        for (std::size_t i = 3U; i < response_size_; ++i) {
+          response_[i] = std::byte{255U};
+        }
+      }
     }
     received_ = reading;
     ready_ = true;
@@ -369,6 +375,7 @@ class ScriptedTransport final : public transport::IDiagnosticTransport {
   std::size_t last_request_length{0U};
   bool malformed_dtc{false};
   bool overflow_dtc{false};
+  bool blank_vin_ff17{false};
   bool malformed_voltage{false};
   bool invalid_voltage_value{false};
   bool announce_short_session_timing{false};
@@ -767,6 +774,23 @@ int main() {
         run_to_end(f) == 0 &&
         f.resources.active_count() == 0U && !f.driver.is_open(),
         "500k DUT profile performs independent read-only identification");
+  }
+
+  {
+    Fixture f{daf::CanBitrateProfile::k500k};
+    f.script.blank_vin_ff17 = true;
+    failures += require(
+        f.bus_ready && f.endpoint.valid() &&
+        f.application.configure({std::chrono::milliseconds{250}}) &&
+        f.application.identify() == app::AppStatus::ok &&
+        run_to_end(f) == 0 &&
+        f.application.identification().vin_unprogrammed_ff17 &&
+        f.application.identification().vin.view().empty() &&
+        f.application.snapshot().identification_available &&
+        f.application.snapshot().vin_suffix ==
+            std::array<char, 5U>{} &&
+        f.resources.active_count() == 0U,
+        "500k FF17 VIN leaves GUI suffix empty while other identity is usable");
   }
 
   {

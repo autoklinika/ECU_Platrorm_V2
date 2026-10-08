@@ -547,7 +547,14 @@ AppStatus Application::service() noexcept {
   if (prior_state == AppState::identifying) {
     const auto& result = services_ != nullptr
         ? services_->identification() : program_->result();
-    payload_valid = result.vin.length == 17U &&
+    const bool vin_valid =
+        result.vin.length == 17U && !result.vin_unprogrammed_ff17;
+    const bool vin_marker_500k =
+        plan_.profile_id ==
+            ecu::dut_profiles::daf_sac::profile_id(
+                ecu::dut_profiles::daf_sac::CanBitrateProfile::k500k) &&
+        result.vin_unprogrammed_ff17 && result.vin.length == 0U;
+    payload_valid = (vin_valid || vin_marker_500k) &&
                     result.software.length > 0U &&
                     result.hardware.length > 0U;
     if (payload_valid) {
@@ -669,7 +676,10 @@ AppSnapshot Application::snapshot() const noexcept {
   out.dtcs_available = dtcs_.valid;
   out.dtc_count = dtcs_.count;
   out.clear_acknowledged = clear_acknowledged_;
-  if (record_valid_) {
+  // A partial identity (e.g. the SAC 500k F190 FF sentinel) must not
+  // fabricate a four-character VIN suffix in future GUI/API telemetry.
+  if (record_valid_ && !record_.vin_unprogrammed_ff17 &&
+      record_.vin.length == 17U) {
     for (std::size_t i = 0U; i < 4U; ++i) {
       out.vin_suffix[i] = record_.vin.data[13U + i];
     }

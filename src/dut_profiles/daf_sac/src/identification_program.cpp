@@ -349,6 +349,22 @@ bool IdentificationProgram::parse_text_did(
     return false;
   }
 
+  if (bitrate_ == CanBitrateProfile::k500k &&
+      expected_did == kDidVin && response.length == 20U) {
+    bool all_ff = true;
+    for (std::size_t i = 3U; i < response.length; ++i) {
+      if (byte_value(response.payload[i]) != 0xFFU) {
+        all_ff = false;
+        break;
+      }
+    }
+    if (all_ff) {
+      target = {};
+      result_.vin_unprogrammed_ff17 = true;
+      return true;
+    }
+  }
+
   const std::size_t value_length = response.length - 3U;
   if (value_length == 0U ||
       value_length >= TextField::kCapacity) {

@@ -172,6 +172,10 @@ class ScriptedDiagnosticTransport final
     corruption_mode_ = mode;
   }
 
+  void set_vin_marker(const std::uint8_t mode) noexcept {
+    vin_marker_mode_ = mode;
+  }
+
  private:
   static std::uint8_t byte_value(const std::byte value) noexcept {
     return std::to_integer<std::uint8_t>(value);
@@ -192,6 +196,16 @@ class ScriptedDiagnosticTransport final
       response_[3U + index] =
           static_cast<std::byte>(
               static_cast<std::uint8_t>(value[index]));
+    }
+    if (did == daf::kDidVin && vin_marker_mode_ != 0U) {
+      response_length_ = vin_marker_mode_ == 4U ? 19U : 20U;
+      for (std::size_t index = 3U; index < response_length_; ++index) {
+        response_[index] = vin_marker_mode_ == 3U
+                               ? std::byte{0U} : std::byte{255U};
+      }
+      if (vin_marker_mode_ == 2U) {
+        response_[response_length_ - 1U] = std::byte{49U};
+      }
     }
     if (did == corrupted_did_) {
       if (corruption_mode_ == 1U) {
@@ -258,6 +272,7 @@ class ScriptedDiagnosticTransport final
   std::uint16_t dropped_did_{0U};
   std::uint16_t corrupted_did_{0U};
   std::uint8_t corruption_mode_{0U};
+  std::uint8_t vin_marker_mode_{0U};
 };
 
 [[nodiscard]] uds::UdsClientConfig uds_config() noexcept {
@@ -436,6 +451,100 @@ int main() {
         endpoint.safe_stop() == bench::BenchComponentStatus::ok &&
             endpoint.stop() == bench::BenchComponentStatus::ok,
         "SAC read-only profile follows common safe-stop cleanup");
+  }
+
+  {
+    TestClock clock;
+    ScriptedDiagnosticTransport diagnostic_transport{};
+    diagnostic_transport.set_vin_marker(1U);
+    uds::UdsClient client{diagnostic_transport, uds_config()};
+    daf::IdentificationProgram program{
+        daf::CanBitrateProfile::k500k, client, clock, execution_contract()};
+    dp::DutProfileSessionEndpoint endpoint{fixture.plan, program};
+    failures += require(
+        endpoint.prepare() == bench::BenchComponentStatus::ok &&
+        endpoint.activate() == bench::BenchComponentStatus::ok,
+        "500k blank VIN response fixture starts");
+    bool faulted = false;
+    for (std::size_t iteration = 0U; iteration < 20U &&
+         program.status() != daf::IdentificationProgramStatus::complete;
+         ++iteration) {
+      faulted |= endpoint.service() == bench::BenchComponentStatus::fault;
+      clock.advance(std::chrono::milliseconds{1});
+    }
+    failures += require(
+        !faulted &&
+        program.status() == daf::IdentificationProgramStatus::complete &&
+        program.result().vin_unprogrammed_ff17 &&
+        program.result().vin.view().empty() &&
+        program.result().software.view() == "SAC-SW-PROOF" &&
+        program.result().hardware.view() == "SAC-HW-PROOF",
+        "500k F190 with seventeen FF is unprogrammed, not ASCII VIN");
+    failures += require(
+        endpoint.safe_stop() == bench::BenchComponentStatus::ok &&
+        endpoint.stop() == bench::BenchComponentStatus::ok,
+        "500k blank VIN proof releases transport resources");
+  }
+
+  for (const auto invalid_marker : {2U, 3U, 4U}) {
+    TestClock clock;
+    ScriptedDiagnosticTransport diagnostic_transport{};
+    diagnostic_transport.set_vin_marker(invalid_marker);
+    uds::UdsClient client{diagnostic_transport, uds_config()};
+    daf::IdentificationProgram program{
+        daf::CanBitrateProfile::k500k, client, clock, execution_contract()};
+    dp::DutProfileSessionEndpoint endpoint{fixture.plan, program};
+    failures += require(
+        endpoint.prepare() == bench::BenchComponentStatus::ok &&
+        endpoint.activate() == bench::BenchComponentStatus::ok,
+        "500k unsupported VIN value fixture starts");
+    bool faulted = false;
+    for (std::size_t i = 0U; i < 12U && !faulted; ++i) {
+      faulted = endpoint.service() == bench::BenchComponentStatus::fault;
+      clock.advance(std::chrono::milliseconds{1});
+    }
+    const auto rejected = program.last_reply_diagnostic();
+    failures += require(
+        faulted &&
+        program.status() == daf::IdentificationProgramStatus::fault &&
+        !program.result().vin_unprogrammed_ff17 &&
+        program.result().vin.view().empty() &&
+        rejected.requested_did == daf::kDidVin &&
+        rejected.issue == daf::IdentificationReplyIssue::non_printable_character,
+        "partial/all-zero/16-byte FF VIN remains invalid on 500k");
+    failures += require(
+        endpoint.safe_stop() == bench::BenchComponentStatus::ok &&
+        endpoint.stop() == bench::BenchComponentStatus::ok,
+        "invalid VIN value leaves CAN resources released");
+  }
+
+  {
+    const auto fixture_250 = resolved_fixture(daf::CanBitrateProfile::k250k);
+    TestClock clock;
+    ScriptedDiagnosticTransport diagnostic_transport{};
+    diagnostic_transport.set_vin_marker(1U);
+    uds::UdsClient client{diagnostic_transport, uds_config()};
+    daf::IdentificationProgram program{
+        daf::CanBitrateProfile::k250k, client, clock, execution_contract()};
+    dp::DutProfileSessionEndpoint endpoint{fixture_250.plan, program};
+    failures += require(
+        endpoint.prepare() == bench::BenchComponentStatus::ok &&
+        endpoint.activate() == bench::BenchComponentStatus::ok,
+        "250k retains strict VIN validation");
+    bool faulted = false;
+    for (std::size_t i = 0U; i < 12U && !faulted; ++i) {
+      faulted = endpoint.service() == bench::BenchComponentStatus::fault;
+      clock.advance(std::chrono::milliseconds{1});
+    }
+    failures += require(
+        faulted && !program.result().vin_unprogrammed_ff17 &&
+        program.last_reply_diagnostic().issue ==
+            daf::IdentificationReplyIssue::non_printable_character,
+        "250k may not interpret the 500k blank-VIN sentinel as success");
+    failures += require(
+        endpoint.safe_stop() == bench::BenchComponentStatus::ok &&
+        endpoint.stop() == bench::BenchComponentStatus::ok,
+        "250k strict VIN failure remains fail-closed");
   }
 
   for (std::uint8_t error_mode : {1U, 2U, 3U}) {

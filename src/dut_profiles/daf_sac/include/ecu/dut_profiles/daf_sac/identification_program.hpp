@@ -27,6 +27,9 @@ struct IdentificationResult {
   TextField vin{};
   TextField software{};
   TextField hardware{};
+  // Distinguishes an unprogrammed VIN sentinel from a valid VIN and a
+  // diagnostic failure. Only confirmed for the 500 kbit/s SAC DUT profile.
+  bool vin_unprogrammed_ff17{false};
 };
 
 // Privacy-safe metadata for a rejected ReadDataByIdentifier response.

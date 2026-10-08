@@ -353,7 +353,13 @@ int main(int argc, char** argv) {
 
   if (complete) {
     const auto& result = program.result();
-    std::cout << "SAC_VIN=" << result.vin.view() << '\n';
+    if (result.vin_unprogrammed_ff17) {
+      std::cout << "SAC_VIN_STATUS=UNPROGRAMMED_FF17\n"
+                << "SAC_IDENTIFICATION_COMPLETENESS=PARTIAL_NO_VIN\n";
+    } else {
+      std::cout << "SAC_VIN_STATUS=VALID_ASCII\n"
+                << "SAC_VIN=" << result.vin.view() << '\n';
+    }
     std::cout
         << "SAC_SOFTWARE=" << result.software.view()
         << '\n';
