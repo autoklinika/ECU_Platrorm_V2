@@ -87,7 +87,9 @@ function bitrate(value) {
 
 function renderCan() {
   const list = document.getElementById("can-list");
+  const status = document.getElementById("can-status");
   list.replaceChildren();
+  status.hidden = false;
   if (!session.connected) {
     text("can-status", t("api.signInRequired"));
     return;
@@ -100,7 +102,10 @@ function renderCan() {
     text("can-status", t("can.none"));
     return;
   }
-  text("can-status", t("can.source"));
+  // The explanatory caption is already present in the static markup.
+  // The live status paragraph is reserved for missing/error conditions.
+  status.hidden = true;
+  status.textContent = "";
   for (const item of results.interfaces.interfaces) {
     const panel = document.createElement("section");
     panel.className = "data-panel";

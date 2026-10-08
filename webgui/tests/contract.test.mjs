@@ -78,6 +78,17 @@ test("WebGUI has no diagnostic, hardware or privileged-agent path", () => {
   assert.match(html, /id="bitrate-value">—/);
 });
 
+test("CAN view does not duplicate its static explanation after a successful API read", () => {
+  const canSection = html.match(/<section class="page" data-page="can" hidden>([\s\S]*?)<\/section>/);
+  assert.ok(canSection);
+  assert.match(canSection[1], /data-i18n="can.source"/);
+  assert.match(canSection[1], /id="can-status"/);
+  assert.match(app, /const status = document\.getElementById\("can-status"\)/);
+  assert.match(app, /status\.hidden = false/);
+  assert.match(app, /status\.hidden = true/);
+  assert.doesNotMatch(app, /text\("can-status", t\("can.source"\)\)/);
+});
+
 test("API client can only read authorized V1 routes without privileged I/O", () => {
   const client = read("src/api-client.mjs");
   assert.match(client, /http:\/\/127\.0\.0\.1:8878/);
