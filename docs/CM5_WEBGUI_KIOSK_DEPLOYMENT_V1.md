@@ -215,3 +215,17 @@ unchanged development branch:
 The service should now pass its Wayland bind preflight without weakening
 browser/Bench isolation. Do NOT merge to production main until physical
 touch, restart recovery and the API authorization gates are accepted.
+
+### Additional controlled Cage + Chromium check
+
+A nonphysical test under the corrected systemd mount policy launched
+Cage with WLR_BACKENDS=headless and Chromium as its kiosk application.
+The process remained running for the configured six-second bounded
+timeout; timeout returned 124 as expected. The log showed "Starting
+headless backend" and did not show Cage's former SIGABRT or inability
+to open its Wayland socket. This is a stronger smoke test of the
+corrected process/mount model, but it still **does not prove** physical
+DRM output, a PAM session under ecu-kiosk, or the WaveShare touch path.
+
+The physical kiosk installation still needs one separately gated
+administrator cutover and actual operator verification.
