@@ -37,8 +37,9 @@ symulowany CMake Generic i sanitizery ASan/UBSan.
 | A-007 | WYMÓG | `main` ma osobną bramkę właściciela | RC na oddzielnym branchu, ewentualny draft PR; bez automatycznego merge |
 | A-008 | HIGH portability | Pierwszy GitHub MSVC build DUT Profile 4/4 FAIL na C4244 (konwersja `unsigned int` na `uint8_t` w wektorach testowych) | Wymuszony typ `std::array<std::uint8_t, 3U>`; ponowny Windows MSVC x64/Win32 Debug/Release **4/4 PASS**, workflow `37755575051` **18/18 PASS** |
 | A-009 | MEDIUM DTO | Snapshot identyfikacji nie przenosił jawnie informacji o niezaprogramowanym VIN F190/FF17 | `vin_unprogrammed` w AppSnapshot, schema 2, testy 250k/500k i pustego suffix |
-| A-010 | BLOCKER CI | GitHub OAuth CLI ma `repo`, ale nie `workflow`; push zmiany `.github/workflows` odrzucony | Pełne CI tylko w lokalnej gałęzi audytowej do autoryzacji; wypchnięta oddzielna gałąź przeglądowa bez edycji workflow |
+| A-010 | BLOCKER CI — ROZWIĄZANY | Początkowo GitHub OAuth CLI miał `repo`, ale nie `workflow` | Operator odnowił autoryzację 2026-10-08; zakres `workflow` potwierdzony, pełny RC opublikowany, Draft PR #18 utworzony |
 | A-011 | HIGH API safety | `kOperationCatalog` publikował `clear_dtc` jako dostępne, choć fizycznego skutku kasowania nie potwierdzono | Publiczna dostępność `clear_dtc=false`, osobna ręczna procedura z ograniczeniami bez zmian; dodatkowy test katalogu |
+| A-012 | HIGH portability | Nowy test aplikacji MSVC x64 Debug zakończył się `SEGFAULT`; pozostałe 26/27 zadań PR CI przeszło | 28 kolejnych lokalnych przypadków DUT/Bench w jednej funkcji `main` rozdzielono na 7 oddzielnych funkcji po 4 przypadki; kontrola stosu GCC i CTest PASS, potwierdzenie MSVC x64 Debug oczekuje |
 
 ## Zmiany bez naruszenia CORE freeze
 
@@ -71,7 +72,7 @@ ani transmisji do fizycznego DUT w ramach audytu.
 | CM5 ARM64 GCC: Bench + DUT + Application | PASS: Bench Stage 2, DUT i Application Debug/Release/Generic/ASan+UBSan |
 | Symulowany non-Linux Generic CMake | PASS: domyślna konfiguracja + kompilacja i CTest |
 | Linux x86_64 GCC / Clang GitHub CI | **PASS** — workflow `37755575051` (commit `46c55eb`), istniejące CORE/Bench/DUT |
-| Windows MSVC x64 + Win32 / Debug + Release | **PASS** dla istniejącego CORE/Bench/DUT, workflow `37755575051`: 18/18 zadań CI; **Application MSVC nadal oczekuje** na opublikowanie rozszerzonego workflow |
+| Windows MSVC x64 + Win32 / Debug + Release | Istniejące CORE/Bench/DUT: 18/18 PASS w workflow `37755575051`; rozszerzone PR CI: 26/27 PASS, **Application x64 Debug SEGFAULT**, poprawka struktury testu wymaga ponownego wykonania |
 | WebGUI security isolation kiosk vs agent | **BLOCKED dla uruchomienia WebGUI** |
 | Hardware CAN/UDS 250/500 read-only | PASS we wcześniejszych, zachowanych dowodach; bez nowego TX |
 | DTC clear / EGR-VGT / flash / output control | poza zakresem release read-only |

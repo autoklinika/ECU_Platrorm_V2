@@ -618,7 +618,8 @@ int run_to_end(Fixture& fixture) {
 
 }  // namespace
 
-int main() {
+// Four sequential fixture lifetimes; keep MSVC Debug test stack bounded.
+[[nodiscard]] int run_sac_application_case_group_1() {
   int failures = 0;
   failures += require(app::operation_available(app::AppOperation::identify) &&
       app::operation_available(app::AppOperation::read_dtc) &&
@@ -706,6 +707,13 @@ int main() {
         "missed host deadline fails closed and retains timeout status");
   }
 
+  return failures;
+}
+
+// Four sequential fixture lifetimes; keep MSVC Debug test stack bounded.
+[[nodiscard]] int run_sac_application_case_group_2() {
+  int failures = 0;
+
   {
     Fixture f;
     const auto conflict = f.resources.acquire(kPhysicalCan, 999U);
@@ -767,6 +775,13 @@ int main() {
         run_to_end(f) == 0,
         "CAN open failure can be recovered and retried");
   }
+
+  return failures;
+}
+
+// Four sequential fixture lifetimes; keep MSVC Debug test stack bounded.
+[[nodiscard]] int run_sac_application_case_group_3() {
+  int failures = 0;
 
   {
     Fixture f{daf::CanBitrateProfile::k500k};
@@ -862,6 +877,13 @@ int main() {
     failures += require(!p.sample().received,
         "unrelated sender and truncated pressure packets are ignored");
   }
+
+  return failures;
+}
+
+// Four sequential fixture lifetimes; keep MSVC Debug test stack bounded.
+[[nodiscard]] int run_sac_application_case_group_4() {
+  int failures = 0;
 
   {
     ServicesFixture f;
@@ -995,6 +1017,13 @@ int main() {
         "expired inventory can be refreshed without automatic DTC clearing");
   }
 
+  return failures;
+}
+
+// Four sequential fixture lifetimes; keep MSVC Debug test stack bounded.
+[[nodiscard]] int run_sac_application_case_group_5() {
+  int failures = 0;
+
   {
     ServicesFixture f;
     f.script.announce_short_session_timing = true;
@@ -1068,6 +1097,13 @@ int main() {
         "partial 3-byte DTC record is rejected fail-closed");
   }
 
+  return failures;
+}
+
+// Four sequential fixture lifetimes; keep MSVC Debug test stack bounded.
+[[nodiscard]] int run_sac_application_case_group_6() {
+  int failures = 0;
+
   {
     ServicesFixture f;
     failures += require(
@@ -1134,6 +1170,13 @@ int main() {
         !f.application.snapshot().clear_acknowledged,
         "operator stop before service never transmits pending erase");
   }
+
+  return failures;
+}
+
+// Four sequential fixture lifetimes; keep MSVC Debug test stack bounded.
+[[nodiscard]] int run_sac_application_case_group_7() {
+  int failures = 0;
 
   {
     ServicesFixture f;
@@ -1236,6 +1279,19 @@ int main() {
         f.uds_client.timing().p2 == std::chrono::milliseconds{100},
         "no 0x54 even after 3000 ms: fail closed, no retry, retain P2 diagnosis");
   }
+
+  return failures;
+}
+
+int main() {
+  int failures = 0;
+  failures += run_sac_application_case_group_1();
+  failures += run_sac_application_case_group_2();
+  failures += run_sac_application_case_group_3();
+  failures += run_sac_application_case_group_4();
+  failures += run_sac_application_case_group_5();
+  failures += run_sac_application_case_group_6();
+  failures += run_sac_application_case_group_7();
 
   if (failures == 0) {
     std::cout << "DAF_SAC_APPLICATION_TESTS=PASS\n";
