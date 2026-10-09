@@ -9,8 +9,15 @@ if [[ "${EUID}" -ne 0 || ! -t 0 || ! -t 1 ]]; then
   exit 2
 fi
 MODE="${1:-all}"
-if [[ "$#" -gt 1 || ( "$MODE" != all && "$MODE" != passive ) ]]; then
-  echo "Usage: sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh [passive|all]" >&2
+PUBLISH_READOUT=0
+READOUT_DIR=/var/lib/ecu-platform-v2/api-readouts
+# Targeted parameter publication preserves the existing DTC evidence.
+# Same operator-only gate, passive CAN check, DUT identity and cleanup.
+if [[ "$#" -eq 2 && ( "$MODE" == all || "$MODE" == parameters ) &&
+      "$2" == "--publish-readout" ]]; then
+  PUBLISH_READOUT=1
+elif [[ "$#" -gt 1 || ( "$MODE" != all && "$MODE" != passive ) ]]; then
+  echo "Usage: sudo bash scripts/run_stage42_daf_sac_500k_read_gate.sh [passive|all] [--publish-readout] | parameters --publish-readout" >&2
   exit 2
 fi
 TARGET_USER="${SUDO_USER:-}"
@@ -24,13 +31,32 @@ IFACE=can0
 BITRATE=500000
 ID_PROBE="$ROOT/build/daf-sac-core-v2-probe/tests/ecu_daf_sac_core_v2_probe"
 READ_PROBE="$ROOT/build/daf-sac-app-linux/tests/ecu_daf_sac_stage42_read_probe"
+if [[ "$PUBLISH_READOUT" == 1 ]]; then
+  # The same new native Application Layer probes; not the old 250k agent
+  # nor a stale build from API V1 that cannot publish parameters.
+  PROBE_BUILD="$ROOT/build/params-linux"
+  ID_PROBE="$PROBE_BUILD/tests/ecu_daf_sac_core_v2_probe"
+  READ_PROBE="$PROBE_BUILD/tests/ecu_daf_sac_stage42_read_probe"
+  CANDIDATE_STAMP="$PROBE_BUILD/api_parameters_candidate.sha"
+  if [[ ! -f "$CANDIDATE_STAMP" || -L "$CANDIDATE_STAMP" ]]; then
+    echo "SAC_500K_READ_GATE=FAIL missing-current-prepared-probe" >&2
+    exit 4
+  fi
+  read -r stamp_revision stamp_sha < "$CANDIDATE_STAMP"
+  if [[ "$stamp_revision" != "$(runuser -u "$TARGET_USER" -- git -C "$ROOT" rev-parse --short=12 HEAD)" ||
+        ! "$stamp_sha" =~ ^[0-9a-f]{64}$ ||
+        "$stamp_sha" != "$(sha256sum "$PROBE_BUILD/src/api/ecu_api_http" | cut -d ' ' -f1)" ]]; then
+    echo "SAC_500K_READ_GATE=FAIL stale-candidate-binaries" >&2
+    exit 4
+  fi
+fi
 for tool in ip candump runuser getent cut install grep sed tee date stat chown sha256sum; do
   command -v "$tool" >/dev/null 2>&1 || {
     echo "SAC_500K_READ_GATE=FAIL missing-tool=$tool" >&2
     exit 1
   }
 done
-if [[ "$MODE" == all && ( ! -x "$ID_PROBE" || ! -x "$READ_PROBE" ) ]]; then
+if [[ "$MODE" != passive && ( ! -x "$ID_PROBE" || ! -x "$READ_PROBE" ) ]]; then
   echo "SAC_500K_READ_GATE=FAIL missing-compiled-read-only-probes" >&2
   exit 1
 fi
@@ -41,6 +67,11 @@ fi
 # Fail closed without taking over an already running CAN session.
 if ip -o link show "$IFACE" | grep -qE '(<|,)UP(,|>)'; then
   echo "SAC_500K_READ_GATE=BUSY can0-already-UP" >&2
+  exit 4
+fi
+if [[ "$PUBLISH_READOUT" == 1 ]] &&
+    ! runuser -u "$TARGET_USER" -- test -w "$READOUT_DIR"; then
+  echo "SAC_API_READOUT_PREFLIGHT=FAIL directory-not-writable" >&2
   exit 4
 fi
 HOME_DIR="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
@@ -130,25 +161,46 @@ sleep 5
 RX_AFTER="$(cat "/sys/class/net/$IFACE/statistics/rx_packets")"
 ERR_AFTER="$(cat "/sys/class/net/$IFACE/statistics/rx_errors")"
 TX_AFTER="$(cat "/sys/class/net/$IFACE/statistics/tx_packets")"
+PASSIVE_LINK_STATE="$(ip -details link show "$IFACE")"
 kill -TERM "$CAPTURE_PID" 2>/dev/null || true
 wait "$CAPTURE_PID" 2>/dev/null || true
 CAPTURE_PID=""
 DATA_FRAMES="$(grep -Ec 'can0[[:space:]]+[0-9A-Fa-f]{3,8}[[:space:]]+\[[[:space:]]*[0-9]+\]' "$PASSIVE_LOG" || true)"
 ERROR_FRAMES="$(grep -c 'ERRORFRAME' "$PASSIVE_LOG" || true)"
+# CAN_ERR_CRTL / RX_OVERFLOW is a receive-path overrun, not a decoded
+# CRC, ACK or bit-stuffing fault. In an isolated single-ECU bench,
+# passive reception cannot prove a usable bidirectional UDS channel.
+# Record isolated overflow and require a positive read-only UDS identity.
+RX_OVERFLOW_EVENTS="$(grep -c 'controller-problem{rx-overflow}' "$PASSIVE_LOG" || true)"
 echo "SAC_500K_PASSIVE_RX_PACKETS_DELTA=$((RX_AFTER - RX_BEFORE))" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_RX_ERRORS_DELTA=$((ERR_AFTER - ERR_BEFORE))" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_TX_PACKETS_DELTA=$((TX_AFTER - TX_BEFORE))" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_DATA_FRAMES=$DATA_FRAMES" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_ERROR_FRAMES=$ERROR_FRAMES" | tee -a "$SUMMARY"
+echo "SAC_500K_PASSIVE_RX_OVERFLOW_EVENTS=$RX_OVERFLOW_EVENTS" | tee -a "$SUMMARY"
 ip link set "$IFACE" down
-if (( ERR_AFTER > ERR_BEFORE || TX_AFTER > TX_BEFORE || ERROR_FRAMES > 0 )); then
-  echo "SAC_500K_PASSIVE=FAIL physical-errors-or-unexpected-transmission" | tee -a "$SUMMARY"
+if [[ "$PASSIVE_LINK_STATE" == *"state BUS-OFF"* ]]; then
+  echo "SAC_500K_PASSIVE=FAIL passive-bus-off" | tee -a "$SUMMARY"
   exit 1
 fi
-if (( DATA_FRAMES == 0 )); then
+if (( TX_AFTER > TX_BEFORE )); then
+  echo "SAC_500K_PASSIVE=FAIL unexpected-transmission" | tee -a "$SUMMARY"
+  exit 1
+fi
+if (( ERR_AFTER > ERR_BEFORE || ERROR_FRAMES > 0 )); then
+  if (( RX_OVERFLOW_EVENTS > 0 && RX_OVERFLOW_EVENTS == ERROR_FRAMES &&
+          ERR_AFTER - ERR_BEFORE == RX_OVERFLOW_EVENTS )); then
+    # Only this precisely classified passive RX overrun can proceed to
+    # the *read-only* VIN/SW/HW UDS gate. It is NOT communication PASS.
+    echo "SAC_500K_PASSIVE=WARNING rx-controller-overflow-awaiting-uds-identity" | tee -a "$SUMMARY"
+  else
+    echo "SAC_500K_PASSIVE=FAIL physical-errors-or-unclassified-receive-errors" | tee -a "$SUMMARY"
+    exit 1
+  fi
+elif (( DATA_FRAMES == 0 )); then
   echo "SAC_500K_PASSIVE=INCONCLUSIVE_NO_BROADCAST" | tee -a "$SUMMARY"
 else
-  echo "SAC_500K_PASSIVE=RX_OBSERVED" | tee -a "$SUMMARY"
+  echo "SAC_500K_PASSIVE=RX_OBSERVED_NOT_COMMUNICATION_PROOF" | tee -a "$SUMMARY"
 fi
 if [[ "$MODE" == passive ]]; then
   echo "SAC_500K_READ_GATE=PASSIVE_COMPLETE_NO_TX" | tee -a "$SUMMARY"
@@ -194,11 +246,20 @@ if ! grep -q '^SAC_PHYSICAL_PROBE=PASS' "$PREFIX.identify.txt"; then
   exit 1
 fi
 echo "SAC_500K_IDENTIFY=PASS" | tee -a "$SUMMARY"
+echo "SAC_500K_COMMUNICATION_PROOF=PASS uds-f190-f188-f192" | tee -a "$SUMMARY"
 
 READ_FAILURES=0
-for mode in parameters dtc; do
+READ_MODES=(parameters dtc)
+if [[ "$MODE" == parameters ]]; then
+  READ_MODES=(parameters)
+fi
+for mode in "${READ_MODES[@]}"; do
   echo "SAC_500K_READ_STAGE=$mode" | tee -a "$SUMMARY"
-  if runuser -u "$TARGET_USER" -- "$READ_PROBE" "$IFACE" "$mode" "$BITRATE" 2>&1 \
+  PROBE_ARGS=("$IFACE" "$mode" "$BITRATE")
+  if [[ "$PUBLISH_READOUT" == 1 ]]; then
+    PROBE_ARGS+=("$READOUT_DIR")
+  fi
+  if runuser -u "$TARGET_USER" -- "$READ_PROBE" "${PROBE_ARGS[@]}" 2>&1 \
       | tee "$PREFIX.$mode.txt"; then
     if grep -q '^SAC_STAGE42_READ_PHYSICAL=PASS$' "$PREFIX.$mode.txt"; then
       echo "SAC_500K_READ_RESULT=PASS mode=$mode" | tee -a "$SUMMARY"
@@ -224,4 +285,8 @@ if (( READ_FAILURES != 0 )); then
   echo "SAC_500K_READ_GATE=PARTIAL identify-pass-read-failures=$READ_FAILURES" | tee -a "$SUMMARY"
   exit 1
 fi
-echo "SAC_500K_READ_GATE=PASS identity-voltage-DTC" | tee -a "$SUMMARY"
+if [[ "$MODE" == parameters ]]; then
+  echo "SAC_500K_READ_GATE=PASS identity-parameters-only-no-DTC" | tee -a "$SUMMARY"
+else
+  echo "SAC_500K_READ_GATE=PASS identity-voltage-DTC" | tee -a "$SUMMARY"
+fi

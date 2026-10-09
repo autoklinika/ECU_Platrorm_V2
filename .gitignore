@@ -9,3 +9,7 @@ CMakeUserPresets.json
 .idea/
 .DS_Store
 Thumbs.db
+
+# Python test byproducts
+__pycache__/
+*.pyc
