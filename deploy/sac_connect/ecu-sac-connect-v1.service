@@ -1,0 +1,33 @@
+[Unit]
+Description=ECU Platform V2 DAF SAC limited read-only connection adapter
+After=network.target ecu-api-v1.service
+Requires=ecu-api-v1.service
+
+[Service]
+Type=simple
+User=root
+Group=ecu
+ExecStart=/usr/bin/python3 -I -S /usr/local/libexec/ecu-platform-v2/sac_identify_server.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SETUID CAP_SETGID
+AmbientCapabilities=CAP_SETUID
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_NETLINK AF_CAN
+RestrictSUIDSGID=yes
+ReadWritePaths=/var/lib/ecu-platform-v2/api-readouts
+TimeoutStopSec=15
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target

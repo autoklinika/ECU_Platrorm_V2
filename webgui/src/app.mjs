@@ -2,10 +2,12 @@ import {
   applyTranslations, readLocale, storeLocale, translate
 } from "./i18n.mjs";
 import { ApiSession, ApiError } from "./api-client.mjs";
+import { SacConnectionFlow } from "./sac-connect-flow.mjs";
 
 const PAGES = new Set([
   "home", "tests", "test-truck", "test-agri", "test-ohv",
   "truck-man", "truck-daf", "truck-scania", "truck-iveco", "truck-mb",
+  "sac-connecting", "sac-identification", "sac-communication-error",
   "daf-sac", "sac-dtc", "sac-activations", "sac-programming",
   "can", "settings", "language"
 ]);
@@ -24,6 +26,10 @@ const tokenInput = document.getElementById("api-token");
 const connectButton = document.getElementById("api-connect");
 const disconnectButton = document.getElementById("api-disconnect");
 const session = new ApiSession();
+const sacFlow = new SacConnectionFlow(renderSacConnectionPhase);
+const SAC_FLOW_PAGES = new Set(["sac-connecting", "sac-identification",
+                                 "sac-communication-error"]);
+
 
 let browserStorage = null;
 try { browserStorage = window.localStorage; } catch { /* restricted kiosk */ }
@@ -59,6 +65,17 @@ function routeFromHash() {
 
 function renderRoute() {
   const page = routeFromHash();
+  if (SAC_PAGES.has(page) && sacFlow.phase !== "accepted") {
+    window.location.hash = "/truck-daf";
+    return;
+  }
+  if (SAC_FLOW_PAGES.has(page) &&
+      !((page === "sac-connecting" && sacFlow.phase === "connecting") ||
+        (page === "sac-identification" && sacFlow.phase === "identified") ||
+        (page === "sac-communication-error" && sacFlow.phase === "failed"))) {
+    window.location.hash = "/truck-daf";
+    return;
+  }
   root.querySelectorAll("[data-page]").forEach((section) => {
     section.hidden = section.dataset.page !== page;
   });
@@ -72,6 +89,40 @@ function renderRoute() {
   });
   setSidebarOpen(false);
   document.getElementById("main-content").scrollTop = 0;
+}
+
+function renderSacConnectionPhase(phase) {
+  if (phase === "connecting") {
+    window.location.hash = "/sac-connecting";
+  } else if (phase === "identified") {
+    text("sac-identity-vin", sacFlow.identity.vin ?? t("sac.vinUnprogrammed"));
+    text("sac-identity-sw", sacFlow.identity.software);
+    text("sac-identity-hw", sacFlow.identity.hardware);
+    window.location.hash = "/sac-identification";
+  } else if (phase === "failed") {
+    const error = sacFlow.failure;
+    const code = error instanceof ApiError ? error.code : "network_unavailable";
+    if (!session.connected) {
+      authMessage = "api.sessionExpired";
+      renderApi();
+    }
+    const key = code === "session_expired" || code === "unauthorized"
+      ? "sac.authenticationRequired"
+      : code === "bench_busy" ? "sac.benchBusy"
+      : code === "network_unavailable" || code === "not_found"
+      ? "sac.serviceUnavailable" : "sac.checkConnection";
+    text("sac-communication-error-message", t(key));
+    window.location.hash = "/sac-communication-error";
+  } else if (phase === "accepted") {
+    window.location.hash = "/daf-sac";
+    void refresh();
+  }
+  renderRoute();
+}
+
+function startSacConnection() {
+  if (sacFlow.phase === "connecting") return;
+  void sacFlow.begin(() => session.identifySac());
 }
 
 function formatLocalTimestamp(date) {
@@ -165,10 +216,20 @@ function openDtcDetails(code, status) {
 }
 
 function renderSacParameters() {
+  // An identification result gates SAC access. Never pass off another
+  // module's archived measurements as a result of this connection.
   // Never reuse stale measurements after auth loss, backend failure or
   // another DUT selection. Each record is historical, not live telemetry.
   for (const name of ["sac-permanent-voltage", "sac-ignition-voltage",
                       "sac-pressure-1", "sac-pressure-2"]) text(name, "—");
+  if (sacFlow.phase !== "accepted" || !sacFlow.identity) {
+    text("sac-parameters-status", t("sac.requiresIdentification"));
+    return;
+  }
+  if (!sacFlow.identity.parameters_published) {
+    text("sac-parameters-status", t("sac.noReadout"));
+    return;
+  }
   if (!session.connected) {
     text("sac-parameters-status", t("api.signInRequired"));
     return;
@@ -178,6 +239,11 @@ function renderSacParameters() {
     return;
   }
   const record = results.parameters;
+  if (record && (record.profile_id !== sacFlow.identity.profile_id ||
+      record.captured_at_unix_ms < sacFlow.identity.parameter_capture_floor_ms)) {
+    text("sac-parameters-status", t("sac.profileMismatch"));
+    return;
+  }
   if (!record || !SAC_DTC_PROFILES.has(record.profile_id)) {
     const reason = failures.parameters?.code;
     text("sac-parameters-status",
@@ -290,6 +356,9 @@ function renderApi() {
 
 function signOut(message = "api.notAuthenticated") {
   closeDtcDetails();
+  sacFlow.reset();
+  if (SAC_FLOW_PAGES.has(routeFromHash()) || SAC_PAGES.has(routeFromHash()))
+    window.location.hash = "/truck-daf";
   ++refreshVersion;
   session.signOut();
   tokenInput.value = "";
@@ -378,6 +447,11 @@ sidebarVeil.addEventListener("click", () => setSidebarOpen(false));
 connectButton.addEventListener("click", connect);
 disconnectButton.addEventListener("click", () => signOut());
 detailClose.addEventListener("click", closeDtcDetails);
+document.getElementById("sac-identity-ok").addEventListener("click", () => {
+  sacFlow.accept();
+});
+document.getElementById("sac-retry").addEventListener("click", startSacConnection);
+
 detailOverlay.addEventListener("click", (event) => {
   if (event.target === detailOverlay) closeDtcDetails();
 });
@@ -402,6 +476,13 @@ root.addEventListener("click", (event) => {
   }
   const routeChoice = target.closest("button[data-route]");
   if (routeChoice && PAGES.has(routeChoice.dataset.route)) {
+    if (routeChoice.dataset.route === "daf-sac" &&
+        routeFromHash() === "truck-daf") {
+      startSacConnection();
+      return;
+    }
+    if (!SAC_PAGES.has(routeChoice.dataset.route) &&
+        !SAC_FLOW_PAGES.has(routeChoice.dataset.route)) sacFlow.reset();
     window.location.hash = "/" + routeChoice.dataset.route;
     renderRoute();
   }
@@ -417,7 +498,11 @@ document.addEventListener("keydown", (event) => {
     sidebarToggle.focus();
   }
 });
-window.addEventListener("hashchange", renderRoute);
+window.addEventListener("hashchange", () => {
+  if (!SAC_PAGES.has(routeFromHash()) && !SAC_FLOW_PAGES.has(routeFromHash()))
+    sacFlow.reset();
+  renderRoute();
+});
 window.addEventListener("pagehide", () => signOut());
 renderLocale(currentLocale);
 renderRoute();

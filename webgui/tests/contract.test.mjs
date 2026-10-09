@@ -44,7 +44,8 @@ test("refined V1 skin stays flat, lightweight and kiosk-friendly", () => {
   assert.match(css, /border-top: 3px solid/);
   assert.match(css, /transition: transform 180ms ease, visibility 180ms/);
   assert.match(css, /prefers-reduced-motion: reduce/);
-  assert.doesNotMatch(css, /(?:linear|radial|conic)-gradient\(|backdrop-filter|@keyframes/i);
+  assert.doesNotMatch(css, /(?:linear|radial|conic)-gradient\(|backdrop-filter/i);
+  assert.deepEqual([...css.matchAll(/@keyframes\s+([\w-]+)/g)].map(x => x[1]), ["sac-spin"]);
 });
 
 test("all WebGUI elements hide the pointer without disabling touch or click", () => {
@@ -102,6 +103,7 @@ test("API client can only read authorized V1 routes without privileged I/O", () 
   assert.doesNotMatch(client, /(?:\/dev\/|\/run\/ecu-platform|sudo|child_process)/);
   assert.match(html, /id="api-token" type="password" autocomplete="off"/);
   assert.match(html, /connect-src 'self' http:\/\/127\.0\.0\.1:8878/);
+  assert.match(html, /http:\/\/127\.0\.0\.1:8879/);
   assert.match(html, /id="dtc-status"/);
   assert.match(html, /id="can-status"/);
   assert.doesNotMatch(html, /value="[0-9a-f]{64}"/);

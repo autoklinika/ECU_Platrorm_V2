@@ -1,5 +1,17 @@
 // Wyłącznie interfejs. Opisy DTC i dane domenowe są tłumaczone oddzielnie.
 export default Object.freeze({
+  'sac.connecting': 'Komunikacja…',
+  'sac.pleaseWait': 'Trwa identyfikacja sterownika. Proszę czekać.',
+  'sac.identityTitle': 'DAF SAC — Identyfikacja',
+  'sac.confirmIdentity': 'OK',
+  'sac.communicationError': 'Błąd komunikacji',
+  'sac.checkConnection': 'Brak odpowiedzi ECU. Sprawdź zasilanie i połączenie CAN.',
+  'sac.retry': 'Ponów',
+  'sac.vinUnprogrammed': 'NIEZAPROGRAMOWANY',
+  'sac.authenticationRequired': 'Brak autoryzacji API. Połącz API w Ustawieniach.',
+  'sac.serviceUnavailable': 'Usługa identyfikacji niedostępna.',
+  'sac.benchBusy': 'Interfejs CAN jest zajęty.',
+  'sac.requiresIdentification': 'Najpierw połącz i zidentyfikuj sterownik.',
   "sac.notLive": "odczyt archiwalny, nie bieżący",
   "sac.historicalCapture": "Zakończony pomiar:",
   "sac.profileMismatch": "Dostępny wynik parametrów dotyczy innego DUT.",

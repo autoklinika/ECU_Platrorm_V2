@@ -176,6 +176,67 @@ export async function readOnlyRequest(path, token, fetchImpl = globalThis.fetch)
   }
 }
 
+export const SAC_CONNECT_ROOT = "http://127.0.0.1:8879";
+export const SAC_CONNECT_PATH = "/api/v1/bench/daf-sac/connect";
+const VALID_SAC_PROFILES = new Set([0xDAF00050]);
+const cleanIdentity = (data) => {
+  if (!record(data) || !VALID_SAC_PROFILES.has(data.profile_id) ||
+      !["UNPROGRAMMED_FF17", "VALID_ASCII"].includes(data.vin_status) ||
+      typeof data.software !== "string" ||
+      !/^[ -~]{1,64}$/.test(data.software) ||
+      typeof data.hardware !== "string" ||
+      !/^[ -~]{1,64}$/.test(data.hardware) ||
+      typeof data.parameters_published !== "boolean" ||
+      !integer(data.parameter_capture_floor_ms) ||
+      data.parameter_capture_floor_ms === 0 ||
+      data.parameter_capture_floor_ms > Date.now() + 60000 ||
+      Date.now() - data.parameter_capture_floor_ms > 60000 ||
+      !(data.vin === null && data.vin_status === "UNPROGRAMMED_FF17") &&
+      !(typeof data.vin === "string" && data.vin_status === "VALID_ASCII" &&
+        /^[A-Za-z0-9]{17}$/.test(data.vin))) invalid();
+  return {
+    profile_id: data.profile_id, vin: data.vin,
+    vin_status: data.vin_status, software: data.software.trim(),
+    hardware: data.hardware.trim(), parameters_published: data.parameters_published,
+    parameter_capture_floor_ms: data.parameter_capture_floor_ms
+  };
+};
+
+// This single authenticated POST is an explicit operator request for the
+// Linux-specific, fixed-DUT read-only adapter. No generic CAN/ECU API.
+export async function requestSacIdentity(token, fetchImpl = globalThis.fetch) {
+  if (!TOKEN_PATTERN.test(token) || typeof fetchImpl !== "function")
+    throw new ApiError("invalid_client_request");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+  try {
+    const response = await fetchImpl(SAC_CONNECT_ROOT + SAC_CONNECT_PATH, {
+      method: "POST", mode: "cors", credentials: "omit", cache: "no-store",
+      redirect: "error", referrerPolicy: "no-referrer",
+      headers: { Accept: "application/json", Authorization: "Bearer " + token },
+      signal: controller.signal
+    });
+    if (response.redirected ||
+        !response.headers?.get("content-type")?.toLowerCase().startsWith("application/json")) invalid();
+    const body = await response.text();
+    if (body.length > MAX_RESPONSE) invalid();
+    let payload;
+    try { payload = JSON.parse(body); } catch { invalid(); }
+    if (!record(payload) || payload.schema_version !== 1) invalid();
+    if (!response.ok) {
+      if (!record(payload.error) || !/^[a-z_]{1,64}$/.test(payload.error.code)) invalid();
+      throw new ApiError(payload.error.code, response.status);
+    }
+    if (response.status !== 200) invalid();
+    return cleanIdentity(payload.data);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError("network_unavailable");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export class ApiSession {
   #token = null;
   #generation = 0;
@@ -206,6 +267,23 @@ export class ApiSession {
     this.#token = value;
     this.#expires = Date.now() + SESSION_LIFETIME_MS;
     return about;
+  }
+
+  async identifySac() {
+    if (!this.connected) throw new ApiError("session_expired");
+    const version = this.#generation;
+    try {
+      const result = await requestSacIdentity(this.#token, this.#fetch);
+      if (version !== this.#generation || !this.connected) {
+        throw new ApiError("session_changed");
+      }
+      return result;
+    } catch (error) {
+      if (version !== this.#generation) throw new ApiError("session_changed");
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403))
+        this.signOut();
+      throw error;
+    }
   }
 
   async read(path) {

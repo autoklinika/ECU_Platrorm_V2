@@ -11,6 +11,11 @@ on:
       - "docs/WEBGUI_V1_INDUSTRIAL_SKIN_TEST_CATALOG.md"
       - "docs/previews/ecu-v2-v1-*.png"
       - "deploy/webgui/**"
+      - "deploy/sac_connect/**"
+      - "scripts/deploy_cm5_sac_connect_v1.sh"
+      - "tests/test_sac_connect_adapter.py"
+      - "tests/test_sac_connect_install_policy.py"
+      - "docs/WEBGUI_SAC_CONNECT_2026-10-09.md"
       - "scripts/install_cm5_webgui_v1.sh"
       - "scripts/deploy_cursor_css_cm5.sh"
       - "scripts/fix_cm5_ghost_pointer.sh"
@@ -33,6 +38,11 @@ on:
       - "docs/WEBGUI_V1_INDUSTRIAL_SKIN_TEST_CATALOG.md"
       - "docs/previews/ecu-v2-v1-*.png"
       - "deploy/webgui/**"
+      - "deploy/sac_connect/**"
+      - "scripts/deploy_cm5_sac_connect_v1.sh"
+      - "tests/test_sac_connect_adapter.py"
+      - "tests/test_sac_connect_install_policy.py"
+      - "docs/WEBGUI_SAC_CONNECT_2026-10-09.md"
       - "scripts/install_cm5_webgui_v1.sh"
       - "scripts/deploy_cursor_css_cm5.sh"
       - "scripts/fix_cm5_ghost_pointer.sh"
@@ -66,10 +76,11 @@ jobs:
         run: |
           node --check webgui/src/app.mjs
           node --check webgui/src/api-client.mjs
+          node --check webgui/src/sac-connect-flow.mjs
           node --check webgui/src/i18n.mjs
           node --check webgui/src/domain-text.mjs
       - name: Client-only, navigation and translation tests
-        run: node --test webgui/tests/i18n.test.mjs webgui/tests/contract.test.mjs webgui/tests/api-client.test.mjs webgui/tests/v1-skin.test.mjs
+        run: node --test webgui/tests/i18n.test.mjs webgui/tests/contract.test.mjs webgui/tests/api-client.test.mjs webgui/tests/v1-skin.test.mjs webgui/tests/sac-connect.test.mjs
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -85,6 +96,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           bash -n scripts/deploy_cm5_webgui_v1_skin.sh
+          bash -n scripts/deploy_cm5_sac_connect_v1.sh
+          python3 -m py_compile deploy/sac_connect/sac_identify_server.py
           bash -n scripts/deploy_cm5_webgui_test_catalog_v1.sh
           bash -n scripts/deploy_cm5_webgui_api_v1.sh
           bash -n scripts/install_cm5_webgui_v1.sh
@@ -93,3 +106,26 @@ jobs:
           bash -n scripts/probe_cm5_wayland_sandbox.sh
           bash -n deploy/webgui/rollback_kiosk.sh
           bash -n deploy/webgui/ecu-kiosk-v1-launcher
+
+
+  sac-adapter-safety:
+    name: Fixed-profile SAC adapter (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline HTTP, identity parser and CAN cleanup tests
+        run: python -m unittest discover -s tests -p test_sac_connect_adapter.py -v
+      - name: Privilege separation and deployment guard tests
+        run: python -m unittest discover -s tests -p test_sac_connect_install_policy.py -v
+      - name: Operator-only installer refusal and Bash syntax
+        run: |
+          bash -n scripts/deploy_cm5_sac_connect_v1.sh
+          if bash scripts/deploy_cm5_sac_connect_v1.sh > /tmp/sac-install-denied.log 2>&1; then
+            echo "Unsafe unprivileged installation" >&2
+            exit 1
+          fi
+          grep -q 'SAC_CONNECT_DEPLOY=DENIED interactive-ecu-operator-required' /tmp/sac-install-denied.log

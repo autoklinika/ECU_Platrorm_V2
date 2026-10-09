@@ -610,3 +610,64 @@ body * {
   .catalog-page--sac .readout-table td { font-size: 14px; padding: 10px 5px; }
   .dtc-detail-open { min-width: 0; }
 }
+
+/* Legacy QML SAC connection/identity composition in the flat V2 kiosk skin. */
+.sac-connect-page, .sac-identity-page, .sac-error-page {
+  min-height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.sac-connect-center, .sac-identity-center {
+  margin: auto;
+  width: min(100%, 980px);
+  text-align: center;
+}
+.sac-connect-center h1, .sac-error-page .sac-connect-center h1 {
+  border: 0;
+  margin: 22px 0 12px;
+  padding: 0;
+  font-size: clamp(30px, 3.6vw, 40px);
+}
+.sac-connect-center p { color: var(--muted); font-size: 22px; }
+.sac-error-page h1 { color: #aa2920; }
+.sac-activity-spinner {
+  width: 64px; height: 64px;
+  margin: 0 auto 25px;
+  border: 6px solid #cad6e1;
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: sac-spin 850ms linear infinite;
+}
+@keyframes sac-spin { to { transform: rotate(360deg); } }
+.sac-identity-center h1 {
+  margin: 0 0 38px;
+  font-size: 30px;
+}
+.sac-identity-vin {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px;
+}
+.sac-identity-label { font-size: 24px; color: var(--muted); }
+.sac-identity-vin output {
+  font-size: clamp(28px, 3.5vw, 40px);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.sac-identity-divider {
+  width: min(85%, 760px); margin: 26px auto;
+  border-top: 2px solid var(--rule);
+}
+.sac-identity-row { display: flex; justify-content: center; gap: 14px; margin: 14px 0; font-size: 28px; }
+.sac-identity-row output { font-weight: 600; overflow-wrap: anywhere; }
+.sac-flow-action { min-width: 240px; min-height: 75px; margin: 18px auto 20px; }
+.sac-flow-actions { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+.sac-flow-actions .back-button { margin: 0; }
+@media (max-width: 610px) {
+  .sac-identity-row { font-size: 21px; }
+  .sac-connect-center p { font-size: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sac-activity-spinner { animation: none; border-color: var(--blue); }
+}

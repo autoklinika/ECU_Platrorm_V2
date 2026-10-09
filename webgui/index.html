@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' http://127.0.0.1:8878; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' http://127.0.0.1:8878 http://127.0.0.1:8879; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Ecu Bench Platform</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./src/app.mjs"></script>
@@ -123,6 +123,40 @@
             <button type="button" class="tile" data-route="daf-sac">SAC</button>
           </div>
           <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page sac-connect-page" data-page="sac-connecting" hidden>
+          <div class="sac-connect-center" role="status" aria-live="polite">
+            <div class="sac-activity-spinner" aria-hidden="true"></div>
+            <h1 data-i18n="sac.connecting">Komunikacja…</h1>
+            <p data-i18n="sac.pleaseWait">Trwa identyfikacja sterownika. Proszę czekać.</p>
+          </div>
+        </section>
+
+        <section class="page catalog-page sac-identity-page" data-page="sac-identification" hidden>
+          <div class="sac-identity-center" aria-labelledby="sac-identity-heading">
+            <h1 id="sac-identity-heading" data-i18n="sac.identityTitle">DAF SAC — Identyfikacja</h1>
+            <div class="sac-identity-vin">
+              <div class="sac-identity-label">VIN</div>
+              <output id="sac-identity-vin">—</output>
+            </div>
+            <div class="sac-identity-divider"></div>
+            <div class="sac-identity-row"><span>SW:</span><output id="sac-identity-sw">—</output></div>
+            <div class="sac-identity-row"><span>HW:</span><output id="sac-identity-hw">—</output></div>
+          </div>
+          <button type="button" id="sac-identity-ok" class="back-button sac-flow-action"
+                  data-i18n="sac.confirmIdentity">OK</button>
+        </section>
+
+        <section class="page catalog-page sac-error-page" data-page="sac-communication-error" hidden>
+          <div class="sac-connect-center" role="alert">
+            <h1 data-i18n="sac.communicationError">Błąd komunikacji</h1>
+            <p id="sac-communication-error-message" data-i18n="sac.checkConnection">Sprawdź zasilanie ECU i przewody CAN.</p>
+          </div>
+          <div class="sac-flow-actions">
+            <button type="button" id="sac-retry" class="back-button" data-i18n="sac.retry">Ponów</button>
+            <button type="button" class="back-button" data-route="truck-daf" data-i18n="navigation.back">Wstecz</button>
+          </div>
         </section>
 
         <section class="page catalog-page catalog-page--sac" data-page="daf-sac" hidden>

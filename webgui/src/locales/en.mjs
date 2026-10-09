@@ -1,5 +1,17 @@
 // UI copy only. ECU/DTC domain descriptions do not belong in this catalog.
 export default Object.freeze({
+  'sac.connecting': 'Connecting…',
+  'sac.pleaseWait': 'Identifying ECU. Please wait.',
+  'sac.identityTitle': 'DAF SAC — Identification',
+  'sac.confirmIdentity': 'OK',
+  'sac.communicationError': 'Communication error',
+  'sac.checkConnection': 'ECU did not respond. Check power and CAN wiring.',
+  'sac.retry': 'Retry',
+  'sac.vinUnprogrammed': 'NOT PROGRAMMED',
+  'sac.authenticationRequired': 'API authorization required. Connect in Settings.',
+  'sac.serviceUnavailable': 'Identification service unavailable.',
+  'sac.benchBusy': 'CAN interface is busy.',
+  'sac.requiresIdentification': 'Connect and identify the ECU first.',
   "sac.notLive": "historical; not live",
   "sac.historicalCapture": "Completed measurement:",
   "sac.profileMismatch": "The available parameter readout belongs to a different DUT.",
