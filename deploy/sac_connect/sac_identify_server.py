@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Linux-only, fixed-profile DAF SAC read-only connection adapter.
+"""Linux-only, bounded DAF SAC 250k/500k read-only connection adapter.
 
 This isolated application adapter owns can0 for ONE operator-initiated
 request. The browser never gets device, agent socket or shell access.
@@ -25,13 +25,12 @@ PROBE_IDENT = Path("/usr/local/libexec/ecu-platform-v2/sac-identity-500k-probe")
 PROBE_PARAMS = Path("/usr/local/libexec/ecu-platform-v2/sac-parameters-500k-probe")
 READOUT_DIR = "/var/lib/ecu-platform-v2/api-readouts"
 IP = "/usr/sbin/ip"
-PROFILE = 0xDAF00050
+BITRATE_PROFILES = ((250000, 0xDAF00025), (500000, 0xDAF00050))
 BUSY = threading.Lock()
 MAX_OUTPUT = 16384
-IDENTIFICATION_START = (
-    "START tx=0x18da30f9 rx=0x18daf930 "
-    "bitrate=500000 mode=read-only-identification"
-)
+def identification_start(bitrate: int) -> str:
+    return ("START tx=0x18da30f9 rx=0x18daf930 "
+            f"bitrate={bitrate} mode=read-only-identification")
 
 
 class Refused(Exception):
@@ -101,9 +100,11 @@ def fields(stdout: str) -> dict[str, str]:
     return result
 
 
-def decode_identity(stdout: str) -> dict:
+def decode_identity(stdout: str, bitrate: int = 500000) -> dict:
+    if bitrate not in (250000, 500000):
+        raise Refused("invalid_identity")
     data = fields(stdout)
-    if data.get("SAC_PROBE_START") != IDENTIFICATION_START:
+    if data.get("SAC_PROBE_START") != identification_start(bitrate):
         raise Refused("invalid_identity")
     if data.get("SAC_PHYSICAL_PROBE") != "PASS CORE_V2_UDS_ISOTP_CAN":
         raise Refused("communication_failed")
@@ -123,60 +124,81 @@ def decode_identity(stdout: str) -> dict:
     for value in (software, hardware):
         if not value or len(value) > 64 or re.fullmatch(r"[ -~]+", value) is None:
             raise Refused("invalid_identity")
+    profile = dict(BITRATE_PROFILES)[bitrate]
     return {"vin": vin, "vin_status": vin_status, "software": software,
-            "hardware": hardware, "profile_id": PROFILE}
+            "hardware": hardware, "profile_id": profile, "bitrate": bitrate}
 
 
 def connect_once(operator: pwd.struct_passwd) -> dict:
     if is_up():
         raise Refused("bench_busy", 409)
-    # Only this adapter sets CAN link state. It never flashes, clears, resets,
-    # changes diagnostic session or controls outputs.
-    owns_can = True
+    # Two fixed, bounded attempts: 250k -> 500k. No ACK/passive broadcast
+    # heuristic: only positive F190/F188/F192 UDS proves communication.
+    # A failed identification ALWAYS transitions CAN DOWN before next speed.
     result = None
     fault = None
     capture_floor = int(time.time() * 1000)
     try:
-        ip("link", "set", "can0", "down")
-        ip("link", "set", "can0", "type", "can", "bitrate", "500000",
-           "fd", "off", "listen-only", "off")
-        ip("link", "set", "can0", "up")
-        state = json.loads(ip("-j", "-d", "link", "show", "dev", "can0").stdout)[0]
-        can = state.get("linkinfo", {}).get("info_data", {})
-        if (not "UP" in state.get("flags", []) or
-                can.get("bittiming", {}).get("bitrate") != 500000 or
-                can.get("state") == "BUS-OFF" or can.get("listen-only", False)):
-            raise Refused("interface_unavailable")
-        identity = decode_identity(
-            run_probe(PROBE_IDENT, ["can0", "500000"], operator))
-        published = False
-        try:
-            param_out = run_probe(
-                PROBE_PARAMS, ["can0", "parameters", "500000", READOUT_DIR], operator)
-            report = fields(param_out)
-            published = (report.get("SAC_STAGE42_READ_PHYSICAL") == "PASS" and
-                         report.get("SAC_API_PARAMETERS_READOUT_PUBLISHED", "").startswith("PASS"))
-        except Refused:
-            # An identified ECU may lack voltage/pressure DID support.
-            # This is NOT grounds to fabricate a parameter readout.
+        for bitrate, profile in BITRATE_PROFILES:
+            ip("link", "set", "can0", "down")
+            if is_up():
+                raise Refused("can_cleanup_failed")
+            ip("link", "set", "can0", "type", "can", "bitrate",
+               str(bitrate), "fd", "off", "listen-only", "off")
+            ip("link", "set", "can0", "up")
+            state = json.loads(ip("-j", "-d", "link", "show", "dev", "can0").stdout)[0]
+            can = state.get("linkinfo", {}).get("info_data", {})
+            mode = can.get("ctrlmode", [])
+            if (not "UP" in state.get("flags", []) or
+                    can.get("bittiming", {}).get("bitrate") != bitrate or
+                    can.get("state") == "BUS-OFF" or
+                    "LISTEN-ONLY" in mode or "FD" in mode or
+                    can.get("listen-only", False)):
+                raise Refused("interface_unavailable")
+            try:
+                identity = decode_identity(
+                    run_probe(PROBE_IDENT, ["can0", str(bitrate)], operator),
+                    bitrate)
+            except Refused as exc:
+                # Only UDS no-answer/timeout permits trying the next speed.
+                # Invalid or contradictory *positive* reply is a hard error.
+                if (exc.reason not in ("communication_failed",
+                                       "communication_timeout") or
+                        bitrate == BITRATE_PROFILES[-1][0]):
+                    raise
+                continue
+            if identity["profile_id"] != profile:
+                raise Refused("invalid_identity")
             published = False
-        result = {**identity, "parameters_published": published,
-                  "parameter_capture_floor_ms": capture_floor}
+            try:
+                param_out = run_probe(
+                    PROBE_PARAMS,
+                    ["can0", "parameters", str(bitrate), READOUT_DIR], operator)
+                report = fields(param_out)
+                published = (report.get("SAC_STAGE42_READ_PHYSICAL") == "PASS" and
+                             report.get("SAC_API_PARAMETERS_READOUT_PUBLISHED", "").
+                             startswith("PASS"))
+            except Refused:
+                # No fabricated parameters when the supported DID is unavailable.
+                published = False
+            result = {**identity, "parameters_published": published,
+                      "parameter_capture_floor_ms": capture_floor}
+            break
+        if result is None:
+            raise Refused("communication_failed")
     except Refused as exc:
         fault = exc
-    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+    except (OSError, ValueError, subprocess.SubprocessError):
         fault = Refused("interface_unavailable")
     finally:
-        if owns_can:
-            try:
-                ip("link", "set", "can0", "down")
-                if is_up():
-                    raise RuntimeError("CAN remained up")
-            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
-                fault = Refused("can_cleanup_failed")
+        try:
+            ip("link", "set", "can0", "down")
+            if is_up():
+                raise RuntimeError("CAN remained up")
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+            fault = Refused("can_cleanup_failed")
     if fault:
         raise fault
-    assert result is not None
     return result
 
 

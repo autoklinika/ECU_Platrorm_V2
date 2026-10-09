@@ -18,7 +18,7 @@ spec.loader.exec_module(module)
 class ParserSafety(unittest.TestCase):
     def test_known_500k_ff17_is_not_a_fabricated_vin(self):
         answer = module.decode_identity(
-            f"SAC_PHYSICAL_PROBE={module.IDENTIFICATION_START}\n"
+            f"SAC_PHYSICAL_PROBE={module.identification_start(500000)}\n"
             "SAC_VIN_STATUS=UNPROGRAMMED_FF17\n"
             "SAC_IDENTIFICATION_COMPLETENESS=PARTIAL_NO_VIN\n"
             "SAC_SOFTWARE=2027746\nSAC_HARDWARE=K127968   \n"
@@ -30,7 +30,7 @@ class ParserSafety(unittest.TestCase):
 
     def test_valid_vin_and_invalid_markers(self):
         answer = module.decode_identity(
-            f"SAC_PHYSICAL_PROBE={module.IDENTIFICATION_START}\n"
+            f"SAC_PHYSICAL_PROBE={module.identification_start(500000)}\n"
             "SAC_VIN_STATUS=VALID_ASCII\nSAC_VIN=WAUZZZ8V0JA123456\n"
             "SAC_SOFTWARE=123\nSAC_HARDWARE=ABC\n"
             "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN")
@@ -54,7 +54,7 @@ class ParserSafety(unittest.TestCase):
     def test_real_native_start_and_pass_are_distinct_stages(self):
         output = (
             "SAC_LINK status=0 up=1 bus_off=0 bitrate=500000 fd=0\n"
-            f"SAC_PHYSICAL_PROBE={module.IDENTIFICATION_START}\n"
+            f"SAC_PHYSICAL_PROBE={module.identification_start(500000)}\n"
             "SAC_VIN_STATUS=UNPROGRAMMED_FF17\n"
             "SAC_IDENTIFICATION_COMPLETENESS=PARTIAL_NO_VIN\n"
             "SAC_SOFTWARE=2027746\n"
@@ -65,15 +65,110 @@ class ParserSafety(unittest.TestCase):
         for corrupt in (
             output.replace(
                 "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN",
-                f"SAC_PHYSICAL_PROBE={module.IDENTIFICATION_START}\n"
+                f"SAC_PHYSICAL_PROBE={module.identification_start(500000)}\n"
                 "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN"),
             output + "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN\n",
             output.replace("bitrate=500000 mode=read-only-identification",
                            "bitrate=250000 mode=read-only-identification"),
-            output.replace(f"SAC_PHYSICAL_PROBE={module.IDENTIFICATION_START}\n", ""),
+            output.replace(f"SAC_PHYSICAL_PROBE={module.identification_start(500000)}\n", ""),
         ):
             with self.subTest(corrupt=corrupt[:90]), self.assertRaises(module.Refused):
                 module.decode_identity(corrupt)
+
+    def test_250k_and_500k_native_identity_profiles(self):
+        for speed, profile in module.BITRATE_PROFILES:
+            with self.subTest(bitrate=speed):
+                output = (f"SAC_PHYSICAL_PROBE={module.identification_start(speed)}\n"
+                    "SAC_VIN_STATUS=UNPROGRAMMED_FF17\n"
+                    "SAC_IDENTIFICATION_COMPLETENESS=PARTIAL_NO_VIN\n"
+                    "SAC_SOFTWARE=2027746\nSAC_HARDWARE=K127968   \n"
+                    "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN\n")
+                parsed = module.decode_identity(output, speed)
+                self.assertEqual(parsed["profile_id"], profile)
+                self.assertEqual(parsed["bitrate"], speed)
+                with self.assertRaises(module.Refused):
+                    module.decode_identity(output, 500000 if speed == 250000 else 250000)
+
+    def test_automatic_selection_and_no_redundant_fallback(self):
+        for failed_first in (False, True):
+            with self.subTest(failed_first=failed_first):
+                current = {"up": False, "speed": 0}
+                calls = []
+                def fake_ip(*args):
+                    calls.append(args)
+                    if args == ("link", "set", "can0", "down"):
+                        current["up"] = False
+                    elif args == ("link", "set", "can0", "up"):
+                        current["up"] = True
+                    elif args[:5] == ("link", "set", "can0", "type", "can"):
+                        current["speed"] = int(args[args.index("bitrate") + 1])
+                    elif args[:4] == ("-j", "-d", "link", "show"):
+                        return SimpleNamespace(stdout=json.dumps([{
+                            "flags": ["UP"] if current["up"] else [],
+                            "linkinfo": {"info_data": {
+                                "bittiming": {"bitrate": current["speed"]},
+                                "state": "ERROR-ACTIVE"}}}]))
+                    return SimpleNamespace(stdout="")
+                probe_calls = []
+                def fake_probe(path, args, operator):
+                    probe_calls.append((path, args))
+                    speed = int(args[1] if len(args) == 2 else args[2])
+                    if len(args) == 2:
+                        if speed == 250000 and failed_first:
+                            raise module.Refused("communication_failed")
+                        return (f"SAC_PHYSICAL_PROBE={module.identification_start(speed)}\n"
+                                "SAC_VIN_STATUS=UNPROGRAMMED_FF17\n"
+                                "SAC_IDENTIFICATION_COMPLETENESS=PARTIAL_NO_VIN\n"
+                                "SAC_SOFTWARE=2027746\nSAC_HARDWARE=K127968   \n"
+                                "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN\n")
+                    return ("SAC_STAGE42_READ_PHYSICAL=PASS\n"
+                            "SAC_API_PARAMETERS_READOUT_PUBLISHED=PASS historical-completed-operation\n")
+                with mock.patch.object(module, "is_up", side_effect=lambda: current["up"]), \
+                     mock.patch.object(module, "ip", side_effect=fake_ip), \
+                     mock.patch.object(module, "run_probe", side_effect=fake_probe):
+                    result = module.connect_once(SimpleNamespace(pw_uid=1000, pw_gid=1000))
+                winner = 500000 if failed_first else 250000
+                self.assertEqual(result["bitrate"], winner)
+                self.assertEqual(result["profile_id"], dict(module.BITRATE_PROFILES)[winner])
+                self.assertTrue(result["parameters_published"])
+                self.assertFalse(current["up"])
+                observed_speeds = [int(args[args.index("bitrate") + 1])
+                    for args in calls if "bitrate" in args]
+                self.assertEqual(observed_speeds,
+                    [250000, 500000] if failed_first else [250000])
+                self.assertEqual([args[1][1] for args in probe_calls if len(args[1]) == 2],
+                    ["250000", "500000"] if failed_first else ["250000"])
+                self.assertEqual([args[1][2] for args in probe_calls if len(args[1]) == 4],
+                    [str(winner)])
+                if failed_first:
+                    down_positions = [i for i,x in enumerate(calls)
+                        if x == ("link", "set", "can0", "down")]
+                    self.assertGreaterEqual(len(down_positions), 3)
+                    self.assertLess(down_positions[1],
+                        next(i for i,x in enumerate(calls)
+                             if "bitrate" in x and "500000" in x))
+
+    def test_invalid_identity_aborts_without_second_bitrate(self):
+        current = {"up": False, "speed": 0}
+        speeds = []
+        def fake_ip(*args):
+            if args == ("link", "set", "can0", "down"): current["up"] = False
+            if args == ("link", "set", "can0", "up"): current["up"] = True
+            if "bitrate" in args:
+                current["speed"] = int(args[args.index("bitrate")+1])
+                speeds.append(current["speed"])
+            return SimpleNamespace(stdout=json.dumps([{
+                "flags": ["UP"],
+                "linkinfo": {"info_data": {"state": "ERROR-ACTIVE",
+                    "bittiming":{"bitrate":current["speed"]}}}}]))
+        with mock.patch.object(module, "ip", side_effect=fake_ip), \
+             mock.patch.object(module, "is_up", side_effect=lambda: current["up"]), \
+             mock.patch.object(module, "run_probe", return_value="SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN"):
+            with self.assertRaises(module.Refused) as error:
+                module.connect_once(SimpleNamespace(pw_uid=1000,pw_gid=1000))
+        self.assertEqual(error.exception.reason, "invalid_identity")
+        self.assertEqual(speeds, [250000])
+        self.assertFalse(current["up"])
 
     def test_busy_refuses_without_configuring_can(self):
         with mock.patch.object(module, "is_up", return_value=True), \
@@ -90,7 +185,7 @@ class ParserSafety(unittest.TestCase):
                                        "bittiming": {"bitrate": 500000},
                                        "state": "ERROR-ACTIVE",
                                        "listen-only": False}}}])})
-        with mock.patch.object(module, "is_up", side_effect=[False, False]), \
+        with mock.patch.object(module, "is_up", return_value=False), \
              mock.patch.object(module, "ip", return_value=info) as ip, \
              mock.patch.object(module, "run_probe", side_effect=module.Refused("communication_failed")):
             with self.assertRaises(module.Refused):
@@ -164,7 +259,7 @@ class HttpSafety(unittest.TestCase):
 
     def test_authenticated_fixed_read_returns_only_validated_data(self):
         data = {"vin": None, "vin_status": "UNPROGRAMMED_FF17",
-                "software": "2027746", "hardware": "K127968", "profile_id": module.PROFILE,
+                "software": "2027746", "hardware": "K127968", "profile_id": 0xDAF00050, "bitrate": 500000,
                 "parameters_published": True, "parameter_capture_floor_ms": 100}
         with mock.patch.object(module, "connect_once", return_value=data) as physical:
             status, body, headers = self.call("POST", token="Bearer " + "a" * 64,

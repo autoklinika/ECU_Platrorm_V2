@@ -15,6 +15,8 @@ on:
       - "scripts/deploy_cm5_sac_connect_v1.sh"
       - "scripts/deploy_cm5_sac_kiosk_no_token.sh"
       - "scripts/upgrade_cm5_sac_identity_parser.sh"
+      - "scripts/deploy_cm5_sac_dual_bitrate.sh"
+      - "docs/SAC_AUTO_BITRATE_250_500_2026-10-09.md"
       - "docs/SAC_IDENTITY_START_PASS_HOTFIX_2026-10-09.md"
       - "tests/test_sac_kiosk_proxy.py"
       - "docs/WEBGUI_SAC_KIOSK_PROTOTYPE.md"
@@ -47,6 +49,8 @@ on:
       - "scripts/deploy_cm5_sac_connect_v1.sh"
       - "scripts/deploy_cm5_sac_kiosk_no_token.sh"
       - "scripts/upgrade_cm5_sac_identity_parser.sh"
+      - "scripts/deploy_cm5_sac_dual_bitrate.sh"
+      - "docs/SAC_AUTO_BITRATE_250_500_2026-10-09.md"
       - "docs/SAC_IDENTITY_START_PASS_HOTFIX_2026-10-09.md"
       - "tests/test_sac_kiosk_proxy.py"
       - "docs/WEBGUI_SAC_KIOSK_PROTOTYPE.md"
@@ -109,6 +113,7 @@ jobs:
           bash -n scripts/deploy_cm5_sac_connect_v1.sh
           bash -n scripts/deploy_cm5_sac_kiosk_no_token.sh
           bash -n scripts/upgrade_cm5_sac_identity_parser.sh
+          bash -n scripts/deploy_cm5_sac_dual_bitrate.sh
           python3 -m py_compile deploy/sac_connect/sac_identify_server.py
           bash -n scripts/deploy_cm5_webgui_test_catalog_v1.sh
           bash -n scripts/deploy_cm5_webgui_api_v1.sh
@@ -140,6 +145,7 @@ jobs:
           bash -n scripts/deploy_cm5_sac_connect_v1.sh
           bash -n scripts/deploy_cm5_sac_kiosk_no_token.sh
           bash -n scripts/upgrade_cm5_sac_identity_parser.sh
+          bash -n scripts/deploy_cm5_sac_dual_bitrate.sh
           if bash scripts/deploy_cm5_sac_connect_v1.sh > /tmp/sac-install-denied.log 2>&1; then
             echo "Unsafe unprivileged installation" >&2
             exit 1

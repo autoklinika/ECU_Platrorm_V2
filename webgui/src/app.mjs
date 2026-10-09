@@ -93,6 +93,7 @@ function renderSacConnectionPhase(phase) {
     text("sac-identity-vin", sacFlow.identity.vin ?? t("sac.vinUnprogrammed"));
     text("sac-identity-sw", sacFlow.identity.software);
     text("sac-identity-hw", sacFlow.identity.hardware);
+    text("sac-identity-bitrate", String(sacFlow.identity.bitrate / 1000) + " kbit/s");
     window.location.hash = "/sac-identification";
   } else if (phase === "failed") {
     const error = sacFlow.failure;

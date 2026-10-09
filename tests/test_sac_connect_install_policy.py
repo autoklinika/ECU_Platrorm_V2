@@ -92,6 +92,30 @@ class ScopedDeployment(unittest.TestCase):
         self.assertEqual(result.returncode, 77)
         self.assertIn("interactive-ecu-sudo-required", result.stdout)
 
+    def test_dual_bitrate_cutover_is_atomic_and_operator_only(self):
+        script = (ROOT / "scripts/deploy_cm5_sac_dual_bitrate.sh").read_text()
+        for marker in (
+            "interactive-ecu-sudo-required",
+            "expected_adapter=5e523611979fecf6468eb02c62b19304f408fb6df0f8451834e13848a2e2a8e7",
+            "expected_gui=releases/e62d4d1d4d93",
+            "state DOWN",
+            "SAC_DUAL_BITRATE_DEPLOY=PASS",
+            "SAC_DUAL_BITRATE_POLICY=250000_THEN_500000_UDS_ONLY",
+            "SAC_DUAL_BITRATE_ROLLBACK=PASS",
+            "SAC_DUAL_BITRATE_DTC=UNCHANGED",
+            "http-readiness",
+            "ecu-sac-connect-v1.service"):
+            self.assertIn(marker, script)
+        for forbidden in ("systemctl restart ecu-api-v1",
+                          "systemctl restart ecu-platform-v2-bench-agent",
+                          "cansend", "ip link set can0 up", "SAC_READ_STAGE=dtc"):
+            self.assertNotIn(forbidden, script)
+        result = subprocess.run(
+            ["bash", str(ROOT / "scripts/deploy_cm5_sac_dual_bitrate.sh")],
+            capture_output=True, text=True, timeout=3)
+        self.assertEqual(result.returncode, 77)
+        self.assertIn("interactive-ecu-sudo-required", result.stdout)
+
     def test_nonprivileged_deploy_refused(self):
         result = subprocess.run(['bash', str(ROOT/'scripts/deploy_cm5_sac_connect_v1.sh')],
                                 capture_output=True,text=True,timeout=3)

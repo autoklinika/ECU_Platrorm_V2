@@ -178,9 +178,9 @@ export async function readOnlyRequest(path, token, fetchImpl = globalThis.fetch)
 
 export const SAC_CONNECT_ROOT = "http://127.0.0.1:8879";
 export const SAC_CONNECT_PATH = "/api/v1/bench/daf-sac/connect";
-const VALID_SAC_PROFILES = new Set([0xDAF00050]);
+const SAC_BITRATE_PROFILE = new Map([[250000, 0xDAF00025], [500000, 0xDAF00050]]);
 const cleanIdentity = (data) => {
-  if (!record(data) || !VALID_SAC_PROFILES.has(data.profile_id) ||
+  if (!record(data) || SAC_BITRATE_PROFILE.get(data.bitrate) !== data.profile_id ||
       !["UNPROGRAMMED_FF17", "VALID_ASCII"].includes(data.vin_status) ||
       typeof data.software !== "string" ||
       !/^[ -~]{1,64}$/.test(data.software) ||
@@ -195,7 +195,7 @@ const cleanIdentity = (data) => {
       !(typeof data.vin === "string" && data.vin_status === "VALID_ASCII" &&
         /^[A-Za-z0-9]{17}$/.test(data.vin))) invalid();
   return {
-    profile_id: data.profile_id, vin: data.vin,
+    profile_id: data.profile_id, bitrate: data.bitrate, vin: data.vin,
     vin_status: data.vin_status, software: data.software.trim(),
     hardware: data.hardware.trim(), parameters_published: data.parameters_published,
     parameter_capture_floor_ms: data.parameter_capture_floor_ms

@@ -31,7 +31,7 @@ test("SAC connection uses exact same-origin path and explicit POST",async()=>{
   const identity={
     vin:null,vin_status:"UNPROGRAMMED_FF17",
     software:"2027746",hardware:"K127968",
-    profile_id:0xDAF00050,parameters_published:false,
+    profile_id:0xDAF00050,bitrate:500000,parameters_published:false,
     parameter_capture_floor_ms:Date.now()
   };
   const kiosk = new KioskSession(async(url, init)=>{
@@ -53,4 +53,22 @@ test("prototype UI displays no token field and preserves fail closed errors",asy
   assert.match(html,/connect-src 'self';/);
   const kiosk=new KioskSession(async()=>payload({code:"communication_failed"},503));
   await assert.rejects(kiosk.identifySac(),e=>e instanceof ApiError && e.code==="communication_failed");
+});
+
+
+test("both SAC CAN profiles are accepted only with matching bitrate",async()=>{
+  for (const [speed,profile] of [[250000,0xDAF00025],[500000,0xDAF00050]]) {
+    const identity={
+      vin:null,vin_status:"UNPROGRAMMED_FF17",software:"2027746",
+      hardware:"K127968",bitrate:speed,profile_id:profile,
+      parameters_published:true,parameter_capture_floor_ms:Date.now()
+    };
+    const kiosk=new KioskSession(async()=>payload(identity));
+    const selected=await kiosk.identifySac();
+    assert.equal(selected.bitrate,speed);
+    assert.equal(selected.profile_id,profile);
+    const wrong=new KioskSession(async()=>payload({...identity,profile_id:
+      profile===0xDAF00025 ? 0xDAF00050 : 0xDAF00025}));
+    await assert.rejects(wrong.identifySac(),e=>e.code==="invalid_response");
+  }
 });
