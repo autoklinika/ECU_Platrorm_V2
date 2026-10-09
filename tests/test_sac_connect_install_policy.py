@@ -39,6 +39,35 @@ class ScopedDeployment(unittest.TestCase):
         self.assertIn('def do_POST(self):', STATIC)
         self.assertIn('405', STATIC)
 
+    def test_scoped_identity_hotfix_guard_and_rollback(self):
+        hotfix = (ROOT / "scripts/upgrade_cm5_sac_identity_parser.sh").read_text()
+        for expected in (
+                "interactive-ecu-sudo-required",
+                "webgui/sac-local-prototype-no-token-20261009",
+                "expected_old_sha=",
+                'git -C "$repo" status --porcelain',
+                'stat -c %U:%G "$target"',
+                'systemctl restart "$service"',
+                'SAC_IDENTITY_HOTFIX=PASS parser-start-pass',
+                'SAC_IDENTITY_ROLLBACK=PASS',
+                'SAC_IDENTITY_HOTFIX_DTC=UNCHANGED',
+                'SAC_IDENTITY_HOTFIX_CAN=UNCHANGED_DOWN',
+                'SAC_IDENTITY_HOTFIX=REFUSED unexpected-installed-binary'):
+            self.assertIn(expected, hotfix)
+        for forbidden in ("systemctl restart ecu-api-v1",
+                          "systemctl restart ecu-webgui-static",
+                          "systemctl restart ecu-kiosk",
+                          "cansend", "ip link set can0 up",
+                          "clear_dtcs", "SAC_READ_STAGE=dtc"):
+            self.assertNotIn(forbidden, hotfix)
+
+    def test_identity_hotfix_denies_nonroot(self):
+        hotfix = ROOT / "scripts/upgrade_cm5_sac_identity_parser.sh"
+        result = subprocess.run(["bash", str(hotfix)], capture_output=True,
+                                text=True, timeout=3)
+        self.assertEqual(result.returncode, 77)
+        self.assertIn("interactive-ecu-sudo-required", result.stdout)
+
     def test_nonprivileged_deploy_refused(self):
         result = subprocess.run(['bash', str(ROOT/'scripts/deploy_cm5_sac_connect_v1.sh')],
                                 capture_output=True,text=True,timeout=3)

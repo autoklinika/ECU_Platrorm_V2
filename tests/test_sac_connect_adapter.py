@@ -18,6 +18,7 @@ spec.loader.exec_module(module)
 class ParserSafety(unittest.TestCase):
     def test_known_500k_ff17_is_not_a_fabricated_vin(self):
         answer = module.decode_identity(
+            f"SAC_PHYSICAL_PROBE={module.IDENTIFICATION_START}\n"
             "SAC_VIN_STATUS=UNPROGRAMMED_FF17\n"
             "SAC_IDENTIFICATION_COMPLETENESS=PARTIAL_NO_VIN\n"
             "SAC_SOFTWARE=2027746\nSAC_HARDWARE=K127968   \n"
@@ -29,6 +30,7 @@ class ParserSafety(unittest.TestCase):
 
     def test_valid_vin_and_invalid_markers(self):
         answer = module.decode_identity(
+            f"SAC_PHYSICAL_PROBE={module.IDENTIFICATION_START}\n"
             "SAC_VIN_STATUS=VALID_ASCII\nSAC_VIN=WAUZZZ8V0JA123456\n"
             "SAC_SOFTWARE=123\nSAC_HARDWARE=ABC\n"
             "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN")
@@ -48,6 +50,30 @@ class ParserSafety(unittest.TestCase):
         ]:
             with self.subTest(bad=bad[:45]), self.assertRaises(module.Refused):
                 module.decode_identity(bad)
+
+    def test_real_native_start_and_pass_are_distinct_stages(self):
+        output = (
+            "SAC_LINK status=0 up=1 bus_off=0 bitrate=500000 fd=0\n"
+            f"SAC_PHYSICAL_PROBE={module.IDENTIFICATION_START}\n"
+            "SAC_VIN_STATUS=UNPROGRAMMED_FF17\n"
+            "SAC_IDENTIFICATION_COMPLETENESS=PARTIAL_NO_VIN\n"
+            "SAC_SOFTWARE=2027746\n"
+            "SAC_HARDWARE=K127968   \n"
+            "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN\n"
+        )
+        self.assertEqual(module.decode_identity(output)["software"], "2027746")
+        for corrupt in (
+            output.replace(
+                "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN",
+                f"SAC_PHYSICAL_PROBE={module.IDENTIFICATION_START}\n"
+                "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN"),
+            output + "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN\n",
+            output.replace("bitrate=500000 mode=read-only-identification",
+                           "bitrate=250000 mode=read-only-identification"),
+            output.replace(f"SAC_PHYSICAL_PROBE={module.IDENTIFICATION_START}\n", ""),
+        ):
+            with self.subTest(corrupt=corrupt[:90]), self.assertRaises(module.Refused):
+                module.decode_identity(corrupt)
 
     def test_busy_refuses_without_configuring_can(self):
         with mock.patch.object(module, "is_up", return_value=True), \

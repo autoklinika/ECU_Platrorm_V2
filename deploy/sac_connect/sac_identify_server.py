@@ -28,6 +28,10 @@ IP = "/usr/sbin/ip"
 PROFILE = 0xDAF00050
 BUSY = threading.Lock()
 MAX_OUTPUT = 16384
+IDENTIFICATION_START = (
+    "START tx=0x18da30f9 rx=0x18daf930 "
+    "bitrate=500000 mode=read-only-identification"
+)
 
 
 class Refused(Exception):
@@ -81,9 +85,17 @@ def fields(stdout: str) -> dict[str, str]:
         if "=" not in line:
             continue
         key, value = line.split("=", 1)
+        if key == "SAC_PHYSICAL_PROBE" and value.startswith("START"):
+            # The native probe deliberately emits START and then PASS under
+            # the same key. They are different stages, not duplicate replies.
+            if "SAC_PROBE_START" in result:
+                raise Refused("invalid_identity")
+            result["SAC_PROBE_START"] = value
+            continue
         if key in result:
-            # Duplicate identification markers are ambiguous, never trust them.
-            if key.startswith(("SAC_VIN", "SAC_SOFTWARE", "SAC_HARDWARE", "SAC_PHYSICAL_PROBE")):
+            # Do not allow repeated result, VIN, SW or HW markers.
+            if key.startswith(("SAC_VIN", "SAC_SOFTWARE",
+                               "SAC_HARDWARE", "SAC_PHYSICAL_PROBE")):
                 raise Refused("invalid_identity")
         result[key] = value
     return result
@@ -91,6 +103,8 @@ def fields(stdout: str) -> dict[str, str]:
 
 def decode_identity(stdout: str) -> dict:
     data = fields(stdout)
+    if data.get("SAC_PROBE_START") != IDENTIFICATION_START:
+        raise Refused("invalid_identity")
     if data.get("SAC_PHYSICAL_PROBE") != "PASS CORE_V2_UDS_ISOTP_CAN":
         raise Refused("communication_failed")
     vin_status = data.get("SAC_VIN_STATUS")
