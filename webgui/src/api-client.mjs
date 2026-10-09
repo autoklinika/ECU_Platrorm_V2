@@ -304,3 +304,63 @@ export class ApiSession {
     }
   }
 }
+// Same-origin kiosk prototype: browser never receives or types a bearer.
+// The unprivileged static server forwards ONLY allowlisted requests using
+// a systemd-supplied service credential. API V1 remains authenticated.
+const KIOSK_ROUTES = new Map([
+  ["/api/v1/about", "/kiosk/v1/about"],
+  ["/api/v1/interfaces", "/kiosk/v1/interfaces"],
+  ["/api/v1/dut", "/kiosk/v1/dut"],
+  ["/api/v1/readouts/dtc/latest", "/kiosk/v1/readouts/dtc/latest"],
+  ["/api/v1/readouts/daf-sac/parameters/latest",
+   "/kiosk/v1/readouts/daf-sac/parameters/latest"]
+]);
+
+async function kioskFetch(path, method, fetchImpl) {
+  if (typeof fetchImpl !== "function" ||
+      !((method === "GET" && KIOSK_ROUTES.has(path)) ||
+        (method === "POST" && path === SAC_CONNECT_PATH)))
+    throw new ApiError("invalid_client_request");
+  const url = method === "GET" ? KIOSK_ROUTES.get(path) :
+    "/kiosk/v1/bench/daf-sac/connect";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), method === "POST" ? 70000 : 4000);
+  try {
+    const response = await fetchImpl(url, {
+      method, credentials: "omit", cache: "no-store", redirect: "error",
+      referrerPolicy: "no-referrer",
+      headers: {Accept:"application/json", "X-ECU-Kiosk":"v1"},
+      signal: controller.signal
+    });
+    if (response.redirected ||
+        !response.headers?.get("content-type")?.toLowerCase().startsWith("application/json"))
+      invalid();
+    const raw = await response.text();
+    if (raw.length > MAX_RESPONSE) invalid();
+    let body;
+    try { body = JSON.parse(raw); } catch { invalid(); }
+    if (!record(body) || body.schema_version !== 1) invalid();
+    if (!response.ok) {
+      if (!record(body.error) || !/^[a-z_]{1,64}$/.test(body.error.code)) invalid();
+      throw new ApiError(body.error.code, response.status);
+    }
+    if (response.status !== 200 || !record(body.data)) invalid();
+    return method === "GET" ? checkedData(path, body.data) : cleanIdentity(body.data);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError("network_unavailable");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export class KioskSession {
+  #fetch;
+  constructor(fetchImpl = globalThis.fetch) { this.#fetch = fetchImpl; }
+  get connected() { return true; }
+  async read(path) { return kioskFetch(path, "GET", this.#fetch); }
+  async identifySac() {
+    return kioskFetch(SAC_CONNECT_PATH, "POST", this.#fetch);
+  }
+  signOut() { /* Prototype kiosk has no browser credential to erase. */ }
+}

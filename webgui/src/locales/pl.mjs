@@ -1,5 +1,9 @@
 // Wyłącznie interfejs. Opisy DTC i dane domenowe są tłumaczone oddzielnie.
 export default Object.freeze({
+  "api.kioskMode": "Prototyp — kiosk lokalny",
+  "api.kioskExplanation": "Połączenie działa automatycznie przez lokalny serwer. Nie trzeba wpisywać tokenu.",
+  "api.kioskReady": "Lokalne API dostępne",
+  "api.kioskOffline": "Lokalne API niedostępne",
   'sac.connecting': 'Komunikacja…',
   'sac.pleaseWait': 'Trwa identyfikacja sterownika. Proszę czekać.',
   'sac.identityTitle': 'DAF SAC — Identyfikacja',

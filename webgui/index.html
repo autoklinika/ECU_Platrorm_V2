@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' http://127.0.0.1:8878 http://127.0.0.1:8879; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Ecu Bench Platform</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./src/app.mjs"></script>
@@ -244,18 +244,9 @@
             <button type="button" class="tile" data-route="language" data-i18n="settings.language">LANGUAGE</button>
           </div>
           <section class="auth-panel" aria-labelledby="api-auth-heading">
-            <h2 id="api-auth-heading" data-i18n="api.authentication">API authorization</h2>
-            <p data-i18n="api.operatorInstruction">Operator must provide an authorized API bearer token; never stored on disk.</p>
-            <div class="auth-row">
-              <label for="api-token" data-i18n="api.tokenLabel">API token (64 lowercase hexadecimal characters)</label>
-              <input id="api-token" type="password" autocomplete="off" autocapitalize="off"
-                     spellcheck="false" minlength="64" maxlength="64" inputmode="text">
-            </div>
-            <div class="auth-actions">
-              <button id="api-connect" type="button" data-i18n="api.signIn">Connect API</button>
-              <button id="api-disconnect" type="button" data-i18n="api.signOut" disabled>Disconnect</button>
-            </div>
-            <p id="api-auth-status" role="status" aria-live="polite" data-i18n="api.notAuthenticated">Not authenticated</p>
+            <h2 id="api-auth-heading" data-i18n="api.kioskMode">Lokalny kiosk</h2>
+            <p data-i18n="api.kioskExplanation">Dostęp do API bez wpisywania tokenu operatora.</p>
+            <p id="prototype-api-state" role="status" aria-live="polite">—</p>
           </section>
           <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
         </section>

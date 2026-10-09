@@ -101,9 +101,10 @@ test("API client can only read authorized V1 routes without privileged I/O", () 
   assert.doesNotMatch(client, /(?:localStorage|sessionStorage|indexedDB|document\.cookie)/);
   assert.doesNotMatch(client, /(?:WebSocket|EventSource|navigator\.serial|navigator\.usb)/);
   assert.doesNotMatch(client, /(?:\/dev\/|\/run\/ecu-platform|sudo|child_process)/);
-  assert.match(html, /id="api-token" type="password" autocomplete="off"/);
-  assert.match(html, /connect-src 'self' http:\/\/127\.0\.0\.1:8878/);
-  assert.match(html, /http:\/\/127\.0\.0\.1:8879/);
+  assert.doesNotMatch(html, /id="api-token"/);
+  assert.match(html, /id="prototype-api-state"/);
+  assert.match(html, /connect-src 'self';/);
+  assert.doesNotMatch(html, /connect-src[^;]*http:/);
   assert.match(html, /id="dtc-status"/);
   assert.match(html, /id="can-status"/);
   assert.doesNotMatch(html, /value="[0-9a-f]{64}"/);

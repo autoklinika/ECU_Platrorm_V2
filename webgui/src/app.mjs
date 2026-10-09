@@ -1,7 +1,7 @@
 import {
   applyTranslations, readLocale, storeLocale, translate
 } from "./i18n.mjs";
-import { ApiSession, ApiError } from "./api-client.mjs";
+import { KioskSession, ApiError } from "./api-client.mjs";
 import { SacConnectionFlow } from "./sac-connect-flow.mjs";
 
 const PAGES = new Set([
@@ -22,10 +22,7 @@ const detailClose = document.getElementById("dtc-detail-close");
 const dtcRows = document.getElementById("dtc-rows");
 const sidebarVeil = document.getElementById("sidebar-veil");
 const clock = document.getElementById("local-clock");
-const tokenInput = document.getElementById("api-token");
-const connectButton = document.getElementById("api-connect");
-const disconnectButton = document.getElementById("api-disconnect");
-const session = new ApiSession();
+const session = new KioskSession();
 const sacFlow = new SacConnectionFlow(renderSacConnectionPhase);
 const SAC_FLOW_PAGES = new Set(["sac-connecting", "sac-identification",
                                  "sac-communication-error"]);
@@ -36,8 +33,6 @@ try { browserStorage = window.localStorage; } catch { /* restricted kiosk */ }
 let currentLocale = readLocale(browserStorage);
 let sidebarOpen = false;
 let refreshVersion = 0;
-let loginPending = false;
-let authMessage = "api.notAuthenticated";
 let results = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
 let failures = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
 
@@ -102,10 +97,6 @@ function renderSacConnectionPhase(phase) {
   } else if (phase === "failed") {
     const error = sacFlow.failure;
     const code = error instanceof ApiError ? error.code : "network_unavailable";
-    if (!session.connected) {
-      authMessage = "api.sessionExpired";
-      renderApi();
-    }
     const key = code === "session_expired" || code === "unauthorized"
       ? "sac.authenticationRequired"
       : code === "bench_busy" ? "sac.benchBusy"
@@ -336,16 +327,12 @@ function renderDtc() {
 }
 
 function renderApi() {
-  const active = session.connected;
-  connectButton.disabled = active || loginPending;
-  disconnectButton.disabled = !active;
-  tokenInput.disabled = active || loginPending;
-  text("api-auth-status", t(active ? "api.authenticated" : authMessage));
-  const healthy = active && results.about !== null;
+  // The same-origin service authenticates internally; no operator login UI.
+  const healthy = results.about !== null;
   text("connection-value", t(healthy ? "api.apiReady" : "header.unavailable"));
+  text("prototype-api-state", t(healthy ? "api.kioskReady" : "api.kioskOffline"));
   const can = healthy ? selectedCan() : null;
   text("interface-value", can?.name ?? "—");
-  // A configured bitrate is not a claim that a DOWN bus is transmitting.
   text("bitrate-value", can ? bitrate(can.bitrate) + " (" + canState(can) + ")" : "—");
   text("module-value", healthy && results.dut
     ? (results.dut.profile_label || "ID " + results.dut.profile_id) : "—");
@@ -354,50 +341,15 @@ function renderApi() {
   renderSacParameters();
 }
 
-function signOut(message = "api.notAuthenticated") {
+function clearGuiSession() {
   closeDtcDetails();
   sacFlow.reset();
-  if (SAC_FLOW_PAGES.has(routeFromHash()) || SAC_PAGES.has(routeFromHash()))
-    window.location.hash = "/truck-daf";
   ++refreshVersion;
-  session.signOut();
-  tokenInput.value = "";
-  authMessage = message;
   emptyResults();
   renderApi();
 }
 
-async function connect() {
-  if (loginPending || session.connected) return;
-  ++refreshVersion;
-  const credential = tokenInput.value;
-  tokenInput.value = "";
-  loginPending = true;
-  authMessage = "api.connecting";
-  renderApi();
-  try {
-    await session.signIn(credential);
-    authMessage = "api.authenticated";
-    renderApi();
-    await refresh();
-  } catch (error) {
-    if (!session.connected) {
-      authMessage = error instanceof ApiError && error.code === "invalid_token_format"
-        ? "api.invalidToken" : "api.connectionFailed";
-    }
-    renderApi();
-  } finally {
-    loginPending = false;
-    renderApi();
-  }
-}
-
 async function refresh() {
-  if (!session.connected) {
-    if (results.about !== null) signOut("api.sessionExpired");
-    else renderApi();
-    return;
-  }
   const version = ++refreshVersion;
   const paths = [
     [ "about", "/api/v1/about" ],
@@ -408,10 +360,6 @@ async function refresh() {
   ];
   const responses = await Promise.allSettled(paths.map(([, path]) => session.read(path)));
   if (version !== refreshVersion) return;
-  if (!session.connected) {
-    signOut("api.sessionExpired");
-    return;
-  }
   const nextResults = {};
   const nextFailures = {};
   responses.forEach((response, index) => {
@@ -444,8 +392,6 @@ function renderLocale(locale) {
 
 sidebarToggle.addEventListener("click", () => setSidebarOpen(!sidebarOpen));
 sidebarVeil.addEventListener("click", () => setSidebarOpen(false));
-connectButton.addEventListener("click", connect);
-disconnectButton.addEventListener("click", () => signOut());
 detailClose.addEventListener("click", closeDtcDetails);
 document.getElementById("sac-identity-ok").addEventListener("click", () => {
   sacFlow.accept();
@@ -461,9 +407,6 @@ dtcRows.addEventListener("click", (event) => {
   const button = target.closest("button[data-dtc-code]");
   if (!button || !dtcRows.contains(button)) return;
   openDtcDetails(button.dataset.dtcCode, Number(button.dataset.dtcStatus));
-});
-tokenInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") { event.preventDefault(); connect(); }
 });
 
 root.addEventListener("click", (event) => {
@@ -503,12 +446,12 @@ window.addEventListener("hashchange", () => {
     sacFlow.reset();
   renderRoute();
 });
-window.addEventListener("pagehide", () => signOut());
+window.addEventListener("pagehide", clearGuiSession);
 renderLocale(currentLocale);
 renderRoute();
 updateClock();
+void refresh();
 window.setInterval(() => {
   updateClock();
-  if (session.connected) void refresh();
-  else if (authMessage === "api.authenticated") signOut("api.sessionExpired");
+  void refresh();
 }, 10000);

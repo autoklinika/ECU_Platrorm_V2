@@ -1,5 +1,9 @@
 // UI copy only. ECU/DTC domain descriptions do not belong in this catalog.
 export default Object.freeze({
+  "api.kioskMode": "Prototype — local kiosk",
+  "api.kioskExplanation": "Connection is automatic through the local server. No operator token entry.",
+  "api.kioskReady": "Local API available",
+  "api.kioskOffline": "Local API unavailable",
   'sac.connecting': 'Connecting…',
   'sac.pleaseWait': 'Identifying ECU. Please wait.',
   'sac.identityTitle': 'DAF SAC — Identification',

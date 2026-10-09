@@ -18,7 +18,8 @@ class ApiClientDeploymentContract(unittest.TestCase):
         spec.loader.exec_module(module)
         self.assertIn("/src/api-client.mjs", module.FILES)
         self.assertEqual(module.FILES["/src/api-client.mjs"], "src/api-client.mjs")
-        self.assertIn("connect-src 'self' http://127.0.0.1:8878", module.CSP)
+        self.assertIn("connect-src 'self';", module.CSP)
+        self.assertNotIn("8878", module.CSP)
         self.assertNotIn("0.0.0.0", module.CSP)
         self.assertIn("frame-ancestors 'none'", module.CSP)
         self.assertNotIn("/run/", repr(module.FILES))
@@ -27,12 +28,12 @@ class ApiClientDeploymentContract(unittest.TestCase):
         html = HTML.read_text()
         server = SERVER.read_text()
         for text in (html, server):
-            self.assertIn("http://127.0.0.1:8878", text)
+            self.assertIn("connect-src 'self';", text)
             self.assertNotIn("connect-src *", text)
             self.assertNotIn("https://", text)
         self.assertNotIn("Authorization: Bearer ", html)
-        self.assertIn('id="api-token" type="password"', html)
-        self.assertIn('autocomplete="off"', html)
+        self.assertNotIn('id="api-token"', html)
+        self.assertIn('id="prototype-api-state"', html)
 
     def test_operator_gate_scope_and_recovery(self):
         text = SCRIPT.read_text()

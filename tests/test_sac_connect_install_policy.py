@@ -33,7 +33,8 @@ class ScopedDeployment(unittest.TestCase):
 
     def test_static_host_restricts_assets_and_csp(self):
         self.assertIn('"/src/sac-connect-flow.mjs"', STATIC)
-        self.assertIn("http://127.0.0.1:8879", STATIC)
+        self.assertIn("http.client.HTTPConnection", STATIC)
+        self.assertIn("LoadCredential", STATIC)
         self.assertIn("connect-src 'self'", STATIC)
         self.assertIn('def do_POST(self):', STATIC)
         self.assertIn('405', STATIC)
