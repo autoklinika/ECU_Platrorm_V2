@@ -61,6 +61,30 @@ class ScopedDeployment(unittest.TestCase):
                           "clear_dtcs", "SAC_READ_STAGE=dtc"):
             self.assertNotIn(forbidden, hotfix)
 
+    def test_identity_hotfix_http_ready_waits_without_uds(self):
+        script = (ROOT / "scripts/upgrade_cm5_sac_identity_parser.sh").read_text()
+        start = script.index("wait_for_adapter_unauthorized() {")
+        end = script.index("\n\non_exit() {", start)
+        wait_fn = script[start:end]
+        # Execute the real Bash helper with stubbed HTTP responses. No CAN,
+        # sudo or physical probe is used by these regression cases.
+        for status, success in (("401", True), ("000", False)):
+            with self.subTest(status=status):
+                shell = (
+                    "set -Eeuo pipefail\n" + wait_fn +
+                    "\ncurl() { printf '%s' " + status + "; }\n" +
+                    "sleep() { :; }\n" +
+                    "wait_for_adapter_unauthorized\n"
+                )
+                result = subprocess.run(
+                    ["bash", "-c", shell], capture_output=True,
+                    text=True, timeout=4)
+                self.assertEqual(result.returncode == 0, success)
+                self.assertIn("SAC_IDENTITY_HTTP_READY=",
+                              result.stdout + result.stderr)
+        self.assertIn('stage="adapter-http-readiness"', script)
+        self.assertIn("SAC_IDENTITY_HOTFIX=FAIL exit=$rc stage=$stage", script)
+
     def test_identity_hotfix_denies_nonroot(self):
         hotfix = ROOT / "scripts/upgrade_cm5_sac_identity_parser.sh"
         result = subprocess.run(["bash", str(hotfix)], capture_output=True,

@@ -12,12 +12,30 @@ service=ecu-sac-connect-v1.service
 expected_old_sha=10923ebd8fb02926be9371f0e8c58aebaee00a60a80efe7037145aa709ee9494
 backup=""
 armed=0
+stage="preflight"
+
+# systemctl is-active does not mean the HTTP listener is already bound.
+# Probe ONLY the unauthorized fixed route; this cannot start ECU I/O.
+wait_for_adapter_unauthorized() {
+  local attempt http_status
+  for (( attempt=1; attempt<=30; attempt++ )); do
+    http_status="$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' \
+      -X POST http://127.0.0.1:8879/api/v1/bench/daf-sac/connect 2>/dev/null || true)"
+    if [[ "$http_status" == 401 ]]; then
+      echo "SAC_IDENTITY_HTTP_READY=PASS attempt=$attempt"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "SAC_IDENTITY_HTTP_READY=FAIL status=${http_status:-none}" >&2
+  return 1
+}
 
 on_exit() {
   local rc=$?
   trap - EXIT
   if (( rc != 0 )); then
-    echo "SAC_IDENTITY_HOTFIX=FAIL exit=$rc" >&2
+    echo "SAC_IDENTITY_HOTFIX=FAIL exit=$rc stage=$stage" >&2
     if (( armed == 1 )); then
       bash "$backup/rollback.sh" ||
         echo "SAC_IDENTITY_ROLLBACK=FAILED manual-recovery-required" >&2
@@ -45,8 +63,10 @@ for unit in "$service" ecu-api-v1.service ecu-webgui-static.service \
   systemctl is-active --quiet "$unit" || exit 2
 done
 ip -details link show can0 | grep -q 'state DOWN' || exit 2
-[[ "$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8879/api/v1/bench/daf-sac/connect)" == 401 ]] || exit 2
+stage="preflight-adapter"
+wait_for_adapter_unauthorized || exit 2
 
+stage="test-and-backup"
 runuser -u ecu -- python3 -m unittest discover -s "$repo/tests"   -p test_sac_connect_adapter.py -q
 python3 -m py_compile "$source_file"
 
@@ -73,15 +93,22 @@ chmod 0700 "$backup/rollback.sh"
 printf '#!/usr/bin/env bash\nexec /usr/bin/bash %q\n' "$backup/rollback.sh"   > /usr/local/sbin/ecu-sac-identity-parser-rollback
 chmod 0700 /usr/local/sbin/ecu-sac-identity-parser-rollback
 armed=1
-
+stage="install-adapter"
 install -o root -g root -m 0755 "$source_file" "$target.next-$$"
 mv -f "$target.next-$$" "$target"
 systemctl restart "$service"
-systemctl is-active --quiet "$service"
+stage="service-ready"
+systemctl is-active --quiet "$service" || exit 2
+stage="binary-sha"
 [[ "$(sha256sum "$target" | cut -d' ' -f1)" == "$(sha256sum "$source_file" | cut -d' ' -f1)" ]] || exit 2
-[[ "$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8879/api/v1/bench/daf-sac/connect)" == 401 ]] || exit 2
-[[ "$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' -H 'X-ECU-Kiosk: v1' http://127.0.0.1:8877/kiosk/v1/about)" == 200 ]] || exit 2
+stage="adapter-http-readiness"
+wait_for_adapter_unauthorized || exit 2
+stage="kiosk-http"
+kiosk_http="$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' -H 'X-ECU-Kiosk: v1' http://127.0.0.1:8877/kiosk/v1/about || true)"
+[[ "$kiosk_http" == 200 ]] || { echo "SAC_IDENTITY_KIOSK_HTTP=FAIL code=$kiosk_http" >&2; exit 2; }
+stage="dtc-preservation"
 [[ "$(sha256sum "$dtc_file" | cut -d' ' -f1)" == "$dtc_sha" ]] || exit 2
+stage="can-down"
 ip -details link show can0 | grep -q 'state DOWN' || exit 2
 
 armed=0

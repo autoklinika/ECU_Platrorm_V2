@@ -71,3 +71,27 @@ then OK, completed parameter page. This is the next required physical
 acceptance test.
 
 No merge to production `main` without owner permission.
+
+## Deployment attempt 2026-10-09 ~11:32 — rollback PASS
+
+The operator reported `SAC_IDENTITY_HOTFIX=FAIL exit=2` after the
+9 adapter tests passed, followed by `SAC_IDENTITY_ROLLBACK=PASS`.
+Independent CM5 verification showed the original root-owned adapter
+SHA unchanged (`10923ebd...`), `ecu-sac-connect-v1`, `ecu-api-v1`,
+WebGUI and kiosk active, protected POST returning HTTP 401, kiosk
+status returning HTTP 200, and `can0 DOWN`.
+
+Systemd journal reports two adapter starts within the same second
+(first installation restart, then rollback restart); no Python startup
+exception was recorded. The old installer checked one immediate HTTP
+request after `systemctl restart`. This created a plausible readiness
+race, but the old script did not log which final check failed, so the
+exact condition cannot be proven retrospectively.
+
+The revised installer now polls the **unauthorized** fixed HTTP route
+for a 401 response (bounded 30 × 250 ms) without performing any CAN or
+UDS activity. It records `SAC_IDENTITY_HTTP_READY=PASS attempt=N`
+or an explicit error and emits `stage=<name>` on failure. SHA, DTC,
+CAN DOWN and rollback checks remain unchanged. Offline regression
+exercises both immediate readiness and timeout. No service is restarted
+automatically during this code change.
