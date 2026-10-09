@@ -189,14 +189,25 @@ def cm5_snapshot(root: Path) -> dict[str, Any]:
                                else "unavailable")}
 
 
+def main_ref_snapshot(root: Path) -> str:
+    # GitHub Actions checks out only one shallow commit by default.
+    # A missing origin/main is not an invalid repository and must never
+    # be presented as a guessed production revision or trigger a fetch.
+    result = cmd(["git", "rev-parse", "--verify", "--short=12",
+                  "refs/remotes/origin/main"], root)
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip()
+    return "unavailable (shallow/missing local origin/main)"
+
+
 def snapshot(root: Path, *, github: bool = False,
              include_siblings: bool = False, cm5: bool = False) -> dict[str, Any]:
     tree = worktrees(root)
     local = discover_checkout_paths(root, tree, include_siblings)
     data: dict[str, Any] = {
         "origin": origin_identity(root),
-        "main_local": git(root, "rev-parse", "--short=12", "origin/main"),
-        "repo_branch": git(root, "branch", "--show-current"),
+        "main_local": main_ref_snapshot(root),
+        "repo_branch": git(root, "branch", "--show-current") or "(detached)",
         "checkouts": local,
         "git_worktrees": len(tree),
         "checkout_count": len(local),

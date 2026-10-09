@@ -31,6 +31,16 @@ class RepoDoctorSafety(TestCase):
         self.assertEqual(trees[1]["branch"], "webgui/prototype")
         get.assert_called_once_with(Path("/tmp"), "worktree", "list", "--porcelain")
 
+    def test_shallow_ci_without_origin_main_does_not_fetch_or_guess(self):
+        import subprocess
+        missing = subprocess.CompletedProcess(["git"], 128, "", "unknown revision")
+        with mock.patch.object(module, "cmd", return_value=missing) as call:
+            value = module.main_ref_snapshot(Path("/tmp"))
+        self.assertIn("unavailable", value)
+        self.assertEqual(call.call_count, 1)
+        self.assertIn("rev-parse", call.call_args.args[0])
+        self.assertNotIn("fetch", call.call_args.args[0])
+
     def test_pr_dependency_chains_reconstruct_three_stacks(self):
         def pr(num, base, head):
             return {"number": num, "headRefName": head, "baseRefName": base,
