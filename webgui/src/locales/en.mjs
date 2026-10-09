@@ -24,6 +24,8 @@ export default Object.freeze({
   "sac.refreshRequired": "new read required; values hidden",
   "sac.pressureUnavailable": "UNAVAILABLE",
   "sac.pressureNoFrame": "No FEAE",
+  "sac.cancel": "Cancel",
+  "sac.noSessionDtc": "No DTC readout for the current connection.",
   "sac.monitorReading": "Reading SAC parameters…",
   "sac.sessionExpired": "SAC session expired. Return to DAF and reconnect.",
   "sac.monitorActive": "automatic refresh (last completed cycle)",

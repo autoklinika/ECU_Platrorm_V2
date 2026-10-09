@@ -34,7 +34,8 @@ class IndustrialSkinSafety(unittest.TestCase):
                           "SystemController", "navigator.serial", "navigator.usb"):
             self.assertNotIn(forbidden, APP)
         self.assertIn("sac.restricted", HTML)
-        self.assertIn("noReadout", HTML)
+        self.assertIn('id="sac-parameters-status"', HTML)
+        self.assertNotIn('data-i18n="sac.noReadout"', HTML)
 
     def test_scoped_install_is_operator_only(self):
         for expected in ('[[ "$EUID" -eq 0 && -t 0 ]]',

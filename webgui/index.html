@@ -18,7 +18,7 @@
               data-i18n-aria-label="navigation.toggle">Ecu Bench Platform</button>
       <div class="topbar__field topbar__field--connection">
         <span data-i18n="header.connection">Connection:</span>
-        <span class="topbar__status" id="connection-value" data-i18n="header.unavailable">Unavailable</span>
+        <span class="topbar__status" id="connection-value">Unavailable</span>
       </div>
       <div class="topbar__field topbar__field--interface">
         <span data-i18n="header.interface">Interface:</span>
@@ -130,6 +130,8 @@
             <div class="sac-activity-spinner" aria-hidden="true"></div>
             <h1 data-i18n="sac.connecting">Komunikacja…</h1>
             <p data-i18n="sac.pleaseWait">Trwa identyfikacja sterownika. Proszę czekać.</p>
+            <button type="button" id="sac-cancel" class="back-button"
+                    data-i18n="sac.cancel">Anuluj</button>
           </div>
         </section>
 
@@ -152,7 +154,7 @@
         <section class="page catalog-page sac-error-page" data-page="sac-communication-error" hidden>
           <div class="sac-connect-center" role="alert">
             <h1 data-i18n="sac.communicationError">Błąd komunikacji</h1>
-            <p id="sac-communication-error-message" data-i18n="sac.checkConnection">Sprawdź zasilanie ECU i przewody CAN.</p>
+            <p id="sac-communication-error-message">Sprawdź zasilanie ECU i przewody CAN.</p>
           </div>
           <div class="sac-flow-actions">
             <button type="button" id="sac-retry" class="back-button" data-i18n="sac.retry">Ponów</button>
@@ -164,7 +166,7 @@
           <h1>DAF SAC</h1>
           <p class="field-label" data-i18n="sac.parameterExplanation">Four laboratory parameters: values remain unavailable until an authoritative, completed measurement is published by the application.</p>
           <p id="sac-parameters-status" class="data-state" role="status"
-             aria-live="polite" data-i18n="sac.noReadout">No verified SAC parameter readout available.</p>
+             aria-live="polite">No verified SAC parameter readout available.</p>
           <section class="sac-parameter-panel" aria-label="SAC parameters"
                    data-i18n-aria-label="sac.parameters">
             <h2 data-i18n="sac.parametersTitle">PARAMETERS</h2>
@@ -187,8 +189,7 @@
               </div>
             </div>
           </section>
-          <button type="button" id="sac-refresh" class="back-button"
-                  data-i18n="sac.refreshParameters">Refresh parameters (read-only)</button>
+
           <p class="field-label" data-i18n="sac.sidebarHint">Open the top-left side panel for DTC, Activations and Programming.</p>
           <button type="button" class="back-button" data-route="truck-daf" data-i18n="navigation.back">Back</button>
         </section>
@@ -196,7 +197,7 @@
         <section class="page catalog-page catalog-page--sac" data-page="sac-dtc" hidden>
           <h1 data-i18n="sac.dtcTitle">DAF SAC — DTC</h1>
           <p class="field-label" data-i18n="dtc.historical">Last completed DTC readout (historical, not live)</p>
-          <p class="data-state" id="dtc-status" role="status" aria-live="polite" data-i18n="api.signInRequired">Sign in under Settings to read API data.</p>
+          <p class="data-state" id="dtc-status" role="status" aria-live="polite">Sign in under Settings to read API data.</p>
           <div id="dtc-details" class="data-panel" hidden>
             <dl class="readout-meta">
               <div><dt data-i18n="dtc.captured">Captured:</dt><dd id="dtc-captured">—</dd></div>
@@ -236,7 +237,7 @@
         <section class="page" data-page="can" hidden>
           <h1 data-i18n="pages.can">CAN</h1>
           <p class="field-label" data-i18n="can.source">Kernel interface state reported by the read-only API</p>
-          <p class="data-state" id="can-status" role="status" aria-live="polite" data-i18n="api.signInRequired">Sign in under Settings to read API data.</p>
+          <p class="data-state" id="can-status" role="status" aria-live="polite">Sign in under Settings to read API data.</p>
           <div id="can-list" class="can-list" aria-live="polite"></div>
           <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
         </section>

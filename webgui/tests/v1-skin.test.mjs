@@ -54,7 +54,8 @@ test("the four SAC rows remain a single bounded, flat V1 measurement panel", () 
     assert.match(html, new RegExp('id="' + name + '">—</output>'));
   }
   assert.match(app, /for \(const name of \["sac-permanent-voltage", "sac-ignition-voltage"/);
-  assert.match(html, /data-i18n="sac.noReadout"/);
+  assert.match(html, /id="sac-parameters-status"/);
+  assert.doesNotMatch(html, /data-i18n="sac.noReadout"/);
 });
 
 test("V1 left drawer, DTC details and responsive rules do not add ECU control", () => {

@@ -21,7 +21,9 @@ export class SacConnectionFlow {
     this.phase = "connecting";
     this.#onChange(this.phase);
     try {
-      const identity = await request();
+      // The request may await an older native probe before starting.
+      // Do not start hardware work if the operator canceled meanwhile.
+      const identity = await request(() => version === this.#version);
       if (version !== this.#version) return;
       this.identity = identity;
       this.phase = "identified";

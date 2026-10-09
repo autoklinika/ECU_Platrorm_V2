@@ -19,6 +19,7 @@ export class SacParameterMonitor {
   #epoch = 0;
   #identity = null;
   #lastCapture = 0;
+  #idleWaiters = [];
 
   constructor({read, onUpdate, intervalMs = 200, retryMs = 4000,
                clock = () => Date.now(),
@@ -37,6 +38,12 @@ export class SacParameterMonitor {
 
   get active() { return this.#active; }
   get busy() { return this.#busy; }
+  // stop() prevents NEXT cycles; it does not cancel an already authorized
+  // native read. Connections await the in-flight operation's completion.
+  whenIdle() {
+    if (!this.#busy) return Promise.resolve();
+    return new Promise(resolve => this.#idleWaiters.push(resolve));
+  }
 
   start(identity) {
     if (this.#active) return;
@@ -81,7 +88,8 @@ export class SacParameterMonitor {
     }
     const epoch = this.#epoch;
     this.#busy = true;
-    this.#emit({status:"reading"});
+    // Do not flicker to "reading" on every good cycle. The last completed
+    // measurement remains valid until the 6-second age gate expires.
     let success = false;
     try {
       const {operation, parameters} = await this.#read();
@@ -115,7 +123,9 @@ export class SacParameterMonitor {
       this.#emit({status:"updated", operation, parameters});
     } catch (error) {
       if (this.#active && epoch === this.#epoch) {
-        if (error?.code === "session_expired") {
+        if (error?.code === "bench_busy") {
+          this.#emit({status:"busy", error});
+        } else if (error?.code === "session_expired") {
           this.#emit({status:"session_expired", error});
           this.stop();
         } else {
@@ -124,7 +134,10 @@ export class SacParameterMonitor {
       }
     } finally {
       this.#busy = false;
-      if (this.#active) this.#queue(success ? this.#delay : this.#retryDelay);
+      const waiting = this.#idleWaiters.splice(0);
+      for (const notify of waiting) notify();
+      if (this.#active)
+        this.#queue(success ? this.#delay : this.#retryDelay);
     }
   }
 }

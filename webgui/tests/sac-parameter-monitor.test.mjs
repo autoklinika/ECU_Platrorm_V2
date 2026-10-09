@@ -72,12 +72,18 @@ test("no overlapping hardware requests; leaving page ignores an in-flight reply"
   assert.equal(w.monitor.busy,true);
   assert.equal(w.monitor.refreshNow(),false);
   w.monitor.stop();
+  let idle=false;
+  const barrier=w.monitor.whenIdle().then(()=>{idle=true;});
+  assert.equal(idle,false);
   resolve({operation:identity(),parameters:parameters()});
+  await barrier;
   await flush();
+  assert.equal(idle,true);
   assert.equal(calls,1);
   assert.equal(w.monitor.active,false);
   assert.equal(w.tasks.size,0);
-  assert.deepEqual(updates.map(x=>x.status),["reading"]);
+  assert.deepEqual(updates.map(x=>x.status),[]);
+  assert.equal(w.monitor.busy,false);
 });
 
 test("lost communication and corrupt snapshot both fail closed and retry later",async()=>{
@@ -154,4 +160,24 @@ test("expired backend session stops polling and requires explicit reconnect",asy
   assert.equal(updates.at(-1),"session_expired");
   assert.equal(w.monitor.active,false);
   assert.equal(w.tasks.size,0);
+});
+
+
+test("transient bench_busy backs off without a false communication error",async()=>{
+  const events=[];
+  const w=clockwork(async()=>{const e=Error("busy");e.code="bench_busy";throw e;},
+    e=>events.push(e.status));
+  w.monitor.start(identity());
+  await w.tick();
+  assert.equal(events.at(-1),"busy");
+  assert.equal([...w.tasks.values()][0].ms,4000);
+  w.monitor.stop();
+});
+
+test("idle barrier resolves immediately when no physical request is active",async()=>{
+  const w=clockwork(async()=>({operation:identity(),parameters:parameters()}),()=>{});
+  await w.monitor.whenIdle();
+  w.monitor.start(identity());
+  w.monitor.stop();
+  await w.monitor.whenIdle();
 });

@@ -62,3 +62,22 @@ test("identification must be confirmed, cancelled requests never reopen",async()
  await flow.begin(async()=>{throw new ApiError("communication_failed");});
  assert.equal(flow.phase,"failed"); assert.equal(flow.accept(),false);
 });
+
+
+test("canceled connection does not schedule hardware work after idle barrier",async()=>{
+  const flow=new SacConnectionFlow();
+  let release;
+  const idle=new Promise(resolve=>{release=resolve;});
+  let requested=0;
+  const pending=flow.begin(async isCurrent=>{
+    await idle;
+    if (!isCurrent()) return null;
+    requested++;
+    return ok();
+  });
+  flow.reset();
+  release();
+  await pending;
+  assert.equal(requested,0);
+  assert.equal(flow.phase,"idle");
+});

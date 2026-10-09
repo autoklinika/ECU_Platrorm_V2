@@ -39,6 +39,8 @@ let results = { about: null, interfaces: null, dut: null, readout: null, paramet
 let failures = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
 let monitorStatus = "idle";
 let parameterOperation = null;
+let sacConnectedAt = 0;
+let lastDtcStamp = null;
 const parameterMonitor = new SacParameterMonitor({
   read: async () => {
     // Only FE96 and passive FEAE: the privileged service already knows the
@@ -57,6 +59,11 @@ const parameterMonitor = new SacParameterMonitor({
       parameterOperation = event.operation;
       results.parameters = event.parameters;
       failures.parameters = null;
+    } else if (event.status === "busy") {
+      // A previous screen's native operation may still be draining;
+      // do not clear last valid values or claim communication failure.
+      renderSacParameters();
+      return;
     } else if (event.status === "unavailable" || event.status === "timeout") {
       parameterOperation = event.operation;
       results.parameters = null;
@@ -110,7 +117,11 @@ function renderRoute() {
     return;
   }
   // Duplicate hashchange/tap events should not repaint the same workspace.
-  if (displayedPage === page) return;
+  if (displayedPage === page) {
+    // Clicking the current item in the drawer must still close the veil.
+    setSidebarOpen(false);
+    return;
+  }
   displayedPage = page;
   root.querySelectorAll("[data-page]").forEach((section) => {
     section.hidden = section.dataset.page !== page;
@@ -118,7 +129,8 @@ function renderRoute() {
   // SAC tools are context-specific: never visible for another DUT or catalog.
   sacNavigation.hidden = !SAC_PAGES.has(page);
   sidebarToggle.textContent = SAC_PAGES.has(page) ? t("sac.menu") : "Ecu Bench Platform";
-  closeDtcDetails();
+  sidebarToggle.disabled = !SAC_PAGES.has(page);
+  if (page !== "sac-dtc") closeDtcDetails();
   sacNavigation.querySelectorAll("button[data-route]").forEach((button) => {
     const active = button.dataset.route === page;
     button.setAttribute("aria-current", active ? "page" : "false");
@@ -132,10 +144,14 @@ function renderRoute() {
 function syncParameterMonitoring() {
   const enabled = routeFromHash() === "daf-sac" &&
     sacFlow.phase === "accepted" && !!sacFlow.identity &&
-    monitorStatus !== "session_expired" && !document.hidden;
+    !["session_expired","profile_mismatch"].includes(monitorStatus) &&
+    !document.hidden;
   if (!enabled) {
     parameterMonitor.stop();
-    monitorStatus = "idle";
+    // Terminal session/profile errors survive page changes; only an explicit
+    // fresh connection resets them.
+    if (monitorStatus !== "session_expired" &&
+        monitorStatus !== "profile_mismatch") monitorStatus = "idle";
     return;
   }
   if (!parameterMonitor.active) {
@@ -168,16 +184,42 @@ function renderSacConnectionPhase(phase) {
     text("sac-communication-error-message", t(key));
     window.location.hash = "/sac-communication-error";
   } else if (phase === "accepted") {
+    sacConnectedAt = Date.now();
+    lastDtcStamp = null;
     monitorStatus = "idle";
     window.location.hash = "/daf-sac";
     void refresh();
   }
-  renderRoute();
+  // hashchange owns route transitions. Do not synchronously repeat the
+  // navigation/render from the SAC phase callback.
 }
 
+let activeConnection = null;
 function startSacConnection() {
   if (sacFlow.phase === "connecting") return;
-  void sacFlow.begin(() => session.identifySac());
+  parameterMonitor.stop();
+  void sacFlow.begin(async isCurrent => {
+    // The two native operations are not cancelable server-side. A cancelled
+    // connection or previous parameter probe must finish before re-entry.
+    await parameterMonitor.whenIdle();
+    if (activeConnection) await activeConnection.catch(() => {});
+    if (!isCurrent()) throw new ApiError("session_changed");
+    // BUSY means the isolated adapter is completing an earlier native
+    // operation. Brief bounded retry without changing the selected DUT.
+    for (let attempt = 0; attempt < 6; attempt++) {
+      if (!isCurrent()) throw new ApiError("session_changed");
+      const request = session.identifySac();
+      activeConnection = request;
+      try { return await request; }
+      catch (error) {
+        if (!(error instanceof ApiError) || error.code !== "bench_busy" ||
+            attempt === 5) throw error;
+        await new Promise(resolve => window.setTimeout(resolve, 500));
+      } finally {
+        if (activeConnection === request) activeConnection = null;
+      }
+    }
+  });
 }
 
 function formatLocalTimestamp(date) {
@@ -194,6 +236,8 @@ function updateClock() {
   const now = new Date();
   clock.textContent = formatLocalTimestamp(now);
   clock.dateTime = now.toISOString();
+  if (routeFromHash() === "daf-sac" && sacFlow.phase === "accepted")
+    renderSacParameters();
 }
 
 function selectedCan() {
@@ -382,19 +426,21 @@ function renderDtc() {
   const details = document.getElementById("dtc-details");
   const rows = document.getElementById("dtc-rows");
   const status = document.getElementById("dtc-status");
-  status.hidden = false;
-  details.hidden = true;
-  closeDtcDetails();
-  rows.replaceChildren();
   if (!session.connected) {
+    details.hidden = true;
+    status.hidden = false;
     text("dtc-status", t("api.signInRequired"));
     return;
   }
   if (!results.about) {
+    details.hidden = true;
+    status.hidden = false;
     text("dtc-status", t("api.dataUnavailable"));
     return;
   }
   if (!results.readout) {
+    details.hidden = true;
+    status.hidden = false;
     const code = failures.readout?.code;
     text("dtc-status", code === "readout_expired" ? t("dtc.expired")
       : code === "backend_unavailable" ? t("dtc.missing")
@@ -405,10 +451,18 @@ function renderDtc() {
   // A latest readout may refer to any ECU. Never attribute it to DAF SAC
   // without the validated SAC profile ID and a UDS-origin readout.
   if (!SAC_DTC_PROFILES.has(readout.profile_id) ||
-      readout.dtcs.protocol.toLowerCase() !== "uds") {
-    text("dtc-status", t("dtc.profileMismatch"));
+      readout.dtcs.protocol.toLowerCase() !== "uds" ||
+      !sacFlow.identity || readout.profile_id !== sacFlow.identity.profile_id ||
+      readout.captured_at_unix_ms < sacConnectedAt) {
+    details.hidden = true;
+    status.hidden = false;
+    text("dtc-status", t("sac.noSessionDtc"));
     return;
   }
+  const stamp = readout.captured_at_unix_ms + ":" + readout.completed_generation;
+  if (stamp === lastDtcStamp && !details.hidden) return;
+  lastDtcStamp = stamp;
+  rows.replaceChildren();
   // The static DTC section already labels this as historical. Status text
   // stays reserved for missing/expired/error conditions, never duplicated.
   status.hidden = true;
@@ -454,7 +508,11 @@ function renderApi() {
   text("prototype-api-state", t(healthy ? "api.kioskReady" : "api.kioskOffline"));
   const can = healthy ? selectedCan() : null;
   text("interface-value", can?.name ?? "—");
-  text("bitrate-value", can ? bitrate(can.bitrate) + " (" + canState(can) + ")" : "—");
+  // CAN UP/DOWN is a transient transport implementation detail during SAC
+  // polling, not a meaningful DUT status indicator for the operator.
+  text("bitrate-value", sacFlow.phase === "accepted" && sacFlow.identity
+    ? bitrate(sacFlow.identity.bitrate)
+    : can ? bitrate(can.bitrate) + " (" + canState(can) + ")" : "—");
   text("module-value", healthy && results.dut
     ? (results.dut.profile_label || "ID " + results.dut.profile_id) : "—");
   if (routeFromHash() === "can") renderCan();
@@ -469,6 +527,8 @@ function clearGuiSession() {
   parameterMonitor.stop();
   monitorStatus = "idle";
   parameterOperation = null;
+  sacConnectedAt = 0;
+  lastDtcStamp = null;
   emptyResults();
   renderApi();
 }
@@ -534,8 +594,10 @@ document.getElementById("sac-identity-ok").addEventListener("click", () => {
   sacFlow.accept();
 });
 document.getElementById("sac-retry").addEventListener("click", startSacConnection);
-document.getElementById("sac-refresh").addEventListener("click", () => {
-  if (parameterMonitor.active) parameterMonitor.refreshNow();
+document.getElementById("sac-cancel").addEventListener("click", () => {
+  // Cancel only the UI flow. Let the existing native read perform CAN cleanup.
+  sacFlow.reset();
+  navigate("truck-daf");
 });
 
 detailOverlay.addEventListener("click", (event) => {
@@ -564,11 +626,7 @@ root.addEventListener("click", (event) => {
       startSacConnection();
       return;
     }
-    if (!SAC_PAGES.has(routeChoice.dataset.route) &&
-        !SAC_FLOW_PAGES.has(routeChoice.dataset.route)) sacFlow.reset();
-    window.location.hash = "/" + routeChoice.dataset.route;
-    renderRoute();
-    if (routeChoice.dataset.route === "sac-dtc") void refresh();
+    navigate(routeChoice.dataset.route);
   }
 });
 
@@ -582,11 +640,21 @@ document.addEventListener("keydown", (event) => {
     sidebarToggle.focus();
   }
 });
+function navigate(route) {
+  if (!PAGES.has(route)) return;
+  if (routeFromHash() === route) {
+    setSidebarOpen(false);
+    return;
+  }
+  window.location.hash = "/" + route;
+}
+
 window.addEventListener("hashchange", () => {
-  if (!SAC_PAGES.has(routeFromHash()) && !SAC_FLOW_PAGES.has(routeFromHash()))
-    sacFlow.reset();
+  const page = routeFromHash();
+  if (!SAC_PAGES.has(page) && !SAC_FLOW_PAGES.has(page) &&
+      sacFlow.phase !== "connecting") sacFlow.reset();
   renderRoute();
-  if (routeFromHash() === "sac-dtc") void refresh();
+  if (page === "sac-dtc") void refresh();
 });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
@@ -602,5 +670,12 @@ renderRoute();
 updateClock();
 void refresh();
 // Fast wall clock is independent from backend refresh and hardware I/O.
-window.setInterval(updateClock, 1000);
+function scheduleClockTick() {
+  const delta = 1000 - (Date.now() % 1000);
+  window.setTimeout(() => {
+    updateClock();
+    scheduleClockTick();
+  }, delta);
+}
+scheduleClockTick();
 window.setInterval(() => { void refresh(); }, 10000);

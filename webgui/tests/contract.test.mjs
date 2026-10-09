@@ -157,7 +157,8 @@ test("SAC parameters follow legacy four-row presentation and stay fail-closed", 
     "sac-pressure-1", "sac-pressure-2", "sac-permanent-voltage", "sac-ignition-voltage"
   ]);
   assert.match(match[1], /sac-parameter-panel/);
-  assert.match(match[1], /sac.noReadout/);
+  assert.match(match[1], /id="sac-parameters-status"/);
+  assert.doesNotMatch(match[1], /data-i18n="sac.noReadout"/);
   assert.match(app, /SAC_DTC_PROFILES/);
   assert.match(app, /readout\.dtcs\.protocol\.toLowerCase\(\) !== "uds"/);
   assert.doesNotMatch(app, /read_dtcs\(|startDTCRead|clearDTC|CockpitController|SystemController/);

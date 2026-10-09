@@ -387,7 +387,11 @@ async function kioskFetch(path, method, fetchImpl) {
     (path === SAC_CONNECT_PATH ? "/kiosk/v1/bench/daf-sac/connect" :
       "/kiosk/v1/bench/daf-sac/parameters/read");
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), method === "POST" ? 70000 : 4000);
+  // Native read probe has a 17s server deadline. Keep independent limits
+  // for one-time 250/500 identification and screen-owned parameter reads.
+  const timeoutMs = method === "GET" ? 4000 :
+    path === SAC_CONNECT_PATH ? 40000 : 22000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetchImpl(url, {
       method, credentials: "omit", cache: "no-store", redirect: "error",

@@ -117,7 +117,8 @@ test("parameter endpoint rejects stale/mismatched/invalid completion",async()=>{
 
 test("fast clock is independent from slower API and CAN service refresh",()=>{
   const app=readFileSync(new URL("../src/app.mjs",import.meta.url),"utf8");
-  assert.match(app,/window\.setInterval\(updateClock, 1000\)/);
+  assert.match(app,/1000 - \(Date\.now\(\) % 1000\)/);
+  assert.match(app,/scheduleClockTick\(\)/);
   assert.match(app,/window\.setInterval\(\(\) => \{ void refresh\(\); \}, 10000\)/);
   assert.doesNotMatch(app,/window\.setInterval\(\(\) => \{\s*updateClock\(\);\s*void refresh/);
 });
@@ -126,5 +127,6 @@ test("only active route renders its expensive CAN and DTC lists",()=>{
   const app=readFileSync(new URL("../src/app.mjs",import.meta.url),"utf8");
   assert.match(app,/if \(routeFromHash\(\) === "can"\) renderCan\(\)/);
   assert.match(app,/if \(routeFromHash\(\) === "sac-dtc"\) renderDtc\(\)/);
-  assert.match(app,/if \(displayedPage === page\) return;/);
+  assert.match(app,/if \(displayedPage === page\) \{/);
+  assert.match(app,/setSidebarOpen\(false\);/);
 });
