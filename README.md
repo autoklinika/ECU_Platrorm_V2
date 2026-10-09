@@ -5,6 +5,16 @@ Laboratory platform for repair and testing of automotive electronics in
 actuator, sensor, gateway or other electronic module. This is **not just an
 automotive fault-code tester**.
 
+## Current development workflow
+
+For a live map of local worktrees, stacked PRs and CM5 deployment state,
+see [repository workflow baseline](docs/REPOSITORY_WORKFLOW_2026-10-09.md).
+Run `python3 scripts/ecu_repo_doctor.py status --github --siblings --cm5`
+for read-only diagnostics, or `python3 scripts/ecu_repo_doctor.py check
+--scope repo` for the repository itself. Choose `--scope sac` from a
+SAC candidate checkout for rapid **offline** regression. This is available on
+the workflow candidate branch; production `main` remains owner-gated.
+
 ## Layer boundaries
 
 1. **CORE V2:** portable, DUT-neutral bus, protocol and safety primitives.
