@@ -3,6 +3,7 @@ import {
 } from "./i18n.mjs";
 import { KioskSession, ApiError } from "./api-client.mjs";
 import { SacConnectionFlow } from "./sac-connect-flow.mjs";
+import { SacParameterMonitor } from "./sac-parameter-monitor.mjs";
 
 const PAGES = new Set([
   "home", "tests", "test-truck", "test-agri", "test-ohv",
@@ -35,6 +36,37 @@ let sidebarOpen = false;
 let refreshVersion = 0;
 let results = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
 let failures = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
+let monitorStatus = "idle";
+const parameterMonitor = new SacParameterMonitor({
+  read: async () => {
+    // Exactly one privileged, bounded native read-only operation at a time.
+    // Re-identification on every cycle rejects a changed physical DUT.
+    const identity = await session.identifySac();
+    const parameters = identity.parameters_published
+      ? await session.read("/api/v1/readouts/daf-sac/parameters/latest")
+      : null;
+    return {identity, parameters};
+  },
+  onUpdate: (event) => {
+    if (routeFromHash() !== "daf-sac" || document.hidden ||
+        sacFlow.phase !== "accepted") return;
+    monitorStatus = event.status;
+    if (event.status === "updated") {
+      sacFlow.updateParameters(event.identity);
+      results.parameters = event.parameters;
+      failures.parameters = null;
+    } else if (event.status === "unavailable" || event.status === "timeout") {
+      sacFlow.updateParameters(event.identity);
+      results.parameters = null;
+      failures.parameters = null;
+    } else if (event.status !== "reading") {
+      // Transport failure, ECU change or invalid snapshot: fail closed.
+      results.parameters = null;
+      failures.parameters = event.error ?? new ApiError(event.status);
+    }
+    renderSacParameters();
+  }
+});
 
 function t(key) { return translate(currentLocale, key); }
 function text(id, value) { document.getElementById(id).textContent = value; }
@@ -84,6 +116,24 @@ function renderRoute() {
   });
   setSidebarOpen(false);
   document.getElementById("main-content").scrollTop = 0;
+  syncParameterMonitoring();
+}
+
+function syncParameterMonitoring() {
+  const enabled = routeFromHash() === "daf-sac" &&
+    sacFlow.phase === "accepted" && !!sacFlow.identity && !document.hidden;
+  if (!enabled) {
+    parameterMonitor.stop();
+    monitorStatus = "idle";
+    return;
+  }
+  if (!parameterMonitor.active) {
+    // No archived values become current when returning to this screen.
+    results.parameters = null;
+    failures.parameters = null;
+    monitorStatus = "reading";
+    parameterMonitor.start(sacFlow.identity);
+  }
 }
 
 function renderSacConnectionPhase(phase) {
@@ -218,6 +268,18 @@ function renderSacParameters() {
     text("sac-parameters-status", t("sac.requiresIdentification"));
     return;
   }
+  if (monitorStatus === "dut_changed") {
+    text("sac-parameters-status", t("sac.dutChanged"));
+    return;
+  }
+  if (monitorStatus === "error" || monitorStatus === "invalid_readout") {
+    text("sac-parameters-status", t("sac.monitorCommunicationLost"));
+    return;
+  }
+  if (monitorStatus === "reading" && !results.parameters) {
+    text("sac-parameters-status", t("sac.monitorReading"));
+    return;
+  }
   if (!sacFlow.identity.parameters_published) {
     const reason = sacFlow.identity.parameters_status;
     text("sac-parameters-status", t(
@@ -254,7 +316,7 @@ function renderSacParameters() {
   const ageMs = Date.now() - record.captured_at_unix_ms;
   // A completed result is never a live stream. After 30 seconds retain
   // metadata only: no archived voltage/pressure in the current value cells.
-  if (ageMs >= 30000 || ageMs < -2000) {
+  if (ageMs >= (parameterMonitor.active ? 6000 : 30000) || ageMs < -2000) {
     text("sac-parameters-status", t("sac.archivedCapture") + " " +
       formatLocalTimestamp(new Date(record.captured_at_unix_ms)) +
       " — " + t("sac.refreshRequired"));
@@ -262,7 +324,7 @@ function renderSacParameters() {
   }
   text("sac-parameters-status", t("sac.historicalCapture") + " " +
     formatLocalTimestamp(new Date(record.captured_at_unix_ms)) +
-    " — " + t("sac.notLive"));
+    " — " + (parameterMonitor.active ? t("sac.monitorActive") : t("sac.notLive")));
   const values = record.parameters;
   text("sac-permanent-voltage", values.permanent_voltage_v.toFixed(1));
   text("sac-ignition-voltage", values.ignition_voltage_v.toFixed(1));
@@ -360,6 +422,8 @@ function clearGuiSession() {
   closeDtcDetails();
   sacFlow.reset();
   ++refreshVersion;
+  parameterMonitor.stop();
+  monitorStatus = "idle";
   emptyResults();
   renderApi();
 }
@@ -388,6 +452,12 @@ async function refresh() {
     emptyResults();
     failures.about = nextFailures.about;
   } else {
+    // The screen-scoped polling cycle owns the parameters when active.
+    // Global status refresh must not overwrite an in-flight newer capture.
+    if (parameterMonitor.active) {
+      nextResults.parameters = results.parameters;
+      nextFailures.parameters = failures.parameters;
+    }
     results = nextResults;
     failures = nextFailures;
   }
@@ -412,7 +482,9 @@ document.getElementById("sac-identity-ok").addEventListener("click", () => {
   sacFlow.accept();
 });
 document.getElementById("sac-retry").addEventListener("click", startSacConnection);
-document.getElementById("sac-refresh").addEventListener("click", startSacConnection);
+document.getElementById("sac-refresh").addEventListener("click", () => {
+  if (parameterMonitor.active) parameterMonitor.refreshNow();
+});
 
 detailOverlay.addEventListener("click", (event) => {
   if (event.target === detailOverlay) closeDtcDetails();
@@ -461,6 +533,14 @@ window.addEventListener("hashchange", () => {
   if (!SAC_PAGES.has(routeFromHash()) && !SAC_FLOW_PAGES.has(routeFromHash()))
     sacFlow.reset();
   renderRoute();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    parameterMonitor.stop();
+    results.parameters = null;
+  }
+  syncParameterMonitoring();
+  renderSacParameters();
 });
 window.addEventListener("pagehide", clearGuiSession);
 renderLocale(currentLocale);

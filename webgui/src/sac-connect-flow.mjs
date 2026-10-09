@@ -32,6 +32,19 @@ export class SacConnectionFlow {
     }
     this.#onChange(this.phase);
   }
+  updateParameters(identity) {
+    if (this.phase !== "accepted" || !this.identity || !identity ||
+        this.identity.profile_id !== identity.profile_id ||
+        this.identity.bitrate !== identity.bitrate ||
+        this.identity.vin_status !== identity.vin_status ||
+        this.identity.vin !== identity.vin ||
+        this.identity.software !== identity.software ||
+        this.identity.hardware !== identity.hardware) return false;
+    // Preserve accepted route; never re-open the identification dialog
+    // for an automatic read-only refresh from the same physical DUT.
+    this.identity = identity;
+    return true;
+  }
   accept() {
     if (this.phase !== "identified" || !this.identity) return false;
     this.phase = "accepted";
