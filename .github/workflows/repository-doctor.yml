@@ -1,0 +1,39 @@
+name: Repository workflow and safety checks
+
+on:
+  push:
+    paths:
+      - "scripts/ecu_repo_doctor.py"
+      - "tests/test_repo_doctor.py"
+      - "docs/REPOSITORY_WORKFLOW_2026-10-09.md"
+      - ".github/workflows/repository-doctor.yml"
+      - ".gitignore"
+  pull_request:
+    paths:
+      - "scripts/ecu_repo_doctor.py"
+      - "tests/test_repo_doctor.py"
+      - "docs/REPOSITORY_WORKFLOW_2026-10-09.md"
+      - ".github/workflows/repository-doctor.yml"
+      - ".gitignore"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-repository-governance:
+    name: Repo doctor — ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cross-platform offline unit tests (no device access)
+        run: python -m unittest discover -s tests -p test_repo_doctor.py -v
+      - name: Local Git snapshot (no network, no modifications)
+        run: python scripts/ecu_repo_doctor.py status --json
