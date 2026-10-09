@@ -35,6 +35,8 @@ READ_PROXY = {
 }
 CONNECT_PROXY = "/kiosk/v1/bench/daf-sac/connect"
 CONNECT_TARGET = "/api/v1/bench/daf-sac/connect"
+PARAMETERS_PROXY = "/kiosk/v1/bench/daf-sac/parameters/read"
+PARAMETERS_TARGET = "/api/v1/bench/daf-sac/parameters/read"
 MAX_PROXY_JSON = 32768
 
 
@@ -72,7 +74,7 @@ class Handler(BaseHTTPRequestHandler):
         self._serve(include_body=False)
 
     def do_POST(self):
-        if self.path == CONNECT_PROXY:
+        if self.path in (CONNECT_PROXY, PARAMETERS_PROXY):
             self._proxy("POST")
             return
         self.send_error(405, "No such kiosk operation")
@@ -91,7 +93,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             token = server_bearer()
             port = 8878 if method == "GET" else 8879
-            path = READ_PROXY[self.path] if method == "GET" else CONNECT_TARGET
+            path = (READ_PROXY[self.path] if method == "GET" else
+                    CONNECT_TARGET if self.path == CONNECT_PROXY else PARAMETERS_TARGET)
             conn = http.client.HTTPConnection("127.0.0.1", port,
                 timeout=65 if method == "POST" else 4)
             try:

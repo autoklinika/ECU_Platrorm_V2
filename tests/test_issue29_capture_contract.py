@@ -2,6 +2,10 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest import mock
+from contextlib import redirect_stdout
+import io
+import sys
 
 MODULE = Path(__file__).resolve().parents[1] / "scripts/verify_cm5_sac_issue29_physical.py"
 spec = importlib.util.spec_from_file_location("issue29_capture_check", MODULE)
@@ -55,6 +59,49 @@ class Issue29CaptureContract(unittest.TestCase):
         identity["parameters_status"] = "timeout"
         with self.assertRaises(RuntimeError):
             verifier.check_capture(identity, capture)
+
+    def test_physical_flow_connect_once_then_two_parameter_only_reads(self):
+        calls = []
+        state = {"generation": 0, "timestamp": 1791545568000}
+
+        def fake_request(method, path):
+            calls.append((method, path))
+            if path == verifier.CONNECT:
+                return {"bitrate":250000,"profile_id":0xDAF00025,
+                        "vin":None,"hardware":"K075169","software":"1973214"}
+            if path == verifier.PARAM_READ:
+                state["generation"] += 1
+                state["timestamp"] += 2000
+                return {
+                    "bitrate":250000, "profile_id":0xDAF00025,
+                    "parameters_published":True,"parameters_status":"completed",
+                    "parameter_captured_at_unix_ms":state["timestamp"],
+                    "parameter_completed_generation":state["generation"]
+                }
+            if path == verifier.PARAMS:
+                return {
+                    "source":"completed_application_operation", "live":False,
+                    "profile_id":0xDAF00025,
+                    "captured_at_unix_ms":state["timestamp"],
+                    "completed_generation":state["generation"],
+                    "parameters":{"permanent_voltage_v":22.4,
+                                  "ignition_voltage_v":22.4,
+                                  "pgn_feae_observed":True,
+                                  "pressure1_bar":None,"pressure2_bar":None}
+                }
+            self.fail("Unexpected hardware/API route")
+
+        with mock.patch.object(verifier, "request", side_effect=fake_request), \
+             mock.patch.object(verifier, "can_down"), \
+             mock.patch.object(verifier, "DTC", mock.Mock(read_bytes=lambda: b"same-dtcs")), \
+             mock.patch.object(sys, "argv", ["verify","--physical"]), \
+             redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(verifier.main(),0)
+        self.assertEqual(calls, [
+            ("POST",verifier.CONNECT), ("POST",verifier.PARAM_READ),
+            ("GET",verifier.PARAMS), ("POST",verifier.PARAM_READ),
+            ("GET",verifier.PARAMS)])
+        self.assertIn("SAC_ISSUE29_PHYSICAL=PASS",out.getvalue())
 
     def test_fe96_out_of_range_and_invalid_feae_rejected(self):
         for name, value in (("permanent_voltage_v", 70.0),

@@ -37,26 +37,27 @@ let refreshVersion = 0;
 let results = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
 let failures = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
 let monitorStatus = "idle";
+let parameterOperation = null;
 const parameterMonitor = new SacParameterMonitor({
   read: async () => {
-    // Exactly one privileged, bounded native read-only operation at a time.
-    // Re-identification on every cycle rejects a changed physical DUT.
-    const identity = await session.identifySac();
-    const parameters = identity.parameters_published
+    // Only FE96 and passive FEAE: the privileged service already knows the
+    // bitrate/profile from the ONE initial VIN/HW/SW connection.
+    const operation = await session.readSacParameters();
+    const parameters = operation.parameters_published
       ? await session.read("/api/v1/readouts/daf-sac/parameters/latest")
       : null;
-    return {identity, parameters};
+    return {operation, parameters};
   },
   onUpdate: (event) => {
     if (routeFromHash() !== "daf-sac" || document.hidden ||
         sacFlow.phase !== "accepted") return;
     monitorStatus = event.status;
     if (event.status === "updated") {
-      sacFlow.updateParameters(event.identity);
+      parameterOperation = event.operation;
       results.parameters = event.parameters;
       failures.parameters = null;
     } else if (event.status === "unavailable" || event.status === "timeout") {
-      sacFlow.updateParameters(event.identity);
+      parameterOperation = event.operation;
       results.parameters = null;
       failures.parameters = null;
     } else if (event.status !== "reading") {
@@ -121,7 +122,8 @@ function renderRoute() {
 
 function syncParameterMonitoring() {
   const enabled = routeFromHash() === "daf-sac" &&
-    sacFlow.phase === "accepted" && !!sacFlow.identity && !document.hidden;
+    sacFlow.phase === "accepted" && !!sacFlow.identity &&
+    monitorStatus !== "session_expired" && !document.hidden;
   if (!enabled) {
     parameterMonitor.stop();
     monitorStatus = "idle";
@@ -130,6 +132,7 @@ function syncParameterMonitoring() {
   if (!parameterMonitor.active) {
     // No archived values become current when returning to this screen.
     results.parameters = null;
+    parameterOperation = null;
     failures.parameters = null;
     monitorStatus = "reading";
     parameterMonitor.start(sacFlow.identity);
@@ -156,6 +159,7 @@ function renderSacConnectionPhase(phase) {
     text("sac-communication-error-message", t(key));
     window.location.hash = "/sac-communication-error";
   } else if (phase === "accepted") {
+    monitorStatus = "idle";
     window.location.hash = "/daf-sac";
     void refresh();
   }
@@ -268,8 +272,12 @@ function renderSacParameters() {
     text("sac-parameters-status", t("sac.requiresIdentification"));
     return;
   }
-  if (monitorStatus === "dut_changed") {
+  if (monitorStatus === "profile_mismatch") {
     text("sac-parameters-status", t("sac.dutChanged"));
+    return;
+  }
+  if (monitorStatus === "session_expired") {
+    text("sac-parameters-status", t("sac.sessionExpired"));
     return;
   }
   if (monitorStatus === "error" || monitorStatus === "invalid_readout") {
@@ -280,8 +288,8 @@ function renderSacParameters() {
     text("sac-parameters-status", t("sac.monitorReading"));
     return;
   }
-  if (!sacFlow.identity.parameters_published) {
-    const reason = sacFlow.identity.parameters_status;
+  if (!parameterOperation?.parameters_published) {
+    const reason = parameterOperation?.parameters_status;
     text("sac-parameters-status", t(
       reason === "timeout" ? "sac.parameterTimeout"
         : reason === "invalid" ? "sac.parameterInvalid"
@@ -298,8 +306,9 @@ function renderSacParameters() {
   }
   const record = results.parameters;
   if (record && (record.profile_id !== sacFlow.identity.profile_id ||
-      record.captured_at_unix_ms !== sacFlow.identity.parameter_captured_at_unix_ms ||
-      record.completed_generation !== sacFlow.identity.parameter_completed_generation)) {
+      record.profile_id !== parameterOperation?.profile_id ||
+      record.captured_at_unix_ms !== parameterOperation.parameter_captured_at_unix_ms ||
+      record.completed_generation !== parameterOperation.parameter_completed_generation)) {
     text("sac-parameters-status", t("sac.profileMismatch"));
     return;
   }
@@ -414,8 +423,8 @@ function renderApi() {
   text("module-value", healthy && results.dut
     ? (results.dut.profile_label || "ID " + results.dut.profile_id) : "—");
   renderCan();
-  renderDtc();
-  renderSacParameters();
+  if (routeFromHash() === "sac-dtc") renderDtc();
+  if (routeFromHash() === "daf-sac") renderSacParameters();
 }
 
 function clearGuiSession() {
@@ -424,6 +433,7 @@ function clearGuiSession() {
   ++refreshVersion;
   parameterMonitor.stop();
   monitorStatus = "idle";
+  parameterOperation = null;
   emptyResults();
   renderApi();
 }
@@ -433,10 +443,12 @@ async function refresh() {
   const paths = [
     [ "about", "/api/v1/about" ],
     [ "interfaces", "/api/v1/interfaces" ],
-    [ "dut", "/api/v1/dut" ],
-    [ "readout", "/api/v1/readouts/dtc/latest" ],
-    [ "parameters", "/api/v1/readouts/daf-sac/parameters/latest" ]
+    [ "dut", "/api/v1/dut" ]
   ];
+  // Screen responsibility: only the DTC page queries DTC readout.
+  // Parameters are fetched by SacParameterMonitor ONLY on its own page.
+  if (routeFromHash() === "sac-dtc")
+    paths.push(["readout", "/api/v1/readouts/dtc/latest"]);
   const responses = await Promise.allSettled(paths.map(([, path]) => session.read(path)));
   if (version !== refreshVersion) return;
   const nextResults = {};
@@ -446,6 +458,11 @@ async function refresh() {
     nextResults[name] = response.status === "fulfilled" ? response.value : null;
     nextFailures[name] = response.status === "rejected" ? response.reason : null;
   });
+  // Explicitly absent fields are not retained from a previous screen.
+  for (const name of ["readout", "parameters"]) {
+    nextResults[name] ??= null;
+    nextFailures[name] ??= null;
+  }
   // When the API is unreachable, clear *all* displayed values, including
   // historical data; a prior successful response must never masquerade as live.
   if (!nextResults.about) {
@@ -516,6 +533,7 @@ root.addEventListener("click", (event) => {
         !SAC_FLOW_PAGES.has(routeChoice.dataset.route)) sacFlow.reset();
     window.location.hash = "/" + routeChoice.dataset.route;
     renderRoute();
+    if (routeChoice.dataset.route === "sac-dtc") void refresh();
   }
 });
 
@@ -533,6 +551,7 @@ window.addEventListener("hashchange", () => {
   if (!SAC_PAGES.has(routeFromHash()) && !SAC_FLOW_PAGES.has(routeFromHash()))
     sacFlow.reset();
   renderRoute();
+  if (routeFromHash() === "sac-dtc") void refresh();
 });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {

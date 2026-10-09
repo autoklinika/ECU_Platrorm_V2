@@ -134,11 +134,8 @@ class ParserSafety(unittest.TestCase):
                 winner = 500000 if failed_first else 250000
                 self.assertEqual(result["bitrate"], winner)
                 self.assertEqual(result["profile_id"], dict(module.BITRATE_PROFILES)[winner])
-                self.assertTrue(result["parameters_published"])
-                self.assertEqual(result["parameters_status"], "completed")
-                self.assertEqual(result["parameter_completed_generation"], 1)
-                self.assertGreaterEqual(result["parameter_captured_at_unix_ms"],
-                                        result["parameter_capture_floor_ms"])
+                self.assertNotIn("parameters_published", result)
+                self.assertNotIn("parameter_completed_generation", result)
                 self.assertFalse(current["up"])
                 observed_speeds = [int(args[args.index("bitrate") + 1])
                     for args in calls if "bitrate" in args]
@@ -146,8 +143,8 @@ class ParserSafety(unittest.TestCase):
                     [250000, 500000] if failed_first else [250000])
                 self.assertEqual([args[1][1] for args in probe_calls if len(args[1]) == 2],
                     ["250000", "500000"] if failed_first else ["250000"])
-                self.assertEqual([args[1][2] for args in probe_calls if len(args[1]) == 4],
-                    [str(winner)])
+                self.assertEqual([args for args in probe_calls if len(args[1]) == 4],
+                                 [], "connection MUST NOT read parameters")
                 if failed_first:
                     down_positions = [i for i,x in enumerate(calls)
                         if x == ("link", "set", "can0", "down")]
@@ -178,38 +175,58 @@ class ParserSafety(unittest.TestCase):
             with self.subTest(corrupt=corrupt[-95:]), self.assertRaises(module.Refused):
                 module.verified_parameter_capture(corrupt, profile, floor, floor)
 
-    def test_failed_new_parameter_capture_never_claims_old_values(self):
-        current = {"up": False, "bitrate": 250000}
+    def test_parameter_cycle_never_re_identifies_and_cleans_up(self):
+        current = {"up": False, "speed": 0}
+        calls = []
+        floor = int(time.time() * 1000)
+
         def fake_ip(*args):
+            calls.append(args)
             if args == ("link", "set", "can0", "down"):
                 current["up"] = False
             elif args == ("link", "set", "can0", "up"):
                 current["up"] = True
             elif "bitrate" in args:
-                current["bitrate"] = int(args[args.index("bitrate")+1])
+                current["speed"] = int(args[args.index("bitrate")+1])
             return SimpleNamespace(stdout=json.dumps([{
                 "flags": ["UP"] if current["up"] else [],
                 "linkinfo": {"info_data": {
-                    "bittiming": {"bitrate": current["bitrate"]},
+                    "bittiming": {"bitrate": current["speed"]},
                     "state": "ERROR-ACTIVE"}}}]))
+
+        probes = []
         def fake_probe(path, args, operator):
-            if len(args) == 2:
-                speed = int(args[1])
-                return (f"SAC_PHYSICAL_PROBE={module.identification_start(speed)}\n"
-                        "SAC_VIN_STATUS=UNPROGRAMMED_FF17\n"
-                        "SAC_IDENTIFICATION_COMPLETENESS=PARTIAL_NO_VIN\n"
-                        "SAC_SOFTWARE=2027746\nSAC_HARDWARE=K127968\n"
-                        "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN\n")
-            raise module.Refused("communication_timeout")
+            probes.append((path, args))
+            assert path == module.PROBE_PARAMS
+            assert args[:3] == ["can0", "parameters", "500000"]
+            return ("SAC_STAGE42_READ_PHYSICAL=PASS\n"
+                    f"SAC_API_PARAMETERS_CAPTURED_AT_UNIX_MS={int(time.time()*1000)}\n"
+                    f"SAC_API_PARAMETERS_PROFILE_ID={0xDAF00050}\n"
+                    "SAC_API_PARAMETERS_COMPLETED_GENERATION=1\n"
+                    "SAC_API_PARAMETERS_READOUT_PUBLISHED=PASS historical-completed-operation\n")
+
+        profile = 0xDAF00050
         with mock.patch.object(module, "is_up", side_effect=lambda: current["up"]), \
              mock.patch.object(module, "ip", side_effect=fake_ip), \
              mock.patch.object(module, "run_probe", side_effect=fake_probe):
-            result = module.connect_once(SimpleNamespace(pw_uid=1000,pw_gid=1000))
-        self.assertEqual(result["parameters_status"], "timeout")
-        self.assertFalse(result["parameters_published"])
-        self.assertIsNone(result["parameter_captured_at_unix_ms"])
-        self.assertEqual(result["parameter_completed_generation"], 0)
-        self.assertFalse(current["up"])
+            answer = module.parameters_once(SimpleNamespace(pw_uid=1000,pw_gid=1000),
+                                            500000, profile)
+            self.assertEqual(answer["parameters_status"], "completed")
+            self.assertEqual(len(probes), 1)
+            self.assertFalse(current["up"])
+            self.assertEqual(current["speed"], 500000)
+
+            def failure(_path, _args, _operator):
+                raise module.Refused("communication_timeout")
+            with mock.patch.object(module, "run_probe", side_effect=failure):
+                timeout = module.parameters_once(
+                    SimpleNamespace(pw_uid=1000,pw_gid=1000), 500000, profile)
+            self.assertEqual(timeout["parameters_status"], "timeout")
+            self.assertIsNone(timeout["parameter_captured_at_unix_ms"])
+            self.assertFalse(current["up"])
+        self.assertEqual([x for x in calls if "bitrate" in x],
+                         [("link","set","can0","type","can","bitrate","500000","fd",
+                           "off","listen-only","off")] * 2)
 
     def test_invalid_identity_aborts_without_second_bitrate(self):
         current = {"up": False, "speed": 0}
@@ -262,6 +279,8 @@ class HttpSafety(unittest.TestCase):
         cls.server = module.ThreadingHTTPServer(("127.0.0.1", 0), module.Handler)
         cls.server.token = "a" * 64
         cls.server.operator = SimpleNamespace(pw_uid=1000, pw_gid=1000)
+        cls.server.active_sac = None
+        cls.server.active_sac_at = 0.0
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
         cls.address = f"http://127.0.0.1:{cls.server.server_port}"
@@ -319,6 +338,45 @@ class HttpSafety(unittest.TestCase):
                 self.assertEqual(result.status, 204)
                 self.assertEqual(result.headers["Access-Control-Allow-Origin"], module.ORIGIN)
             physical.assert_not_called()
+
+    def test_parameters_route_requires_connection_and_never_runs_identity(self):
+        self.server.active_sac = None
+        with mock.patch.object(module, "connect_once") as identify, \
+             mock.patch.object(module, "parameters_once") as read:
+            status, body, _ = self.call(
+                "POST", path=module.SAC_PARAMETERS_PATH,
+                token="Bearer " + "a"*64)
+            self.assertEqual(status, 409)
+            self.assertEqual(body["error"]["code"], "session_expired")
+            identify.assert_not_called()
+            read.assert_not_called()
+
+        self.server.active_sac = (500000, 0xDAF00050)
+        self.server.active_sac_at = time.monotonic()
+        valid = {"bitrate":500000,"profile_id":0xDAF00050,
+                 "parameters_published":False,"parameters_status":"unavailable",
+                 "parameter_capture_floor_ms":123,
+                 "parameter_captured_at_unix_ms":None,
+                 "parameter_completed_generation":0}
+        with mock.patch.object(module, "connect_once") as identify, \
+             mock.patch.object(module, "parameters_once", return_value=valid) as read:
+            status, body, _ = self.call(
+                "POST", path=module.SAC_PARAMETERS_PATH,
+                token="Bearer " + "a"*64)
+            self.assertEqual(status, 200)
+            self.assertEqual(body["data"], valid)
+            identify.assert_not_called()
+            read.assert_called_once()
+            self.assertEqual(read.call_args.args[1:], (500000, 0xDAF00050))
+
+        self.server.active_sac_at = time.monotonic()-module.SESSION_IDLE_SECONDS-1
+        with mock.patch.object(module, "parameters_once") as read:
+            status, body, _ = self.call(
+                "POST", path=module.SAC_PARAMETERS_PATH,
+                token="Bearer " + "a"*64)
+            self.assertEqual(status, 409)
+            read.assert_not_called()
+        self.server.active_sac = None
 
     def test_authenticated_fixed_read_returns_only_validated_data(self):
         data = {"vin": None, "vin_status": "UNPROGRAMMED_FF17",

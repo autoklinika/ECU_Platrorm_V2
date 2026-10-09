@@ -1,10 +1,9 @@
 // Screen-scoped, sequential SAC measurement polling.
-// Each cycle uses the EXISTING read-only, auto-bitrate native connection adapter.
-// No CAN access here, no parallel probes and no device commands from WebGUI.
-const sameDut = (a, b) => a && b &&
-  a.profile_id === b.profile_id && a.bitrate === b.bitrate &&
-  a.vin_status === b.vin_status && a.vin === b.vin &&
-  a.software === b.software && a.hardware === b.hardware;
+// Identification is completed ONCE at connect. Each cycle invokes only
+// the dedicated native FE96/FEAE read for the selected backend DUT session.
+// WebGUI cannot access CAN or initiate generic commands.
+const sameProfile = (a,b) => a && b &&
+  a.profile_id === b.profile_id && a.bitrate === b.bitrate;
 
 export class SacParameterMonitor {
   #read;
@@ -46,7 +45,7 @@ export class SacParameterMonitor {
     this.#active = true;
     ++this.#epoch;
     this.#identity = identity;
-    this.#lastCapture = identity.parameter_captured_at_unix_ms ?? 0;
+    this.#lastCapture = 0;
     this.#queue(0);
   }
 
@@ -84,36 +83,44 @@ export class SacParameterMonitor {
     this.#emit({status:"reading"});
     let success = false;
     try {
-      const {identity, parameters} = await this.#read();
+      const {operation, parameters} = await this.#read();
       if (!this.#active || epoch !== this.#epoch) return;
-      if (!sameDut(this.#identity, identity)) {
-        this.#emit({status:"dut_changed"});
+      // Verify session/profile, not ECU identification (which belongs ONLY
+      // to the connection stage).
+      if (!sameProfile(this.#identity, operation)) {
+        this.#emit({status:"profile_mismatch"});
         this.stop();
         return;
       }
-      this.#identity = identity;
-      if (!identity.parameters_published || identity.parameters_status !== "completed") {
-        this.#emit({status:identity.parameters_status === "timeout" ? "timeout" : "unavailable",
-                    identity});
+      if (!operation.parameters_published ||
+          operation.parameters_status !== "completed") {
+        this.#emit({status:operation.parameters_status === "timeout" ? "timeout" : "unavailable",
+                    operation});
         return;
       }
       if (!parameters || parameters.live !== false ||
           parameters.source !== "completed_application_operation" ||
-          parameters.profile_id !== identity.profile_id ||
-          parameters.captured_at_unix_ms !== identity.parameter_captured_at_unix_ms ||
-          parameters.completed_generation !== identity.parameter_completed_generation ||
+          parameters.profile_id !== operation.profile_id ||
+          parameters.captured_at_unix_ms !== operation.parameter_captured_at_unix_ms ||
+          parameters.completed_generation !== operation.parameter_completed_generation ||
           parameters.captured_at_unix_ms <= this.#lastCapture ||
           parameters.captured_at_unix_ms < this.#clock() - 6000 ||
           parameters.captured_at_unix_ms > this.#clock() + 2000) {
-        this.#emit({status:"invalid_readout", identity});
+        this.#emit({status:"invalid_readout", operation});
         return;
       }
       this.#lastCapture = parameters.captured_at_unix_ms;
       success = true;
-      this.#emit({status:"updated", identity, parameters});
+      this.#emit({status:"updated", operation, parameters});
     } catch (error) {
-      if (this.#active && epoch === this.#epoch)
-        this.#emit({status:"error", error});
+      if (this.#active && epoch === this.#epoch) {
+        if (error?.code === "session_expired") {
+          this.#emit({status:"session_expired", error});
+          this.stop();
+        } else {
+          this.#emit({status:"error", error});
+        }
+      }
     } finally {
       this.#busy = false;
       if (this.#active) this.#queue(success ? this.#delay : this.#retryDelay);

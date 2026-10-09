@@ -1,11 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SacConnectionFlow } from "../src/sac-connect-flow.mjs";
-import { requestSacIdentity, ApiError, SAC_CONNECT_ROOT, SAC_CONNECT_PATH } from "../src/api-client.mjs";
+import { requestSacIdentity, requestSacParameters, ApiError, SAC_CONNECT_ROOT,
+  SAC_CONNECT_PATH, SAC_PARAMETERS_PATH } from "../src/api-client.mjs";
 const token = "a".repeat(64);
-const ok = () => { const at = Date.now(); return ({
+const ok = () => ({
   profile_id:0xDAF00050,bitrate:500000,vin:null,vin_status:"UNPROGRAMMED_FF17",
-  software:"2027746",hardware:"K127968",parameters_published:true,
+  software:"2027746",hardware:"K127968"
+});
+const operation = () => { const at = Date.now(); return ({
+  profile_id:0xDAF00050,bitrate:500000,parameters_published:true,
   parameters_status:"completed",parameter_capture_floor_ms:at,
   parameter_captured_at_unix_ms:at,parameter_completed_generation:1
 }); };
@@ -27,19 +31,21 @@ test("invalid identity and communication failure are rejected",async()=>{
    await assert.rejects(requestSacIdentity(token,async()=>reply(invalid)),e=>e.code==="invalid_response");
  await assert.rejects(requestSacIdentity(token,async()=>reply({code:"communication_failed"},503)),e=>e.code==="communication_failed");
 });
-test("completed capture must bind to exact generation, profile and time",async()=>{
-  const fresh=ok();
+test("parameter-only capture requires exact generation, profile and time",async()=>{
+  const fresh=operation();
   for (const corrupt of [
     {...fresh,parameter_captured_at_unix_ms:fresh.parameter_capture_floor_ms-1},
     {...fresh,parameter_completed_generation:0},
     {...fresh,parameter_captured_at_unix_ms:Date.now()+5000},
     {...fresh,parameters_published:false},
     {...fresh,parameters_status:"timeout"},
-  ]) await assert.rejects(requestSacIdentity(token,async()=>reply(corrupt)),
-      e=>e.code==="invalid_response");
+  ]) await assert.rejects(requestSacParameters(token,async(url)=> {
+    assert.equal(url,SAC_CONNECT_ROOT+SAC_PARAMETERS_PATH);
+    return reply(corrupt);
+  }),e=>e.code==="invalid_response");
   const unavailable={...fresh,parameters_published:false,parameters_status:"timeout",
     parameter_captured_at_unix_ms:null,parameter_completed_generation:0};
-  assert.equal((await requestSacIdentity(token,async()=>reply(unavailable))).parameters_status,"timeout");
+  assert.equal((await requestSacParameters(token,async()=>reply(unavailable))).parameters_status,"timeout");
 });
 test("identification must be confirmed, cancelled requests never reopen",async()=>{
  const flow=new SacConnectionFlow();

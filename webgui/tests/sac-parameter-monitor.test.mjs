@@ -44,7 +44,7 @@ test("continuous screen polling: two distinct native read cycles and null pressu
   const w=clockwork(async()=>{
     calls++;
     now+=2000;
-    return {identity:identity({parameter_captured_at_unix_ms:now}),
+    return {operation:identity({parameter_captured_at_unix_ms:now}),
       parameters:parameters(now)};
   }, x=>updates.push(x));
   w.monitor.start(start);
@@ -72,7 +72,7 @@ test("no overlapping hardware requests; leaving page ignores an in-flight reply"
   assert.equal(w.monitor.busy,true);
   assert.equal(w.monitor.refreshNow(),false);
   w.monitor.stop();
-  resolve({identity:identity(),parameters:parameters()});
+  resolve({operation:identity(),parameters:parameters()});
   await flush();
   assert.equal(calls,1);
   assert.equal(w.monitor.active,false);
@@ -87,7 +87,7 @@ test("lost communication and corrupt snapshot both fail closed and retry later",
     attempt++;
     if(attempt===1) throw Error("ECU disconnect");
     now+=2000;
-    return {identity:identity({parameter_captured_at_unix_ms:now}),
+    return {operation:identity({parameter_captured_at_unix_ms:now}),
       parameters:parameters(now+1)};
   },e=>events.push(e.status));
   w.monitor.start(identity({parameter_captured_at_unix_ms:now-1000}));
@@ -100,21 +100,21 @@ test("lost communication and corrupt snapshot both fail closed and retry later",
   w.monitor.stop();
 });
 
-test("changed ECU or bitrate stops measurements instead of misattributing values",async()=>{
-  for(const change of [
-    {hardware:"OTHER"},{bitrate:250000,profile_id:0xDAF00025},
-    {software:"DIFFERENT"},{vin_status:"VALID_ASCII",vin:"XLRTEH4300G121236"}
-  ]){
+test("profile or CAN speed mismatch stops acquisition without re-identification",async()=>{
+  for (const change of [
+    {bitrate:250000,profile_id:0xDAF00025},
+    {profile_id:0xDAF00025}
+  ]) {
     let calls=0;
     const events=[];
     const w=clockwork(async()=>{
       calls++; now+=2000;
-      return {identity:identity({...change,parameter_captured_at_unix_ms:now}),
+      return {operation:identity({...change,parameter_captured_at_unix_ms:now}),
         parameters:parameters(now)};
     },e=>events.push(e.status));
     w.monitor.start(identity({parameter_captured_at_unix_ms:now-1000}));
     await w.tick();
-    assert.equal(events.at(-1),"dut_changed");
+    assert.equal(events.at(-1),"profile_mismatch");
     assert.equal(w.monitor.active,false);
     assert.equal(w.tasks.size,0);
     assert.equal(calls,1);
@@ -124,25 +124,34 @@ test("changed ECU or bitrate stops measurements instead of misattributing values
 test("new identity with unavailable pressure service clears measured values",async()=>{
   const events=[];
   const w=clockwork(async()=>({
-    identity:identity({parameters_published:false,parameters_status:"timeout",
+    operation:identity({parameters_published:false,parameters_status:"timeout",
       parameter_captured_at_unix_ms:null,parameter_completed_generation:0}),
     parameters:null
   }),e=>events.push(e));
   w.monitor.start(identity());
   await w.tick();
   assert.equal(events.at(-1).status,"timeout");
-  assert.equal(events.at(-1).identity.parameters_published,false);
+  assert.equal(events.at(-1).operation.parameters_published,false);
   w.monitor.stop();
 });
 
-test("accepted SAC flow updates parameters in place but not ECU identity",async()=>{
+test("completed connection identity remains unchanged across parameter screen",async()=>{
   const flow=new SacConnectionFlow();
   await flow.begin(async()=>identity());
   assert.equal(flow.accept(),true);
-  assert.equal(flow.updateParameters(identity({parameter_captured_at_unix_ms:now+2000})),true);
   assert.equal(flow.phase,"accepted");
-  assert.equal(flow.updateParameters(identity({hardware:"OTHER"})),false);
   assert.equal(flow.identity.hardware,"K127968");
   flow.reset();
-  assert.equal(flow.updateParameters(identity()),false);
+  assert.equal(flow.identity,null);
+});
+
+test("expired backend session stops polling and requires explicit reconnect",async()=>{
+  const updates=[];
+  const w=clockwork(async()=>{const e=Error("expired");e.code="session_expired";throw e;},
+    e=>updates.push(e.status));
+  w.monitor.start(identity());
+  await w.tick();
+  assert.equal(updates.at(-1),"session_expired");
+  assert.equal(w.monitor.active,false);
+  assert.equal(w.tasks.size,0);
 });

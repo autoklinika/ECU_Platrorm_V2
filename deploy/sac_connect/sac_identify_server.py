@@ -1,8 +1,9 @@
 #!/usr/bin/python3
 """Linux-only, bounded DAF SAC 250k/500k read-only connection adapter.
 
-This isolated application adapter owns can0 for ONE operator-initiated
-request. The browser never gets device, agent socket or shell access.
+This isolated adapter establishes DUT identity ONCE; afterward the
+parameters page requests only FE96/FEAE through the existing trusted native
+probe and cached session bitrate. No browser CAN/device access.
 """
 from __future__ import annotations
 
@@ -19,6 +20,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST, PORT = "127.0.0.1", 8879
 SAC_CONNECT_PATH = "/api/v1/bench/daf-sac/connect"
+SAC_PARAMETERS_PATH = "/api/v1/bench/daf-sac/parameters/read"
+# A successful identification selects the DUT profile once. Further parameter
+# reads reuse this server-owned session; no F190/F188/F192 repeat.
+SESSION_IDLE_SECONDS = 15 * 60
 ORIGIN = "http://127.0.0.1:8877"
 TOKEN_FILE = Path("/etc/ecu-platform-v2/api/token")
 PROBE_IDENT = Path("/usr/local/libexec/ecu-platform-v2/sac-identity-500k-probe")
@@ -154,6 +159,76 @@ def verified_parameter_capture(stdout: str, expected_profile: int,
     return captured, generation
 
 
+def configure_can(bitrate: int) -> None:
+    ip("link", "set", "can0", "down")
+    if is_up():
+        raise Refused("can_cleanup_failed")
+    ip("link", "set", "can0", "type", "can", "bitrate",
+       str(bitrate), "fd", "off", "listen-only", "off")
+    ip("link", "set", "can0", "up")
+    state = json.loads(ip("-j", "-d", "link", "show", "dev", "can0").stdout)[0]
+    can = state.get("linkinfo", {}).get("info_data", {})
+    mode = can.get("ctrlmode", [])
+    if ("UP" not in state.get("flags", []) or
+            can.get("bittiming", {}).get("bitrate") != bitrate or
+            can.get("state") == "BUS-OFF" or
+            "LISTEN-ONLY" in mode or "FD" in mode or
+            can.get("listen-only", False)):
+        raise Refused("interface_unavailable")
+
+
+def parameters_once(operator: pwd.struct_passwd, bitrate: int, profile: int) -> dict:
+    """Only FE96 + passive FEAE for the already identified DUT profile."""
+    if dict(BITRATE_PROFILES).get(bitrate) != profile:
+        raise Refused("invalid_session")
+    if is_up():
+        raise Refused("bench_busy", 409)
+    fault = None
+    answer = None
+    floor = int(time.time() * 1000)
+    try:
+        configure_can(bitrate)
+        try:
+            stdout = run_probe(PROBE_PARAMS,
+                               ["can0", "parameters", str(bitrate), READOUT_DIR],
+                               operator)
+            captured, generation = verified_parameter_capture(
+                stdout, profile, floor, int(time.time() * 1000))
+            answer = {
+                "bitrate": bitrate, "profile_id": profile,
+                "parameters_status": "completed", "parameters_published": True,
+                "parameter_capture_floor_ms": floor,
+                "parameter_captured_at_unix_ms": captured,
+                "parameter_completed_generation": generation,
+            }
+        except Refused as exc:
+            answer = {
+                "bitrate": bitrate, "profile_id": profile,
+                "parameters_status": (
+                    "timeout" if exc.reason == "communication_timeout" else
+                    "unavailable" if exc.reason == "communication_failed" else
+                    "invalid"),
+                "parameters_published": False,
+                "parameter_capture_floor_ms": floor,
+                "parameter_captured_at_unix_ms": None,
+                "parameter_completed_generation": 0,
+            }
+    except Refused as exc:
+        fault = exc
+    except (OSError, ValueError, subprocess.SubprocessError):
+        fault = Refused("interface_unavailable")
+    finally:
+        try:
+            ip("link", "set", "can0", "down")
+            if is_up():
+                raise RuntimeError("CAN remained up")
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+            fault = Refused("can_cleanup_failed")
+    if fault:
+        raise fault
+    return answer
+
+
 def connect_once(operator: pwd.struct_passwd) -> dict:
     if is_up():
         raise Refused("bench_busy", 409)
@@ -162,24 +237,9 @@ def connect_once(operator: pwd.struct_passwd) -> dict:
     # A failed identification ALWAYS transitions CAN DOWN before next speed.
     result = None
     fault = None
-    capture_floor = int(time.time() * 1000)
     try:
         for bitrate, profile in BITRATE_PROFILES:
-            ip("link", "set", "can0", "down")
-            if is_up():
-                raise Refused("can_cleanup_failed")
-            ip("link", "set", "can0", "type", "can", "bitrate",
-               str(bitrate), "fd", "off", "listen-only", "off")
-            ip("link", "set", "can0", "up")
-            state = json.loads(ip("-j", "-d", "link", "show", "dev", "can0").stdout)[0]
-            can = state.get("linkinfo", {}).get("info_data", {})
-            mode = can.get("ctrlmode", [])
-            if (not "UP" in state.get("flags", []) or
-                    can.get("bittiming", {}).get("bitrate") != bitrate or
-                    can.get("state") == "BUS-OFF" or
-                    "LISTEN-ONLY" in mode or "FD" in mode or
-                    can.get("listen-only", False)):
-                raise Refused("interface_unavailable")
+            configure_can(bitrate)
             try:
                 identity = decode_identity(
                     run_probe(PROBE_IDENT, ["can0", str(bitrate)], operator),
@@ -194,31 +254,9 @@ def connect_once(operator: pwd.struct_passwd) -> dict:
                 continue
             if identity["profile_id"] != profile:
                 raise Refused("invalid_identity")
-            published = False
-            parameter_status = "unavailable"
-            captured_ms = None
-            generation = 0
-            try:
-                # A successful identity does not make old parameter files fresh.
-                # The native probe must prove its own completed operation.
-                param_out = run_probe(
-                    PROBE_PARAMS,
-                    ["can0", "parameters", str(bitrate), READOUT_DIR], operator)
-                captured_ms, generation = verified_parameter_capture(
-                    param_out, profile, capture_floor, int(time.time() * 1000))
-                published = True
-                parameter_status = "completed"
-            except Refused as exc:
-                # A failed FE96 read can coexist with a successful identity.
-                # Do not return old parameter values or fake pressure zero.
-                parameter_status = ("timeout" if exc.reason == "communication_timeout"
-                                    else "unavailable" if exc.reason ==
-                                    "communication_failed" else "invalid")
-            result = {**identity, "parameters_published": published,
-                      "parameters_status": parameter_status,
-                      "parameter_capture_floor_ms": capture_floor,
-                      "parameter_captured_at_unix_ms": captured_ms,
-                      "parameter_completed_generation": generation}
+            # Connection establishes identity/profile only.
+            # Parameters belong exclusively to the Parameters screen.
+            result = identity
             break
         if result is None:
             raise Refused("communication_failed")
@@ -261,7 +299,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def protected(self) -> bool:
         origin = self.headers.get("Origin", "")
-        return (self.path == "/api/v1/bench/daf-sac/connect" and
+        return (self.path in (SAC_CONNECT_PATH, SAC_PARAMETERS_PATH) and
                 self.headers.get("Host") == f"{HOST}:{PORT}" and
                 (not origin or origin == ORIGIN))
 
@@ -296,7 +334,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             try:
-                answer = connect_once(self.server.operator)
+                if self.path == SAC_CONNECT_PATH:
+                    # No old DUT may be reused after a new connection attempt.
+                    self.server.active_sac = None
+                    answer = connect_once(self.server.operator)
+                    self.server.active_sac = (answer["bitrate"], answer["profile_id"])
+                    self.server.active_sac_at = time.monotonic()
+                else:
+                    active = self.server.active_sac
+                    if (active is None or
+                            time.monotonic() - self.server.active_sac_at >
+                            SESSION_IDLE_SECONDS):
+                        self.server.active_sac = None
+                        raise Refused("session_expired", 409)
+                    answer = parameters_once(self.server.operator, *active)
+                    self.server.active_sac_at = time.monotonic()
                 self.send_json(200, {"data": answer}, allowed_origin)
             except Refused as exc:
                 self.send_json(exc.http_status, {"error": {"code": exc.reason}}, allowed_origin)
@@ -320,6 +372,8 @@ def serve() -> None:
     server.daemon_threads = True
     server.token = token
     server.operator = operator
+    server.active_sac = None
+    server.active_sac_at = 0.0
     server.serve_forever(poll_interval=0.5)
 
 

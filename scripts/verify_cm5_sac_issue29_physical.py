@@ -14,6 +14,7 @@ HOST = "127.0.0.1"
 PORT = 8877
 PARAMS = "/kiosk/v1/readouts/daf-sac/parameters/latest"
 CONNECT = "/kiosk/v1/bench/daf-sac/connect"
+PARAM_READ = "/kiosk/v1/bench/daf-sac/parameters/read"
 DTC = Path("/var/lib/ecu-platform-v2/api-readouts/dtc-latest.v1")
 PROFILES = {250000: 0xDAF00025, 500000: 0xDAF00050}
 
@@ -86,21 +87,22 @@ def main():
         return 77
     before = hashlib.sha256(DTC.read_bytes()).hexdigest()
     captures = []
-    sw_hw = None
     seen_feae = False
+    can_down()
+    identity = request("POST", CONNECT)
+    if PROFILES.get(identity.get("bitrate")) != identity.get("profile_id"):
+        raise RuntimeError("Invalid one-time ECU identification")
     for cycle in (1, 2):
         can_down()
-        identity = request("POST", CONNECT)
+        operation = request("POST", PARAM_READ)
         capture = request("GET", PARAMS)
-        p = check_capture(identity, capture)
+        if (operation.get("profile_id") != identity["profile_id"] or
+                operation.get("bitrate") != identity["bitrate"]):
+            raise RuntimeError("DUT session/profile mismatch")
+        p = check_capture(operation, capture)
         can_down()
         if hashlib.sha256(DTC.read_bytes()).hexdigest() != before:
             raise RuntimeError("DTC evidence modified")
-        fingerprint = (identity.get("software"), identity.get("hardware"),
-                       identity.get("profile_id"), identity.get("bitrate"))
-        if sw_hw is not None and fingerprint != sw_hw:
-            raise RuntimeError("DUT changed between measurements")
-        sw_hw = fingerprint
         if captures and capture["captured_at_unix_ms"] <= captures[-1]:
             raise RuntimeError("Old capture was reused as new")
         captures.append(capture["captured_at_unix_ms"])
