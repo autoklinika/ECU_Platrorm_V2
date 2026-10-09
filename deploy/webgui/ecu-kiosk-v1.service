@@ -1,0 +1,60 @@
+[Unit]
+Description=ECU Bench Platform kiosk (isolated Cage + Chromium)
+After=systemd-user-sessions.service dbus.socket systemd-logind.service ecu-webgui-static.service
+Wants=dbus.socket systemd-logind.service
+Requires=ecu-webgui-static.service
+Before=graphical.target
+StartLimitIntervalSec=30
+StartLimitBurst=2
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+ConditionPathExists=/dev/tty0
+
+[Service]
+Type=simple
+User=ecu-kiosk
+Group=ecu-kiosk
+# DRM display access; do NOT grant input, ecu, CAN, spi, gpio, or sudo.
+SupplementaryGroups=video render
+PAMName=ecu-kiosk
+UtmpIdentifier=tty1
+UtmpMode=user
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+WorkingDirectory=/var/lib/ecu-kiosk
+Environment=HOME=/var/lib/ecu-kiosk
+EnvironmentFile=-/etc/default/ecu-kiosk
+ExecStartPre=/usr/bin/python3 -I /usr/local/libexec/ecu-platform/ecu-kiosk-security-preflight.py
+ExecStart=/usr/local/libexec/ecu-platform/ecu-kiosk-v1-launcher
+ExecStartPost=+/usr/bin/chvt 1
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+# ProtectHome=read-only also remounts /run/user read-only, breaking
+# Cage's Wayland socket creation even with ReadWritePaths=/run/user.
+# Hide operator homes explicitly while leaving logind's runtime writable.
+InaccessiblePaths=/home /root
+ReadWritePaths=/var/lib/ecu-kiosk /run/user
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+IPAddressDeny=any
+IPAddressAllow=localhost
+UMask=0077
+
+[Install]
+WantedBy=graphical.target

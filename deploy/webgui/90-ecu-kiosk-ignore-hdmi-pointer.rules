@@ -1,0 +1,5 @@
+# Ignore only CM5 HDMI-CEC virtual pointer devices exposed by vc4-hdmi.
+# These advertise ID_INPUT_POINTINGSTICK despite having no usable mouse.
+# WaveShare 0712:0009 touchscreen and real USB mouse/keyboard are untouched.
+ACTION!="remove", SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{name}=="vc4-hdmi-0", ENV{ID_INPUT_POINTINGSTICK}=="1", ENV{LIBINPUT_IGNORE_DEVICE}="1"
+ACTION!="remove", SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{name}=="vc4-hdmi-1", ENV{ID_INPUT_POINTINGSTICK}=="1", ENV{LIBINPUT_IGNORE_DEVICE}="1"
