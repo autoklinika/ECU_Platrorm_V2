@@ -5,6 +5,16 @@ Laboratory platform for repair and testing of automotive electronics in
 actuator, sensor, gateway or other electronic module. This is **not just an
 automotive fault-code tester**.
 
+## Current development workflow
+
+For a live map of local worktrees, stacked PRs and CM5 deployment state,
+see [repository workflow baseline](docs/REPOSITORY_WORKFLOW_2026-10-09.md).
+Run `python3 scripts/ecu_repo_doctor.py status --github --siblings --cm5`
+for read-only diagnostics, or `python3 scripts/ecu_repo_doctor.py check
+--scope repo` for the repository itself. Choose `--scope sac` from a
+SAC candidate checkout for rapid **offline** regression. This is available on
+the workflow candidate branch; production `main` remains owner-gated.
+
 ## Layer boundaries
 
 1. **CORE V2:** portable, DUT-neutral bus, protocol and safety primitives.
@@ -14,17 +24,20 @@ automotive fault-code tester**.
    decoding, diagnostics or cyclic actuation. Proprietary EGR/VGT behavior
    does not belong in generic CORE.
 4. **Application:** high-level, domain-aware operations and snapshots.
-5. **API (future):** independent authentication, authorization, command
-   admission and versioned DTOs. No generic shell, raw CAN transmit or
-   direct privileged-agent proxy.
-6. **WebGUI/kiosk (future):** strictly an untrusted **display client** that
-   reports operator intent through the authenticated API. See
-   [WebGUI client-only contract](docs/WEBGUI_CLIENT_ONLY_ARCHITECTURE.md).
+5. **Application API V1 (integration candidate):** separate authenticated,
+   versioned read-only API and completed DTC/parameter snapshots.
+   Hardware commands never transit directly through the browser.
+6. **WebGUI/kiosk (integration candidate):** an untrusted presentation-only
+   client using a strictly scoped localhost backend and systemd credentials.
+   The prototype does not require an operator-typed browser token.
+   See [WebGUI client-only contract](docs/WEBGUI_CLIENT_ONLY_ARCHITECTURE.md).
 
-There is no production HTTP API or finished WebGUI in this source tree.
-A separate CM5 Cage/Chromium kiosk currently displays a local placeholder.
-Its OS identity must be isolated from the Bench agent before using a real
-WebGUI. This is a release gate, not a browser preference.
+This candidate includes a deployed-and-tested CM5 WebGUI and restricted
+SAC read-only connection adapter, but is **not yet merged to production
+main**. A new physical parameter-lifecycle and DTC-clear acceptance gate
+remains open; see
+[operational release candidate](docs/OPERATIONAL_CANDIDATE_SCOPE_2026-10-09.md).
+CM5 runtime adapters remain separate from multiplatform CORE V2.
 
 ## Build — portable C++ V2
 

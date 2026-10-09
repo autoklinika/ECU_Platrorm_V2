@@ -1,0 +1,153 @@
+name: WebGUI presentation and localization
+
+on:
+  push:
+    paths:
+      - "webgui/**"
+      - "docs/WEBGUI_HOME_V1_I18N.md"
+      - "docs/CM5_WEBGUI_KIOSK_DEPLOYMENT_V1.md"
+      - "docs/WEBGUI_API_V1_CLIENT_GATE.md"
+      - "docs/WEBGUI_TEST_CATALOG_DAF_SAC_LEGACY_REFERENCE.md"
+      - "docs/WEBGUI_V1_INDUSTRIAL_SKIN_TEST_CATALOG.md"
+      - "docs/previews/ecu-v2-v1-*.png"
+      - "deploy/webgui/**"
+      - "deploy/sac_connect/**"
+      - "scripts/deploy_cm5_sac_connect_v1.sh"
+      - "scripts/deploy_cm5_sac_kiosk_no_token.sh"
+      - "scripts/upgrade_cm5_sac_identity_parser.sh"
+      - "scripts/deploy_cm5_sac_dual_bitrate.sh"
+      - "docs/SAC_AUTO_BITRATE_250_500_2026-10-09.md"
+      - "docs/SAC_IDENTITY_START_PASS_HOTFIX_2026-10-09.md"
+      - "tests/test_sac_kiosk_proxy.py"
+      - "docs/WEBGUI_SAC_KIOSK_PROTOTYPE.md"
+      - "tests/test_sac_connect_adapter.py"
+      - "tests/test_sac_connect_install_policy.py"
+      - "docs/WEBGUI_SAC_CONNECT_2026-10-09.md"
+      - "scripts/install_cm5_webgui_v1.sh"
+      - "scripts/deploy_cursor_css_cm5.sh"
+      - "scripts/fix_cm5_ghost_pointer.sh"
+      - "scripts/probe_cm5_wayland_sandbox.sh"
+      - "tests/test_webgui_install_contract.py"
+      - "tests/test_webgui_api_deploy_contract.py"
+      - "tests/test_webgui_test_catalog_deploy.py"
+      - "tests/test_webgui_v1_skin_deploy.py"
+      - "scripts/deploy_cm5_webgui_api_v1.sh"
+      - "scripts/deploy_cm5_webgui_test_catalog_v1.sh"
+      - "scripts/deploy_cm5_webgui_v1_skin.sh"
+      - ".github/workflows/webgui-ui.yml"
+  pull_request:
+    paths:
+      - "webgui/**"
+      - "docs/WEBGUI_HOME_V1_I18N.md"
+      - "docs/CM5_WEBGUI_KIOSK_DEPLOYMENT_V1.md"
+      - "docs/WEBGUI_API_V1_CLIENT_GATE.md"
+      - "docs/WEBGUI_TEST_CATALOG_DAF_SAC_LEGACY_REFERENCE.md"
+      - "docs/WEBGUI_V1_INDUSTRIAL_SKIN_TEST_CATALOG.md"
+      - "docs/previews/ecu-v2-v1-*.png"
+      - "deploy/webgui/**"
+      - "deploy/sac_connect/**"
+      - "scripts/deploy_cm5_sac_connect_v1.sh"
+      - "scripts/deploy_cm5_sac_kiosk_no_token.sh"
+      - "scripts/upgrade_cm5_sac_identity_parser.sh"
+      - "scripts/deploy_cm5_sac_dual_bitrate.sh"
+      - "docs/SAC_AUTO_BITRATE_250_500_2026-10-09.md"
+      - "docs/SAC_IDENTITY_START_PASS_HOTFIX_2026-10-09.md"
+      - "tests/test_sac_kiosk_proxy.py"
+      - "docs/WEBGUI_SAC_KIOSK_PROTOTYPE.md"
+      - "tests/test_sac_connect_adapter.py"
+      - "tests/test_sac_connect_install_policy.py"
+      - "docs/WEBGUI_SAC_CONNECT_2026-10-09.md"
+      - "scripts/install_cm5_webgui_v1.sh"
+      - "scripts/deploy_cursor_css_cm5.sh"
+      - "scripts/fix_cm5_ghost_pointer.sh"
+      - "scripts/probe_cm5_wayland_sandbox.sh"
+      - "tests/test_webgui_install_contract.py"
+      - "tests/test_webgui_api_deploy_contract.py"
+      - "tests/test_webgui_test_catalog_deploy.py"
+      - "tests/test_webgui_v1_skin_deploy.py"
+      - "scripts/deploy_cm5_webgui_api_v1.sh"
+      - "scripts/deploy_cm5_webgui_test_catalog_v1.sh"
+      - "scripts/deploy_cm5_webgui_v1_skin.sh"
+      - ".github/workflows/webgui-ui.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  webgui-contract:
+    name: Static WebGUI tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax checks
+        run: |
+          node --check webgui/src/app.mjs
+          node --check webgui/src/api-client.mjs
+          node --check webgui/src/sac-connect-flow.mjs
+          node --check webgui/src/i18n.mjs
+          node --check webgui/src/domain-text.mjs
+      - name: Client-only, navigation and translation tests
+        run: node --test webgui/tests/i18n.test.mjs webgui/tests/contract.test.mjs webgui/tests/api-client.test.mjs webgui/tests/v1-skin.test.mjs webgui/tests/sac-connect.test.mjs webgui/tests/kiosk-prototype.test.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Static deployment and HTTP security tests
+        run: python -m unittest discover -s tests -p test_webgui_install_contract.py -v
+      - name: API client candidate deployment contract
+        run: python -m unittest discover -s tests -p test_webgui_api_deploy_contract.py -v
+      - name: Read-only TESTS catalog candidate safety checks
+        run: python -m unittest discover -s tests -p test_webgui_test_catalog_deploy.py -v
+      - name: V1 industrial skin candidate safety checks
+        run: python -m unittest discover -s tests -p test_webgui_v1_skin_deploy.py -v
+      - name: Bash installer syntax
+        if: runner.os == 'Linux'
+        run: |
+          bash -n scripts/deploy_cm5_webgui_v1_skin.sh
+          bash -n scripts/deploy_cm5_sac_connect_v1.sh
+          bash -n scripts/deploy_cm5_sac_kiosk_no_token.sh
+          bash -n scripts/upgrade_cm5_sac_identity_parser.sh
+          bash -n scripts/deploy_cm5_sac_dual_bitrate.sh
+          python3 -m py_compile deploy/sac_connect/sac_identify_server.py
+          bash -n scripts/deploy_cm5_webgui_test_catalog_v1.sh
+          bash -n scripts/deploy_cm5_webgui_api_v1.sh
+          bash -n scripts/install_cm5_webgui_v1.sh
+          bash -n scripts/deploy_cursor_css_cm5.sh
+          bash -n scripts/fix_cm5_ghost_pointer.sh
+          bash -n scripts/probe_cm5_wayland_sandbox.sh
+          bash -n deploy/webgui/rollback_kiosk.sh
+          bash -n deploy/webgui/ecu-kiosk-v1-launcher
+
+
+  sac-adapter-safety:
+    name: Fixed-profile SAC adapter (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline HTTP, identity parser and CAN cleanup tests
+        run: python -m unittest discover -s tests -p test_sac_connect_adapter.py -v
+      - name: Kiosk internal credential proxy contract
+        run: python -m unittest discover -s tests -p test_sac_kiosk_proxy.py -v
+      - name: Privilege separation and deployment guard tests
+        run: python -m unittest discover -s tests -p test_sac_connect_install_policy.py -v
+      - name: Operator-only installer refusal and Bash syntax
+        run: |
+          bash -n scripts/deploy_cm5_sac_connect_v1.sh
+          bash -n scripts/deploy_cm5_sac_kiosk_no_token.sh
+          bash -n scripts/upgrade_cm5_sac_identity_parser.sh
+          bash -n scripts/deploy_cm5_sac_dual_bitrate.sh
+          if bash scripts/deploy_cm5_sac_connect_v1.sh > /tmp/sac-install-denied.log 2>&1; then
+            echo "Unsafe unprivileged installation" >&2
+            exit 1
+          fi
+          grep -q 'SAC_CONNECT_DEPLOY=DENIED interactive-ecu-operator-required' /tmp/sac-install-denied.log

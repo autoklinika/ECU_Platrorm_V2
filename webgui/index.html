@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Ecu Bench Platform</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./src/app.mjs"></script>
+</head>
+<body>
+  <div class="application" id="application">
+    <header class="topbar">
+      <button type="button" class="topbar__brand" id="sidebar-toggle"
+              aria-controls="side-panel" aria-expanded="false"
+              aria-label="Toggle side panel"
+              data-i18n-aria-label="navigation.toggle">Ecu Bench Platform</button>
+      <div class="topbar__field topbar__field--connection">
+        <span data-i18n="header.connection">Connection:</span>
+        <span class="topbar__status" id="connection-value">Unavailable</span>
+      </div>
+      <div class="topbar__field topbar__field--interface">
+        <span data-i18n="header.interface">Interface:</span>
+        <span class="topbar__value" id="interface-value">—</span>
+      </div>
+      <div class="topbar__field topbar__field--bitrate">
+        <span data-i18n="header.bitrate">Bitrate:</span>
+        <span class="topbar__value" id="bitrate-value">—</span>
+      </div>
+      <div class="topbar__field topbar__field--module">
+        <span data-i18n="header.module">Module:</span>
+        <span class="topbar__value" id="module-value">—</span>
+      </div>
+      <time class="topbar__clock" id="local-clock" data-i18n-aria-label="header.localTime"
+            aria-label="Local date and time">—</time>
+    </header>
+
+    <div class="workspace" id="workspace">
+      <div class="sidebar-veil" id="sidebar-veil" aria-hidden="true"></div>
+      <aside class="side-panel" id="side-panel" aria-label="Side panel"
+             data-i18n-aria-label="navigation.panel" aria-hidden="true" inert>
+        <nav id="sac-side-navigation" class="side-navigation" aria-label="DAF SAC"
+             data-i18n-aria-label="navigation.sac" hidden>
+          <div class="side-navigation__heading">DAF SAC</div>
+          <button type="button" data-route="sac-dtc" data-i18n="sac.dtc">DTC</button>
+          <button type="button" data-route="sac-activations" data-i18n="sac.activations">Activations</button>
+          <button type="button" data-route="sac-programming" data-i18n="sac.programming">Programming</button>
+        </nav>
+      </aside>
+
+      <main class="content" id="main-content">
+        <section class="page" data-page="home">
+          <h1 data-i18n="home.heading">Main menu</h1>
+          <div class="tiles tiles--home">
+            <button type="button" class="tile" data-route="tests" data-i18n="home.tests">TESTS</button>
+            <button type="button" class="tile" data-route="can" data-i18n="home.can">CAN</button>
+            <button type="button" class="tile" data-route="settings" data-i18n="home.settings">SETTINGS</button>
+          </div>
+        </section>
+
+        <section class="page catalog-page catalog-page--selection" data-page="tests" hidden>
+          <h1 data-i18n="pages.tests">Tests</h1>
+          <div class="tiles tiles--category">
+            <button type="button" class="tile" data-route="test-truck">TRUCK</button>
+            <button type="button" class="tile" data-route="test-agri">AGRI</button>
+            <button type="button" class="tile" data-route="test-ohv">OHV</button>
+          </div>
+          <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page catalog-page--selection" data-page="test-truck" hidden>
+          <h1>TRUCK</h1>
+          <div class="tiles tiles--manufacturer">
+            <button type="button" class="tile" data-route="truck-man">MAN</button>
+            <button type="button" class="tile" data-route="truck-daf">DAF</button>
+            <button type="button" class="tile" data-route="truck-scania">SCANIA</button>
+            <button type="button" class="tile" data-route="truck-iveco">IVECO</button>
+            <button type="button" class="tile" data-route="truck-mb">MB</button>
+          </div>
+          <button type="button" class="back-button" data-route="tests" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page catalog-page--selection" data-page="test-agri" hidden>
+          <h1>AGRI</h1>
+          <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
+          <button type="button" class="back-button" data-route="tests" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page catalog-page--selection" data-page="test-ohv" hidden>
+          <h1>OHV</h1>
+          <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
+          <button type="button" class="back-button" data-route="tests" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page catalog-page--selection" data-page="truck-man" hidden>
+          <h1>MAN</h1>
+          <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
+          <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page catalog-page--selection" data-page="truck-scania" hidden>
+          <h1>SCANIA</h1>
+          <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
+          <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page catalog-page--selection" data-page="truck-iveco" hidden>
+          <h1>IVECO</h1>
+          <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
+          <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page catalog-page--selection" data-page="truck-mb" hidden>
+          <h1>MB</h1>
+          <p class="data-state" data-i18n="catalog.noModules">No verified module profiles are available yet.</p>
+          <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page catalog-page--selection" data-page="truck-daf" hidden>
+          <h1>DAF</h1>
+          <div class="tiles tiles--modules">
+            <button type="button" class="tile" data-route="daf-sac">SAC</button>
+          </div>
+          <button type="button" class="back-button" data-route="test-truck" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page sac-connect-page" data-page="sac-connecting" hidden>
+          <div class="sac-connect-center" role="status" aria-live="polite">
+            <div class="sac-activity-spinner" aria-hidden="true"></div>
+            <h1 data-i18n="sac.connecting">Komunikacja…</h1>
+            <p data-i18n="sac.pleaseWait">Trwa identyfikacja sterownika. Proszę czekać.</p>
+            <button type="button" id="sac-cancel" class="back-button"
+                    data-i18n="sac.cancel">Anuluj</button>
+          </div>
+        </section>
+
+        <section class="page catalog-page sac-identity-page" data-page="sac-identification" hidden>
+          <div class="sac-identity-center" aria-labelledby="sac-identity-heading">
+            <h1 id="sac-identity-heading" data-i18n="sac.identityTitle">DAF SAC — Identyfikacja</h1>
+            <div class="sac-identity-vin">
+              <div class="sac-identity-label">VIN</div>
+              <output id="sac-identity-vin">—</output>
+            </div>
+            <div class="sac-identity-divider"></div>
+            <div class="sac-identity-row"><span>SW:</span><output id="sac-identity-sw">—</output></div>
+            <div class="sac-identity-row"><span>HW:</span><output id="sac-identity-hw">—</output></div>
+            <div class="sac-identity-row"><span>CAN:</span><output id="sac-identity-bitrate">—</output></div>
+          </div>
+          <button type="button" id="sac-identity-ok" class="back-button sac-flow-action"
+                  data-i18n="sac.confirmIdentity">OK</button>
+        </section>
+
+        <section class="page catalog-page sac-error-page" data-page="sac-communication-error" hidden>
+          <div class="sac-connect-center" role="alert">
+            <h1 data-i18n="sac.communicationError">Błąd komunikacji</h1>
+            <p id="sac-communication-error-message">Sprawdź zasilanie ECU i przewody CAN.</p>
+          </div>
+          <div class="sac-flow-actions">
+            <button type="button" id="sac-retry" class="back-button" data-i18n="sac.retry">Ponów</button>
+            <button type="button" class="back-button" data-route="truck-daf" data-i18n="navigation.back">Wstecz</button>
+          </div>
+        </section>
+
+        <section class="page catalog-page catalog-page--sac" data-page="daf-sac" hidden>
+          <h1>DAF SAC</h1>
+          <p class="field-label" data-i18n="sac.parameterExplanation">Four laboratory parameters: values remain unavailable until an authoritative, completed measurement is published by the application.</p>
+          <p id="sac-parameters-status" class="data-state" role="status"
+             aria-live="polite">No verified SAC parameter readout available.</p>
+          <section class="sac-parameter-panel" aria-label="SAC parameters"
+                   data-i18n-aria-label="sac.parameters">
+            <h2 data-i18n="sac.parametersTitle">PARAMETERS</h2>
+            <div class="sac-parameter-list">
+              <div class="sac-parameter-row">
+                <span data-i18n="sac.pressure1">Pressure 1</span>
+                <output id="sac-pressure-1">—</output><span class="sac-parameter-unit">bar</span>
+              </div>
+              <div class="sac-parameter-row">
+                <span data-i18n="sac.pressure2">Pressure 2</span>
+                <output id="sac-pressure-2">—</output><span class="sac-parameter-unit">bar</span>
+              </div>
+              <div class="sac-parameter-row">
+                <span data-i18n="sac.permanentVoltage">Battery Permanent</span>
+                <output id="sac-permanent-voltage">—</output><span class="sac-parameter-unit">V</span>
+              </div>
+              <div class="sac-parameter-row">
+                <span data-i18n="sac.ignitionVoltage">Battery Ignition</span>
+                <output id="sac-ignition-voltage">—</output><span class="sac-parameter-unit">V</span>
+              </div>
+            </div>
+          </section>
+
+          <p class="field-label" data-i18n="sac.sidebarHint">Open the top-left side panel for DTC, Activations and Programming.</p>
+          <button type="button" class="back-button" data-route="truck-daf" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page catalog-page--sac" data-page="sac-dtc" hidden>
+          <h1 data-i18n="sac.dtcTitle">DAF SAC — DTC</h1>
+          <p class="field-label" data-i18n="dtc.historical">Last completed DTC readout (historical, not live)</p>
+          <p class="data-state" id="dtc-status" role="status" aria-live="polite">Sign in under Settings to read API data.</p>
+          <div id="dtc-details" class="data-panel" hidden>
+            <dl class="readout-meta">
+              <div><dt data-i18n="dtc.captured">Captured:</dt><dd id="dtc-captured">—</dd></div>
+              <div><dt data-i18n="dtc.profile">Profile ID:</dt><dd id="dtc-profile">—</dd></div>
+              <div><dt data-i18n="dtc.protocol">Protocol:</dt><dd id="dtc-protocol">—</dd></div>
+              <div><dt data-i18n="dtc.count">DTC count:</dt><dd id="dtc-count">—</dd></div>
+            </dl>
+            <table class="readout-table">
+              <thead><tr><th data-i18n="dtc.code">DTC code</th><th data-i18n="dtc.description">Description</th><th data-i18n="dtc.status">Status byte</th></tr></thead>
+              <tbody id="dtc-rows"></tbody>
+            </table>
+          </div>
+          <button type="button" class="back-button" data-route="daf-sac" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <div class="dtc-detail-overlay" id="dtc-detail-overlay" hidden>
+          <div class="dtc-detail-dialog" role="dialog" aria-modal="true"
+               aria-labelledby="dtc-detail-heading" aria-describedby="dtc-detail-text">
+            <h2 id="dtc-detail-heading" data-i18n="dtc.details">DTC details</h2>
+            <div id="dtc-detail-text" class="dtc-detail-text"></div>
+            <button type="button" id="dtc-detail-close" class="back-button" data-i18n="dtc.close">Close</button>
+          </div>
+        </div>
+
+        <section class="page catalog-page catalog-page--sac" data-page="sac-activations" hidden>
+          <h1 data-i18n="sac.activationsTitle">DAF SAC — Activations</h1>
+          <p class="data-state" data-i18n="sac.restricted">Unavailable: no authorized backend operation or safety gate has been implemented.</p>
+          <button type="button" class="back-button" data-route="daf-sac" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page catalog-page catalog-page--sac" data-page="sac-programming" hidden>
+          <h1 data-i18n="sac.programmingTitle">DAF SAC — Programming</h1>
+          <p class="data-state" data-i18n="sac.restricted">Unavailable: no authorized backend operation or safety gate has been implemented.</p>
+          <button type="button" class="back-button" data-route="daf-sac" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page" data-page="can" hidden>
+          <h1 data-i18n="pages.can">CAN</h1>
+          <p class="field-label" data-i18n="can.source">Kernel interface state reported by the read-only API</p>
+          <p class="data-state" id="can-status" role="status" aria-live="polite">Sign in under Settings to read API data.</p>
+          <div id="can-list" class="can-list" aria-live="polite"></div>
+          <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page" data-page="settings" hidden>
+          <h1 data-i18n="pages.settings">Settings</h1>
+          <div class="tiles tiles--settings">
+            <button type="button" class="tile" data-route="language" data-i18n="settings.language">LANGUAGE</button>
+          </div>
+          <section class="auth-panel" aria-labelledby="api-auth-heading">
+            <h2 id="api-auth-heading" data-i18n="api.kioskMode">Lokalny kiosk</h2>
+            <p data-i18n="api.kioskExplanation">Dostęp do API bez wpisywania tokenu operatora.</p>
+            <p id="prototype-api-state" role="status" aria-live="polite">—</p>
+          </section>
+          <button type="button" class="back-button" data-route="home" data-i18n="navigation.back">Back</button>
+        </section>
+
+        <section class="page" data-page="language" hidden>
+          <h1 data-i18n="pages.language">Language</h1>
+          <div class="language-options" role="group" aria-label="Language selection"
+               data-i18n-aria-label="language.selection">
+            <button type="button" class="language-option" data-locale="en" aria-pressed="true">
+              <span data-i18n="language.english">English</span>
+              <span class="language-option__selected" aria-hidden="true">✓</span>
+            </button>
+            <button type="button" class="language-option" data-locale="pl" aria-pressed="false">
+              <span data-i18n="language.polish">Polski</span>
+              <span class="language-option__selected" aria-hidden="true">✓</span>
+            </button>
+          </div>
+          <button type="button" class="back-button" data-route="settings" data-i18n="navigation.back">Back</button>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,118 @@
+name: Application API V1 (read-only)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecu-api-v1-${{github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  api-linux:
+    name: API Linux (${{matrix.compiler }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gcc
+            cxx: g++
+          - compiler: clang
+            cxx: clang++
+    env:
+      CXX: ${{matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure portable API and Linux adapter
+        run: >
+          cmake -S . -B build/api-ci -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DECU_BUILD_APPLICATION_API=ON
+      - name: Build
+        run: cmake --build build/api-ci --target ecu_api_http ecu_application_api_tests ecu_api_daf_sac_projection_tests ecu_api_readout_wire_tests ecu_api_readout_fixture ecu_daf_sac_core_v2_probe ecu_daf_sac_stage42_read_probe --parallel 2
+      - name: Test authentication, DTO and HTTP fail-closed cases
+        run: ctest --test-dir build/api-ci -R '^ecu[.]api[.]' --output-on-failure
+
+  api-windows:
+    name: API Windows MSVC (${{matrix.arch }} / ${{matrix.config }})
+    runs-on: windows-2022
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, Win32]
+        config: [Debug, Release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure portable API (no Linux adapters)
+        shell: pwsh
+        run: >
+          cmake -S . -B "build/api-ci-${{matrix.arch }}-${{matrix.config }}"
+          -G "Visual Studio 17 2022" -A "${{matrix.arch }}"
+          -DECU_BUILD_APPLICATION_API=ON
+          -DECU_BUILD_LINUX_V2_PLATFORM=OFF
+      - name: Build
+        shell: pwsh
+        run: >
+          cmake --build "build/api-ci-${{matrix.arch }}-${{matrix.config }}"
+          --config "${{matrix.config }}"
+          --target ecu_api_http ecu_application_api_tests ecu_api_daf_sac_projection_tests ecu_api_readout_wire_tests
+      - name: Test
+        shell: pwsh
+        run: >
+          ctest --test-dir "build/api-ci-${{matrix.arch }}-${{matrix.config }}"
+          -C "${{matrix.config }}" -R '^ecu[.]api[.]'
+          --output-on-failure
+
+  api-generic-portable:
+    name: API portable contracts (Generic OS)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure generic contracts without OS-specific HTTP transport
+        run: >
+          cmake -S . -B build/api-generic-ci -G Ninja
+          -DCMAKE_SYSTEM_NAME=Generic
+          -DECU_BUILD_APPLICATION_API=ON
+          -DECU_BUILD_LINUX_V2_PLATFORM=OFF
+      - name: Build portable API tests
+        run: cmake --build build/api-generic-ci --target ecu_application_api_tests ecu_api_daf_sac_projection_tests ecu_api_readout_wire_tests --parallel 2
+      - name: Validate API without Linux or Windows sockets
+        run: ctest --test-dir build/api-generic-ci -R '^ecu[.]api[.]' --output-on-failure
+
+
+  api-cm5-deployment-static:
+    name: CM5 deploy scripts and privilege gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax and Python parser
+        run: |
+          for script in scripts/prepare_cm5_api_v1.sh scripts/install_cm5_api_v1.sh scripts/rollback_cm5_api_v1.sh scripts/run_stage42_daf_sac_500k_read_gate.sh scripts/prepare_cm5_api_parameters_v1.sh scripts/upgrade_cm5_api_sac_parameters_v1.sh; do
+            bash -n "$script"
+          done
+          python3 -m py_compile scripts/verify_cm5_api_v1.py
+          python3 tests/api/cm5_deploy_policy_test.py
+          python3 tests/api/cm5_smoke_http_test.py
+          python3 tests/api/cm5_smoke_main_test.py
+          python3 tests/api/cm5_sac_params_upgrade_test.py
+          python3 -m py_compile scripts/check_cm5_sac_parameters_upgrade.py
+      - name: Privileged installation and rollback are unavailable to normal user
+        run: |
+          if bash scripts/install_cm5_api_v1.sh > /tmp/api-install-denied.log 2>&1; then
+            echo "Unexpected non-root deployment" >&2
+            exit 1
+          fi
+          grep -q 'ECU_API_INSTALL=DENIED interactive-root-terminal-required' /tmp/api-install-denied.log
+          if bash scripts/rollback_cm5_api_v1.sh > /tmp/api-rollback-denied.log 2>&1; then
+            echo "Unexpected non-root rollback" >&2
+            exit 1
+          fi
+          grep -q 'ECU_API_ROLLBACK=DENIED root-required' /tmp/api-rollback-denied.log

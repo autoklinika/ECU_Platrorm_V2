@@ -110,6 +110,16 @@ if(
   add_subdirectory(src/platform/linux/v2)
 endif()
 
+option(ECU_BUILD_APPLICATION_API
+  "Build the opt-in, unprivileged Application API V1 and HTTP adapter" OFF)
+
+if(ECU_BUILD_APPLICATION_API)
+  if(NOT TARGET ECU::dut_profile)
+    message(FATAL_ERROR "Application API requires Bench Runtime and DUT Profile")
+  endif()
+  add_subdirectory(src/api)
+endif()
+
 if(ECU_BUILD_TESTS)
   include(CTest)
   enable_testing()

@@ -1,0 +1,31 @@
+[Unit]
+Description=ECU Bench Platform read-only static WebGUI (loopback only)
+After=local-fs.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+WorkingDirectory=/opt/ecu-platform/webgui/current
+ExecStart=/usr/bin/python3 -I /opt/ecu-platform/webgui/static_server.py
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
