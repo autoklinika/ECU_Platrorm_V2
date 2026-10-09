@@ -20,7 +20,7 @@ export class SacParameterMonitor {
   #identity = null;
   #lastCapture = 0;
 
-  constructor({read, onUpdate, intervalMs = 1200, retryMs = 4000,
+  constructor({read, onUpdate, intervalMs = 200, retryMs = 4000,
                clock = () => Date.now(),
                schedule = (callback, ms) => globalThis.setTimeout(callback, ms),
                cancel = (timerId) => globalThis.clearTimeout(timerId)}) {

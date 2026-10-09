@@ -22,6 +22,8 @@ export default Object.freeze({
   "sac.parameterInvalid": "Wynik pomiaru odrzucony: brak zgodności lub nieprawidłowa publikacja.",
   "sac.archivedCapture": "Archiwalny wynik z:",
   "sac.refreshRequired": "wymagany nowy odczyt; wartości ukryte",
+  "sac.pressureUnavailable": "NIEDOSTĘPNE",
+  "sac.pressureNoFrame": "Brak FEAE",
   "sac.monitorReading": "Trwa odczyt parametrów SAC…",
   "sac.sessionExpired": "Sesja SAC wygasła. Wróć do DAF i połącz ponownie.",
   "sac.monitorActive": "odczyt automatyczny (wynik z ostatniego cyklu)",

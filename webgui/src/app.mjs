@@ -267,7 +267,11 @@ function renderSacParameters() {
   // Never reuse stale measurements after auth loss, backend failure or
   // another DUT selection. Each record is historical, not live telemetry.
   for (const name of ["sac-permanent-voltage", "sac-ignition-voltage",
-                      "sac-pressure-1", "sac-pressure-2"]) text(name, "—");
+                      "sac-pressure-1", "sac-pressure-2"]) {
+    const output = document.getElementById(name);
+    output.textContent = "—";
+    output.nextElementSibling.hidden = true;
+  }
   if (sacFlow.phase !== "accepted" || !sacFlow.identity) {
     text("sac-parameters-status", t("sac.requiresIdentification"));
     return;
@@ -337,10 +341,18 @@ function renderSacParameters() {
   const values = record.parameters;
   text("sac-permanent-voltage", values.permanent_voltage_v.toFixed(1));
   text("sac-ignition-voltage", values.ignition_voltage_v.toFixed(1));
-  if (values.pressure1_bar !== null)
-    text("sac-pressure-1", values.pressure1_bar.toFixed(2));
-  if (values.pressure2_bar !== null)
-    text("sac-pressure-2", values.pressure2_bar.toFixed(2));
+  document.getElementById("sac-permanent-voltage").nextElementSibling.hidden = false;
+  document.getElementById("sac-ignition-voltage").nextElementSibling.hidden = false;
+  document.getElementById("sac-pressure-1").nextElementSibling.hidden =
+    values.pressure1_bar === null;
+  document.getElementById("sac-pressure-2").nextElementSibling.hidden =
+    values.pressure2_bar === null;
+  text("sac-pressure-1", values.pressure1_bar === null
+    ? t(values.pgn_feae_observed ? "sac.pressureUnavailable" : "sac.pressureNoFrame")
+    : values.pressure1_bar.toFixed(2));
+  text("sac-pressure-2", values.pressure2_bar === null
+    ? t(values.pgn_feae_observed ? "sac.pressureUnavailable" : "sac.pressureNoFrame")
+    : values.pressure2_bar.toFixed(2));
 }
 
 function renderDtc() {

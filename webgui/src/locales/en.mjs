@@ -22,6 +22,8 @@ export default Object.freeze({
   "sac.parameterInvalid": "Measurement rejected: mismatched or invalid publication.",
   "sac.archivedCapture": "Archived measurement from:",
   "sac.refreshRequired": "new read required; values hidden",
+  "sac.pressureUnavailable": "UNAVAILABLE",
+  "sac.pressureNoFrame": "No FEAE",
   "sac.monitorReading": "Reading SAC parameters…",
   "sac.sessionExpired": "SAC session expired. Return to DAF and reconnect.",
   "sac.monitorActive": "automatic refresh (last completed cycle)",

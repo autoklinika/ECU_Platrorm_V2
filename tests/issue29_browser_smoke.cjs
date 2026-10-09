@@ -62,9 +62,12 @@ try{
  const ident=await evalJS("({route:location.hash,accept:!!document.getElementById('sac-identity-ok'),phaseText:document.getElementById('sac-identity-sw')?.textContent})");
  await evalJS("document.getElementById('sac-identity-ok')?.click()");
  await delay(4000);
- const final=await evalJS("({route:location.hash,hidden:document.hidden,voltage:document.getElementById('sac-permanent-voltage')?.textContent,status:document.getElementById('sac-parameters-status')?.textContent})");
+ const final=await evalJS("({route:location.hash,hidden:document.hidden,voltage:document.getElementById('sac-permanent-voltage')?.textContent,pressure1:document.getElementById('sac-pressure-1')?.textContent,pressure2:document.getElementById('sac-pressure-2')?.textContent,pressureUnitHidden:document.getElementById('sac-pressure-1')?.nextElementSibling?.hidden,voltageUnitVisible:!document.getElementById('sac-permanent-voltage')?.nextElementSibling?.hidden,status:document.getElementById('sac-parameters-status')?.textContent})");
  console.log(JSON.stringify({before,ident,final,counts,exceptions},null,2));
- if(counts.connect!==1||counts.parameters<2||final?.voltage!=='22.4'||exceptions.length)process.exitCode=2;
+ if(counts.connect!==1||counts.parameters<2||final?.voltage!=='22.4'||
+    final?.pressure1!=='UNAVAILABLE'||final?.pressure2!=='UNAVAILABLE'||
+    final?.pressureUnitHidden!==true||final?.voltageUnitVisible!==true||
+    exceptions.length)process.exitCode=2;
  else console.log('REAL_CHROMIUM_GUI_MOCKED_E2E=PASS');
 }catch(e){console.error('GUI_CHROMIUM_TEST_FAIL',e);process.exitCode=3}
 finally{socket?.close();childBrowser.kill('SIGTERM');childServer.kill('SIGTERM')}

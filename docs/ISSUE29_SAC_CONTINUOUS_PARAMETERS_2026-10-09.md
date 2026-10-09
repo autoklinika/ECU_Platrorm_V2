@@ -51,3 +51,14 @@ The physical test then uses a single connect followed by multiple parameter-only
 **After fix (same real Chromium harness):** connect=1, parameter-post=4, parameter-snapshot-get=4, voltage=22.4 V, JavaScript exceptions=0, `REAL_CHROMIUM_GUI_MOCKED_E2E=PASS`. The test is reproducible with `node tests/issue29_browser_smoke.cjs` and never sends to the physical CAN or production kiosk.
 
 Deployment `scripts/deploy_cm5_sac_monitor_timer_hotfix.sh` is a **GUI-only** guarded cutover from `releases/cbb2323c7ac1`, with rollback, strict prior-revision checks, real Chromium synthetic smoke, service health and checksum verification. No ECU operation during installation. The deployed terminal must be tested separately with a physical SAC before marking Issue #29 closed.
+
+## 2026-10-09 — faster refresh and FEAE pressure evidence
+User acceptance after timer fix: FE96 voltage is visible, but refresh is too slow and both pressures have no numeric value.
+
+The physical kiosk access log contains a successful parameter POST and API GET pair about every **2 s** with the old scheduler. The monitor previously waited **1200 ms** after each complete native operation, so reducing this idle gap to **200 ms** improves update cadence while keeping one operation at a time and preserving native FEAE receive window, CAN cleanup, and timeouts. This is not a 5 Hz sampling guarantee: each native FE96 + FEAE operation still has its physical processing time. No CORE/Bench/DUT parser changes.
+
+Historical physical raw CAN evidence from another SAC read (500k) shows `18FEAE30 [8] FF FF FE FE FF FF FF FF`. The two pressure bytes are `0xFE`, which under SAE J1939 one-byte signal conventions is an **error indicator**; `0xFF` is the **not-available** indicator. Both are **invalid numerical pressure measurements**. The currently deployed API also reports `pgn_feae_observed=true` and `pressure1_bar=null`, `pressure2_bar=null`, but it does **not** preserve raw pressure bytes. Therefore it is not possible to assert the precise invalid reason for the current SAC without fresh raw frame evidence. No fake 0 bar, no unsupported alternate DID guessing.
+
+WebGUI now shows explicit `NIEDOSTĘPNE` / `UNAVAILABLE` for each null pressure if PGN FEAE was observed, or `Brak FEAE` / `No FEAE` when it was not observed. Measurement units are displayed only beside valid numeric readings. These are statuses, not diagnostic descriptions of sensor failure.
+
+Real Chromium integration test with synthetic backend: 1 initial identity, 20 parameter cycles over the test interval, numeric FE96 voltage, both pressures visibly `UNAVAILABLE`, units hidden, zero JavaScript exceptions, no physical CAN requests. Install only the static GUI assets using the guarded operator release script once committed. Issue #29 remains open for physical confirmation of rate and pressure behavior.

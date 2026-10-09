@@ -21,7 +21,7 @@ function clockwork(read, onUpdate) {
   let nextId=0;
   const tasks=new Map();
   const monitor=new SacParameterMonitor({
-    read,onUpdate,clock:()=>now,intervalMs:1200,retryMs:4000,
+    read,onUpdate,clock:()=>now,retryMs:4000,
     schedule:(fn,ms)=>{const id=++nextId; tasks.set(id,{fn,ms});return id;},
     cancel:(id)=>tasks.delete(id)
   });
@@ -52,7 +52,7 @@ test("continuous screen polling: two distinct native read cycles and null pressu
   assert.equal(calls,1);
   assert.equal(updates.at(-1).status,"updated");
   assert.equal(updates.at(-1).parameters.parameters.pressure1_bar,null);
-  assert.equal([...w.tasks.values()][0].ms,1200);
+  assert.equal([...w.tasks.values()][0].ms,200);
   await w.tick();
   assert.equal(calls,2);
   assert.equal(updates.at(-1).status,"updated");

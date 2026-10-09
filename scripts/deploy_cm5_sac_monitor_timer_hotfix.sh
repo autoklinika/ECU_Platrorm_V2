@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Issue #29: Chrome timer hotfix only. No CAN operations or backend changes.
+# Issue #29: faster parameter refresh and honest FEAE status, WebGUI only.
+# No CAN operations during deployment and no backend modification.
 set -Eeuo pipefail
 umask 077
 repo=/home/ecu/ECU_V2_INTEGRATION
 base=/opt/ecu-platform/webgui
-old_release=releases/cbb2323c7ac1
+old_release=releases/e804cdbd67e4
 monitor_rel=src/sac-parameter-monitor.mjs
-old_monitor_sha=9f5556dd4f853519c200afc9cbdb41186b0a5c1fb3945c739f67f77b551b8cb5
+old_monitor_sha=e013fae25fff3339ec7c43e39bb19b356a4c9fd8e5c8cf10b9b2435c8ac7c16d
 dtc=/var/lib/ecu-platform-v2/api-readouts/dtc-latest.v1
 adapter=/usr/local/libexec/ecu-platform-v2/sac_identify_server.py
 armed=0
@@ -108,6 +109,8 @@ ip -details link show can0 | grep -q 'state DOWN' || exit 2
 armed=0
 trap - EXIT
 echo "SAC_TIMER_HOTFIX=PASS release=$revision"
+echo "SAC_PARAMETER_REFRESH=200MS_POST_COMPLETION_NO_OVERLAP"
+echo "SAC_FEAE_UNAVAILABLE=EXPLICIT_NOT_ZERO"
 echo "SAC_TIMER_BROWSER=PASS real-chromium-mocked-4-parameter-cycles"
 echo "SAC_TIMER_BACKEND=UNCHANGED"
 echo "SAC_TIMER_DTC=UNCHANGED"
