@@ -21,8 +21,9 @@ export class SacParameterMonitor {
   #lastCapture = 0;
 
   constructor({read, onUpdate, intervalMs = 1200, retryMs = 4000,
-               clock = () => Date.now(), schedule = setTimeout,
-               cancel = clearTimeout}) {
+               clock = () => Date.now(),
+               schedule = (callback, ms) => globalThis.setTimeout(callback, ms),
+               cancel = (timerId) => globalThis.clearTimeout(timerId)}) {
     if (typeof read !== "function" || typeof onUpdate !== "function")
       throw new TypeError("Invalid SAC monitor callbacks");
     this.#read = read;

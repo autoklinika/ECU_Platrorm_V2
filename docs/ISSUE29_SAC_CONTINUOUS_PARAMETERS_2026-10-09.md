@@ -37,3 +37,17 @@ sudo bash scripts/deploy_cm5_sac_live_gui.sh
 ```
 
 The physical test then uses a single connect followed by multiple parameter-only cycles, rather than repeating identification.
+
+## 2026-10-09 — Kiosk blank-parameter incident: Chromium timer receiver
+
+**Observed after deploying commit `cbb2323c7ac1`:** identification succeeded, but all four current parameter cells remained "—". The trusted API still served an older historical FE96 measurement; that is not proof of a new measurement. CM5's static-server access log showed several successful `POST /kiosk/v1/bench/daf-sac/connect`, but **zero** requests to `/kiosk/v1/bench/daf-sac/parameters/read`.
+
+**Root cause reproduced in real Chromium, with a fully mocked loopback API and zero CAN access:** `SacParameterMonitor` stored `setTimeout` and `clearTimeout` as bare function values and invoked them through private object properties. Chromium throws `TypeError: Illegal invocation` at `#queue` because the required Window receiver is lost. Native Node timer unit tests did not detect this browser-specific binding error.
+
+**Minimal correction:** in the monitor constructor use arrow wrappers `(cb,ms) => globalThis.setTimeout(cb,ms)` and `(id) => globalThis.clearTimeout(id)`. All other session, API, native, DTC and CORE code remains unchanged. Browser visibility gating is preserved: do not poll when the Parameters page is hidden.
+
+**Before fix (real Chromium, synthetic endpoint interception):** connect=1, parameter-post=0, voltage="—", JavaScript exception=Illegal invocation.
+
+**After fix (same real Chromium harness):** connect=1, parameter-post=4, parameter-snapshot-get=4, voltage=22.4 V, JavaScript exceptions=0, `REAL_CHROMIUM_GUI_MOCKED_E2E=PASS`. The test is reproducible with `node tests/issue29_browser_smoke.cjs` and never sends to the physical CAN or production kiosk.
+
+Deployment `scripts/deploy_cm5_sac_monitor_timer_hotfix.sh` is a **GUI-only** guarded cutover from `releases/cbb2323c7ac1`, with rollback, strict prior-revision checks, real Chromium synthetic smoke, service health and checksum verification. No ECU operation during installation. The deployed terminal must be tested separately with a physical SAC before marking Issue #29 closed.
