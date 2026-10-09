@@ -33,3 +33,15 @@ Date: 2026-10-09. Scope: PR #28, integration branch only. **Not production; no p
 6. Keep Issue #29 OPEN until live evidence is collected, reviewed and accepted. Do not merge PR #28 to main without owner's explicit approval.
 
 **Security:** prohibited UDS 0x14, output activation, reprogramming, reset, unsolicited periodic CAN requests.
+
+## 2026-10-09: physical baseline with deployed predecessor
+The pre-upgrade adapter and API were exercised on the CM5 through the **same-origin kiosk POST** (read-only only), with `can0` DOWN before and after. At that moment the attached DUT was **not** the earlier 500k unit: it positively identified at **250 kbit/s**, SW `1973214`, HW `K075169` (VIN redacted from public evidence). API returned a new completed capture, 22.3 V permanent and 22.3 V ignition from FE96, FEAE observed, both pressure fields null/UNAVAILABLE. DTC snapshot SHA-256 was unchanged. This baseline validates the physical backend; it **does not** prove that the new refresh UI has been deployed.
+
+## Guarded local installation and two-cycle acceptance
+- Build: Release ARM64 native parameter probe, tests and `issue29-deploy.manifest` containing exact git commit and SHA-256 of the binary. The manifest is local/ignored, never injected into production main.
+- From the **interactive CM5 terminal** as operator `ecu`, execute exactly:
+  `cd /home/ecu/ECU_V2_INTEGRATION && sudo bash scripts/deploy_cm5_sac_issue29.sh --physical`
+- Installation preflight requires the correct integration branch and clean commit, matching candidate binary digest, current known kiosk release, trusted root-owned adapter/probe, active services, and CAN DOWN. It takes an independently root-protected backup and installs only the SAC native parameter probe, SAC adapter and kiosk static assets (API unchanged).
+- Health test verifies service status, kiosk and adapter HTTP, immutable candidate checksums, unchanged DTC and historical parameter files, CAN DOWN. Then exactly **two operator-authorized read-only physical cycles** run through the same-origin kiosk adapter; each must return a unique capture timestamp, matching profile and generation, FE96 voltage, FEAE observation at least once across both, unchanged DTC and CAN DOWN. Pressure may remain `null`.
+- Any failure after the backup triggers automatic restoration of both original probe and adapter and the kiosk release symlink, plus service restart. Manual recovery: `sudo /usr/local/sbin/ecu-sac-issue29-rollback` (operator only).
+- An interactive privileged terminal is required for installation, by design. Remote code tools can prepare everything but cannot silently grant elevated OS privileges. Do not represent release as deployed or new physical acceptance as passed until the installer has succeeded.
