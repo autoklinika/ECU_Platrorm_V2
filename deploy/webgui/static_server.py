@@ -99,7 +99,7 @@ class Handler(BaseHTTPRequestHandler):
                     "Origin": KIOSK_ORIGIN,
                     "Accept": "application/json",
                     "Authorization": "Bearer " + token,
-                    "Content-Length": "0",
+                    **({"Content-Length": "0"} if method == "POST" else {}),
                 })
                 response = conn.getresponse()
                 body = response.read(MAX_PROXY_JSON + 1)

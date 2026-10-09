@@ -79,6 +79,8 @@ class KioskProxy(TestCase):
         self.assertNotIn(b"aaaaaaaaaaaa", body)
         self.assertEqual(calls[1][2]["Authorization"], "Bearer " + "a"*64)
         self.assertEqual(calls[1][1], "/api/v1/about")
+        # API V1 rejects even Content-Length: 0 for GET.
+        self.assertNotIn("Content-Length", calls[1][2])
         self.assertEqual(calls[0][2], 8878)
 
     def test_connect_uses_auth_to_existing_adapter_not_can_device(self):
