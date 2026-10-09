@@ -219,7 +219,11 @@ function renderSacParameters() {
     return;
   }
   if (!sacFlow.identity.parameters_published) {
-    text("sac-parameters-status", t("sac.noReadout"));
+    const reason = sacFlow.identity.parameters_status;
+    text("sac-parameters-status", t(
+      reason === "timeout" ? "sac.parameterTimeout"
+        : reason === "invalid" ? "sac.parameterInvalid"
+        : "sac.noReadout"));
     return;
   }
   if (!session.connected) {
@@ -232,7 +236,8 @@ function renderSacParameters() {
   }
   const record = results.parameters;
   if (record && (record.profile_id !== sacFlow.identity.profile_id ||
-      record.captured_at_unix_ms < sacFlow.identity.parameter_capture_floor_ms)) {
+      record.captured_at_unix_ms !== sacFlow.identity.parameter_captured_at_unix_ms ||
+      record.completed_generation !== sacFlow.identity.parameter_completed_generation)) {
     text("sac-parameters-status", t("sac.profileMismatch"));
     return;
   }
@@ -244,6 +249,15 @@ function renderSacParameters() {
         : reason === "not_found" ? t("sac.apiUpgradeRequired")
         : record ? t("sac.profileMismatch")
         : t("sac.noReadout"));
+    return;
+  }
+  const ageMs = Date.now() - record.captured_at_unix_ms;
+  // A completed result is never a live stream. After 30 seconds retain
+  // metadata only: no archived voltage/pressure in the current value cells.
+  if (ageMs >= 30000 || ageMs < -2000) {
+    text("sac-parameters-status", t("sac.archivedCapture") + " " +
+      formatLocalTimestamp(new Date(record.captured_at_unix_ms)) +
+      " — " + t("sac.refreshRequired"));
     return;
   }
   text("sac-parameters-status", t("sac.historicalCapture") + " " +
@@ -398,6 +412,7 @@ document.getElementById("sac-identity-ok").addEventListener("click", () => {
   sacFlow.accept();
 });
 document.getElementById("sac-retry").addEventListener("click", startSacConnection);
+document.getElementById("sac-refresh").addEventListener("click", startSacConnection);
 
 detailOverlay.addEventListener("click", (event) => {
   if (event.target === detailOverlay) closeDtcDetails();

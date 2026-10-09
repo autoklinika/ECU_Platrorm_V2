@@ -187,6 +187,16 @@ const cleanIdentity = (data) => {
       typeof data.hardware !== "string" ||
       !/^[ -~]{1,64}$/.test(data.hardware) ||
       typeof data.parameters_published !== "boolean" ||
+      !["completed", "timeout", "unavailable", "invalid"].includes(data.parameters_status) ||
+      (data.parameters_published !== (data.parameters_status === "completed")) ||
+      !(data.parameters_published ?
+        (integer(data.parameter_captured_at_unix_ms) &&
+         data.parameter_captured_at_unix_ms >= data.parameter_capture_floor_ms &&
+         data.parameter_captured_at_unix_ms <= Date.now() + 2000 &&
+         integer(data.parameter_completed_generation) &&
+         data.parameter_completed_generation > 0) :
+        (data.parameter_captured_at_unix_ms === null &&
+         data.parameter_completed_generation === 0)) ||
       !integer(data.parameter_capture_floor_ms) ||
       data.parameter_capture_floor_ms === 0 ||
       data.parameter_capture_floor_ms > Date.now() + 60000 ||
@@ -198,7 +208,10 @@ const cleanIdentity = (data) => {
     profile_id: data.profile_id, bitrate: data.bitrate, vin: data.vin,
     vin_status: data.vin_status, software: data.software.trim(),
     hardware: data.hardware.trim(), parameters_published: data.parameters_published,
-    parameter_capture_floor_ms: data.parameter_capture_floor_ms
+    parameters_status: data.parameters_status,
+    parameter_capture_floor_ms: data.parameter_capture_floor_ms,
+    parameter_captured_at_unix_ms: data.parameter_captured_at_unix_ms,
+    parameter_completed_generation: data.parameter_completed_generation
   };
 };
 

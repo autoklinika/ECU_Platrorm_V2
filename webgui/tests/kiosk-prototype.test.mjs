@@ -32,7 +32,8 @@ test("SAC connection uses exact same-origin path and explicit POST",async()=>{
     vin:null,vin_status:"UNPROGRAMMED_FF17",
     software:"2027746",hardware:"K127968",
     profile_id:0xDAF00050,bitrate:500000,parameters_published:false,
-    parameter_capture_floor_ms:Date.now()
+    parameters_status:"unavailable", parameter_capture_floor_ms:Date.now(),
+    parameter_captured_at_unix_ms:null,parameter_completed_generation:0
   };
   const kiosk = new KioskSession(async(url, init)=>{
     assert.equal(url,"/kiosk/v1/bench/daf-sac/connect");
@@ -58,10 +59,13 @@ test("prototype UI displays no token field and preserves fail closed errors",asy
 
 test("both SAC CAN profiles are accepted only with matching bitrate",async()=>{
   for (const [speed,profile] of [[250000,0xDAF00025],[500000,0xDAF00050]]) {
+    const now=Date.now();
     const identity={
       vin:null,vin_status:"UNPROGRAMMED_FF17",software:"2027746",
       hardware:"K127968",bitrate:speed,profile_id:profile,
-      parameters_published:true,parameter_capture_floor_ms:Date.now()
+      parameters_published:true,parameters_status:"completed",
+      parameter_capture_floor_ms:now,parameter_captured_at_unix_ms:now,
+      parameter_completed_generation:5
     };
     const kiosk=new KioskSession(async()=>payload(identity));
     const selected=await kiosk.identifySac();

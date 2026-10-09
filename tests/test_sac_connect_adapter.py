@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import threading
+import time
 import unittest
 from unittest import mock
 from urllib import request, error
@@ -122,6 +123,9 @@ class ParserSafety(unittest.TestCase):
                                 "SAC_SOFTWARE=2027746\nSAC_HARDWARE=K127968   \n"
                                 "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN\n")
                     return ("SAC_STAGE42_READ_PHYSICAL=PASS\n"
+                            f"SAC_API_PARAMETERS_CAPTURED_AT_UNIX_MS={int(time.time()*1000)}\n"
+                            f"SAC_API_PARAMETERS_PROFILE_ID={dict(module.BITRATE_PROFILES)[speed]}\n"
+                            "SAC_API_PARAMETERS_COMPLETED_GENERATION=1\n"
                             "SAC_API_PARAMETERS_READOUT_PUBLISHED=PASS historical-completed-operation\n")
                 with mock.patch.object(module, "is_up", side_effect=lambda: current["up"]), \
                      mock.patch.object(module, "ip", side_effect=fake_ip), \
@@ -131,6 +135,10 @@ class ParserSafety(unittest.TestCase):
                 self.assertEqual(result["bitrate"], winner)
                 self.assertEqual(result["profile_id"], dict(module.BITRATE_PROFILES)[winner])
                 self.assertTrue(result["parameters_published"])
+                self.assertEqual(result["parameters_status"], "completed")
+                self.assertEqual(result["parameter_completed_generation"], 1)
+                self.assertGreaterEqual(result["parameter_captured_at_unix_ms"],
+                                        result["parameter_capture_floor_ms"])
                 self.assertFalse(current["up"])
                 observed_speeds = [int(args[args.index("bitrate") + 1])
                     for args in calls if "bitrate" in args]
@@ -147,6 +155,61 @@ class ParserSafety(unittest.TestCase):
                     self.assertLess(down_positions[1],
                         next(i for i,x in enumerate(calls)
                              if "bitrate" in x and "500000" in x))
+
+    def test_parameter_provenance_rejects_old_wrong_profile_or_corrupt(self):
+        floor = int(time.time() * 1000)
+        profile = 0xDAF00050
+        def report(ts=floor, dut=profile, generation="4"):
+            return (f"SAC_STAGE42_READ_PHYSICAL=PASS\n"
+                    f"SAC_API_PARAMETERS_CAPTURED_AT_UNIX_MS={ts}\n"
+                    f"SAC_API_PARAMETERS_PROFILE_ID={dut}\n"
+                    f"SAC_API_PARAMETERS_COMPLETED_GENERATION={generation}\n"
+                    "SAC_API_PARAMETERS_READOUT_PUBLISHED=PASS historical-completed-operation\n")
+        self.assertEqual(module.verified_parameter_capture(
+            report(), profile, floor, floor), (floor, 4))
+        for corrupt in (report(ts=floor-1), report(ts=floor+3000),
+                        report(dut=0xDAF00025), report(generation="0"),
+                        report(generation="-1"), report(generation="no"),
+                        report().replace("SAC_API_PARAMETERS_PROFILE_ID=",
+                                         "SAC_API_PARAMETERS_X="),
+                        report() + "SAC_API_PARAMETERS_PROFILE_ID=3667918880\n",
+                        report().replace("SAC_STAGE42_READ_PHYSICAL=PASS",
+                                         "SAC_STAGE42_READ_PHYSICAL=FAIL")):
+            with self.subTest(corrupt=corrupt[-95:]), self.assertRaises(module.Refused):
+                module.verified_parameter_capture(corrupt, profile, floor, floor)
+
+    def test_failed_new_parameter_capture_never_claims_old_values(self):
+        current = {"up": False, "bitrate": 250000}
+        def fake_ip(*args):
+            if args == ("link", "set", "can0", "down"):
+                current["up"] = False
+            elif args == ("link", "set", "can0", "up"):
+                current["up"] = True
+            elif "bitrate" in args:
+                current["bitrate"] = int(args[args.index("bitrate")+1])
+            return SimpleNamespace(stdout=json.dumps([{
+                "flags": ["UP"] if current["up"] else [],
+                "linkinfo": {"info_data": {
+                    "bittiming": {"bitrate": current["bitrate"]},
+                    "state": "ERROR-ACTIVE"}}}]))
+        def fake_probe(path, args, operator):
+            if len(args) == 2:
+                speed = int(args[1])
+                return (f"SAC_PHYSICAL_PROBE={module.identification_start(speed)}\n"
+                        "SAC_VIN_STATUS=UNPROGRAMMED_FF17\n"
+                        "SAC_IDENTIFICATION_COMPLETENESS=PARTIAL_NO_VIN\n"
+                        "SAC_SOFTWARE=2027746\nSAC_HARDWARE=K127968\n"
+                        "SAC_PHYSICAL_PROBE=PASS CORE_V2_UDS_ISOTP_CAN\n")
+            raise module.Refused("communication_timeout")
+        with mock.patch.object(module, "is_up", side_effect=lambda: current["up"]), \
+             mock.patch.object(module, "ip", side_effect=fake_ip), \
+             mock.patch.object(module, "run_probe", side_effect=fake_probe):
+            result = module.connect_once(SimpleNamespace(pw_uid=1000,pw_gid=1000))
+        self.assertEqual(result["parameters_status"], "timeout")
+        self.assertFalse(result["parameters_published"])
+        self.assertIsNone(result["parameter_captured_at_unix_ms"])
+        self.assertEqual(result["parameter_completed_generation"], 0)
+        self.assertFalse(current["up"])
 
     def test_invalid_identity_aborts_without_second_bitrate(self):
         current = {"up": False, "speed": 0}

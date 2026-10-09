@@ -94,7 +94,8 @@ def fields(stdout: str) -> dict[str, str]:
         if key in result:
             # Do not allow repeated result, VIN, SW or HW markers.
             if key.startswith(("SAC_VIN", "SAC_SOFTWARE",
-                               "SAC_HARDWARE", "SAC_PHYSICAL_PROBE")):
+                               "SAC_HARDWARE", "SAC_PHYSICAL_PROBE",
+                               "SAC_API_PARAMETERS_", "SAC_STAGE42_READ_PHYSICAL")):
                 raise Refused("invalid_identity")
         result[key] = value
     return result
@@ -127,6 +128,30 @@ def decode_identity(stdout: str, bitrate: int = 500000) -> dict:
     profile = dict(BITRATE_PROFILES)[bitrate]
     return {"vin": vin, "vin_status": vin_status, "software": software,
             "hardware": hardware, "profile_id": profile, "bitrate": bitrate}
+
+
+def verified_parameter_capture(stdout: str, expected_profile: int,
+                               capture_floor: int, now_ms: int) -> tuple[int, int]:
+    """Accept only a completed native result from this operation/profile."""
+    data = fields(stdout)
+    if (data.get("SAC_STAGE42_READ_PHYSICAL") != "PASS" or
+            data.get("SAC_API_PARAMETERS_READOUT_PUBLISHED") !=
+            "PASS historical-completed-operation"):
+        raise Refused("invalid_parameter_result")
+    try:
+        captured = int(data["SAC_API_PARAMETERS_CAPTURED_AT_UNIX_MS"])
+        profile = int(data["SAC_API_PARAMETERS_PROFILE_ID"])
+        generation = int(data["SAC_API_PARAMETERS_COMPLETED_GENERATION"])
+    except (KeyError, ValueError) as exc:
+        raise Refused("invalid_parameter_result") from exc
+    if (captured < capture_floor or captured > now_ms + 2000 or
+            profile != expected_profile or generation <= 0 or
+            any(not data[k].isascii() or not data[k].isdigit()
+                for k in ("SAC_API_PARAMETERS_CAPTURED_AT_UNIX_MS",
+                          "SAC_API_PARAMETERS_PROFILE_ID",
+                          "SAC_API_PARAMETERS_COMPLETED_GENERATION"))):
+        raise Refused("invalid_parameter_result")
+    return captured, generation
 
 
 def connect_once(operator: pwd.struct_passwd) -> dict:
@@ -170,19 +195,30 @@ def connect_once(operator: pwd.struct_passwd) -> dict:
             if identity["profile_id"] != profile:
                 raise Refused("invalid_identity")
             published = False
+            parameter_status = "unavailable"
+            captured_ms = None
+            generation = 0
             try:
+                # A successful identity does not make old parameter files fresh.
+                # The native probe must prove its own completed operation.
                 param_out = run_probe(
                     PROBE_PARAMS,
                     ["can0", "parameters", str(bitrate), READOUT_DIR], operator)
-                report = fields(param_out)
-                published = (report.get("SAC_STAGE42_READ_PHYSICAL") == "PASS" and
-                             report.get("SAC_API_PARAMETERS_READOUT_PUBLISHED", "").
-                             startswith("PASS"))
-            except Refused:
-                # No fabricated parameters when the supported DID is unavailable.
-                published = False
+                captured_ms, generation = verified_parameter_capture(
+                    param_out, profile, capture_floor, int(time.time() * 1000))
+                published = True
+                parameter_status = "completed"
+            except Refused as exc:
+                # A failed FE96 read can coexist with a successful identity.
+                # Do not return old parameter values or fake pressure zero.
+                parameter_status = ("timeout" if exc.reason == "communication_timeout"
+                                    else "unavailable" if exc.reason ==
+                                    "communication_failed" else "invalid")
             result = {**identity, "parameters_published": published,
-                      "parameter_capture_floor_ms": capture_floor}
+                      "parameters_status": parameter_status,
+                      "parameter_capture_floor_ms": capture_floor,
+                      "parameter_captured_at_unix_ms": captured_ms,
+                      "parameter_completed_generation": generation}
             break
         if result is None:
             raise Refused("communication_failed")

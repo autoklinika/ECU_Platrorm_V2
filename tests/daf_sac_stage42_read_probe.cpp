@@ -320,6 +320,14 @@ int main(int argc, char** argv) {
               !ecu::api::v1::publish_linux_sac_parameters(
                   argv[4], converted.value))
             return failed("completed-parameters-export");
+          // Exact provenance of THIS completed native operation. The
+          // privileged adapter must match it before exposing a new capture.
+          std::cout << "SAC_API_PARAMETERS_CAPTURED_AT_UNIX_MS="
+                    << converted.value.captured_at_unix_ms << '\n'
+                    << "SAC_API_PARAMETERS_PROFILE_ID="
+                    << converted.value.profile_id << '\n'
+                    << "SAC_API_PARAMETERS_COMPLETED_GENERATION="
+                    << converted.value.completed_generation << '\n';
           std::cout << "SAC_API_PARAMETERS_READOUT_PUBLISHED=PASS"
                        " historical-completed-operation\n";
         } else {
