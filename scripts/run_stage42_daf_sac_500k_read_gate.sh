@@ -166,14 +166,25 @@ wait "$CAPTURE_PID" 2>/dev/null || true
 CAPTURE_PID=""
 DATA_FRAMES="$(grep -Ec 'can0[[:space:]]+[0-9A-Fa-f]{3,8}[[:space:]]+\[[[:space:]]*[0-9]+\]' "$PASSIVE_LOG" || true)"
 ERROR_FRAMES="$(grep -c 'ERRORFRAME' "$PASSIVE_LOG" || true)"
+# CAN_ERR_CRTL / RX_OVERFLOW indicates a receive-path overrun, not a
+# decoded CRC, ACK or bit-stuffing fault. Preserve strict fail-closed behavior.
+RX_OVERFLOW_EVENTS="$(grep -c 'controller-problem{rx-overflow}' "$PASSIVE_LOG" || true)"
 echo "SAC_500K_PASSIVE_RX_PACKETS_DELTA=$((RX_AFTER - RX_BEFORE))" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_RX_ERRORS_DELTA=$((ERR_AFTER - ERR_BEFORE))" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_TX_PACKETS_DELTA=$((TX_AFTER - TX_BEFORE))" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_DATA_FRAMES=$DATA_FRAMES" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_ERROR_FRAMES=$ERROR_FRAMES" | tee -a "$SUMMARY"
+echo "SAC_500K_PASSIVE_RX_OVERFLOW_EVENTS=$RX_OVERFLOW_EVENTS" | tee -a "$SUMMARY"
 ip link set "$IFACE" down
 if (( ERR_AFTER > ERR_BEFORE || TX_AFTER > TX_BEFORE || ERROR_FRAMES > 0 )); then
-  echo "SAC_500K_PASSIVE=FAIL physical-errors-or-unexpected-transmission" | tee -a "$SUMMARY"
+  if (( TX_AFTER > TX_BEFORE )); then
+    echo "SAC_500K_PASSIVE=FAIL unexpected-transmission" | tee -a "$SUMMARY"
+  elif (( RX_OVERFLOW_EVENTS > 0 && RX_OVERFLOW_EVENTS == ERROR_FRAMES &&
+          ERR_AFTER - ERR_BEFORE == RX_OVERFLOW_EVENTS )); then
+    echo "SAC_500K_PASSIVE=FAIL rx-controller-overflow" | tee -a "$SUMMARY"
+  else
+    echo "SAC_500K_PASSIVE=FAIL physical-errors-or-unclassified-receive-errors" | tee -a "$SUMMARY"
+  fi
   exit 1
 fi
 if (( DATA_FRAMES == 0 )); then

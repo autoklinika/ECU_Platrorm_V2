@@ -36,6 +36,22 @@ class UpgradeSafety(unittest.TestCase):
             self.assertNotIn("cansend ", text)
             self.assertNotIn("systemctl restart ecu-platform", text)
 
+    def test_passive_rx_overflow_remains_fail_closed_and_distinguishable(self):
+        self.assertIn("controller-problem{rx-overflow}", PROBE)
+        self.assertIn("SAC_500K_PASSIVE_RX_OVERFLOW_EVENTS=", PROBE)
+        self.assertIn("SAC_500K_PASSIVE=FAIL rx-controller-overflow", PROBE)
+        self.assertIn("SAC_500K_PASSIVE=FAIL unexpected-transmission", PROBE)
+        self.assertIn("physical-errors-or-unclassified-receive-errors", PROBE)
+        self.assertIn("RX_OVERFLOW_EVENTS == ERROR_FRAMES", PROBE)
+        self.assertIn("ERR_AFTER - ERR_BEFORE == RX_OVERFLOW_EVENTS", PROBE)
+        guard_start = PROBE.index('if (( ERR_AFTER > ERR_BEFORE || TX_AFTER > TX_BEFORE || ERROR_FRAMES > 0 ))')
+        active_start = PROBE.index('# 2. User explicitly selected a 500k ECU.')
+        guard = PROBE[guard_start:active_start]
+        self.assertIn("exit 1", guard)
+        self.assertLess(guard.index("SAC_500K_PASSIVE=FAIL rx-controller-overflow"),
+                        guard.index("exit 1"))
+        self.assertNotIn("SAC_500K_PASSIVE=RX_OBSERVED", guard.split("exit 1")[0])
+
     def test_upgrade_restores_existing_service_and_credentials(self):
         for required in ('interactive-operator-root-required',
                          'SUDO_USER', 'git -C "$repo" status --porcelain',

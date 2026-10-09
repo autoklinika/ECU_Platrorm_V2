@@ -118,3 +118,33 @@ just for deployment or CI; this is a real ECU operation.
 Do not run physical probing automatically after deploying WebGUI/API,
 do not present archival measurements as live, and do not merge to main
 without explicit owner approval.
+
+## 2026-10-09 — isolated 500k physical parameter snapshot blocked
+
+Operator run `parameters --publish-readout` aborted during its 5-second
+`LISTEN-ONLY` phase: RX packets +16255, kernel RX errors +1, TX
+packets +0, candump data frames 16265, CAN error frames 1. Private
+passive evidence was retained as
+`read-500k-20261009T065052Z-24270.passive.log`.
+
+The actual SocketCAN error is `CAN_ERR_CRTL` (`0x20000004`),
+`controller-problem{rx-overflow}`, at the MCP251xFD receive path;
+**not a decoded bus CRC/bit-stuff/ACK error**. Of 16265 candump data
+frames, 16264 carried repeated J1939 TP.DT `0x18EBFF30`.
+This is consistent with a single ECU repeatedly transmitting without
+an ACK partner while the bench receiver is deliberately listen-only.
+That mechanism remains a hypothesis; source of repeated TP.DT not
+independently proven.
+
+No UDS identification, parameter probe or publication was attempted
+by this failed run. The historical DTC snapshot stays unchanged, and
+`can0` was verified DOWN afterwards. A previous physical `all` test
+at 2026-10-08 22:46 succeeded with zero RX errors.
+
+The runner now reports explicit `RX_OVERFLOW_EVENTS` and a
+`FAIL rx-controller-overflow` reason when that exact single-cause
+combination is observed. Any receive errors or unexpected TX still
+abort *before* switching to normal CAN; the no-write/read-only safety
+boundary and Core V2/Bench Runtime are unchanged. Do not weaken this
+gate or auto-retry the DUT: inspect the active ACK topology and receiver
+capacity first, then repeat only by explicit operator action.
