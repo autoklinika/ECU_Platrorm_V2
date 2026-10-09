@@ -141,10 +141,23 @@ by this failed run. The historical DTC snapshot stays unchanged, and
 `can0` was verified DOWN afterwards. A previous physical `all` test
 at 2026-10-08 22:46 succeeded with zero RX errors.
 
-The runner now reports explicit `RX_OVERFLOW_EVENTS` and a
-`FAIL rx-controller-overflow` reason when that exact single-cause
-combination is observed. Any receive errors or unexpected TX still
-abort *before* switching to normal CAN; the no-write/read-only safety
-boundary and Core V2/Bench Runtime are unchanged. Do not weaken this
-gate or auto-retry the DUT: inspect the active ACK topology and receiver
-capacity first, then repeat only by explicit operator action.
+The initial incident patch classified a one-off overflow as hard FAIL,
+stopping *before* the UDS identification; this was excessively strict
+for the already agreed single-ECU laboratory arrangement.
+
+**Revised acceptance contract (operator decision, 2026-10-09):**
+Passive capture is observational, not communication proof, and ACK is
+not an acceptance criterion with one DUT on the bench. A precisely
+classified receive overflow (`RX_OVERFLOW_EVENTS == ERROR_FRAMES ==
+RX_ERRORS_DELTA > 0`, TX delta 0) becomes a visible **WARNING** and
+allows the already authorized read-only identification to proceed.
+Unexpected TX, other/unclassified receive errors and BUS-OFF still block.
+Only a fully positive ISO-TP/UDS identification of `F190/F188/F192`
+establishes `SAC_500K_COMMUNICATION_PROOF=PASS` before any parameter
+or DTC read. The previously observed `F190 = FF*17` is a valid
+*unprogrammed VIN marker*, not a valid VIN value; F188 and F192 must
+still decode correctly. No passive result alone means communication PASS.
+
+No read/probe/retry is run automatically. This change affects only the
+isolated operator-controlled 500k SAC script, not Core V2, Bench Runtime,
+installed APIs or service configuration.

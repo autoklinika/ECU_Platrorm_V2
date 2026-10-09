@@ -36,21 +36,53 @@ class UpgradeSafety(unittest.TestCase):
             self.assertNotIn("cansend ", text)
             self.assertNotIn("systemctl restart ecu-platform", text)
 
-    def test_passive_rx_overflow_remains_fail_closed_and_distinguishable(self):
+    @unittest.skipUnless(sys.platform.startswith("linux"),
+                         "Executable Bash gate classifier runs on Linux")
+    def test_passive_500k_gate_is_observational_until_uds_identity(self):
         self.assertIn("controller-problem{rx-overflow}", PROBE)
         self.assertIn("SAC_500K_PASSIVE_RX_OVERFLOW_EVENTS=", PROBE)
-        self.assertIn("SAC_500K_PASSIVE=FAIL rx-controller-overflow", PROBE)
-        self.assertIn("SAC_500K_PASSIVE=FAIL unexpected-transmission", PROBE)
-        self.assertIn("physical-errors-or-unclassified-receive-errors", PROBE)
-        self.assertIn("RX_OVERFLOW_EVENTS == ERROR_FRAMES", PROBE)
-        self.assertIn("ERR_AFTER - ERR_BEFORE == RX_OVERFLOW_EVENTS", PROBE)
-        guard_start = PROBE.index('if (( ERR_AFTER > ERR_BEFORE || TX_AFTER > TX_BEFORE || ERROR_FRAMES > 0 ))')
-        active_start = PROBE.index('# 2. User explicitly selected a 500k ECU.')
-        guard = PROBE[guard_start:active_start]
-        self.assertIn("exit 1", guard)
-        self.assertLess(guard.index("SAC_500K_PASSIVE=FAIL rx-controller-overflow"),
-                        guard.index("exit 1"))
-        self.assertNotIn("SAC_500K_PASSIVE=RX_OBSERVED", guard.split("exit 1")[0])
+        self.assertIn("SAC_500K_COMMUNICATION_PROOF=PASS uds-f190-f188-f192", PROBE)
+        self.assertIn("SAC_PHYSICAL_PROBE=PASS", PROBE)
+        self.assertIn("SAC_500K_IDENTIFY=FAIL", PROBE)
+
+        # Execute the *actual* Bash decision block offline with synthetic
+        # counters: no CAN access, no sudo, no physical DUT interaction.
+        start = PROBE.index('if [[ "$PASSIVE_LINK_STATE" == *"state BUS-OFF"* ]]; then')
+        end = PROBE.index('if [[ "$MODE" == passive ]]; then', start)
+        decision = PROBE[start:end]
+        cases = (
+            # (rx_error_delta, error_frames, overflow_events, tx_delta,
+            #  data_frames, bus_off, exit_status, diagnostic)
+            (1, 1, 1, 0, 16265, False, 0,
+             "WARNING rx-controller-overflow-awaiting-uds-identity"),
+            (0, 0, 0, 0, 16265, False, 0,
+             "RX_OBSERVED_NOT_COMMUNICATION_PROOF"),
+            (0, 0, 0, 0, 0, False, 0, "INCONCLUSIVE_NO_BROADCAST"),
+            (1, 1, 0, 0, 16265, False, 1,
+             "FAIL physical-errors-or-unclassified-receive-errors"),
+            (2, 1, 1, 0, 16265, False, 1,
+             "FAIL physical-errors-or-unclassified-receive-errors"),
+            (1, 2, 1, 0, 16265, False, 1,
+             "FAIL physical-errors-or-unclassified-receive-errors"),
+            (1, 1, 1, 1, 16265, False, 1, "FAIL unexpected-transmission"),
+            (1, 1, 1, 0, 16265, True, 1, "FAIL passive-bus-off"),
+        )
+        for rx_err, frames, overflow, tx, data, bus_off, status, diagnostic in cases:
+            with self.subTest(rx_err=rx_err, frames=frames,
+                              overflow=overflow, tx=tx, data=data,
+                              bus_off=bus_off):
+                link_state = "BUS-OFF" if bus_off else "ERROR-ACTIVE"
+                inputs = (
+                    "set -Eeuo pipefail\nSUMMARY=/dev/null\n"
+                    f"PASSIVE_LINK_STATE='can state {link_state}'\n"
+                    f"ERR_BEFORE=0; ERR_AFTER={rx_err}; "
+                    f"ERROR_FRAMES={frames}; RX_OVERFLOW_EVENTS={overflow}; "
+                    f"TX_BEFORE=0; TX_AFTER={tx}; DATA_FRAMES={data}\n"
+                )
+                result = subprocess.run(["bash", "-c", inputs + decision],
+                                        capture_output=True, text=True, timeout=3)
+                self.assertEqual(result.returncode, status, result.stderr)
+                self.assertIn("SAC_500K_PASSIVE=" + diagnostic, result.stdout)
 
     def test_upgrade_restores_existing_service_and_credentials(self):
         for required in ('interactive-operator-root-required',

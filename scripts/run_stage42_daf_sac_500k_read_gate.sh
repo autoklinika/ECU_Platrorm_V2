@@ -161,13 +161,16 @@ sleep 5
 RX_AFTER="$(cat "/sys/class/net/$IFACE/statistics/rx_packets")"
 ERR_AFTER="$(cat "/sys/class/net/$IFACE/statistics/rx_errors")"
 TX_AFTER="$(cat "/sys/class/net/$IFACE/statistics/tx_packets")"
+PASSIVE_LINK_STATE="$(ip -details link show "$IFACE")"
 kill -TERM "$CAPTURE_PID" 2>/dev/null || true
 wait "$CAPTURE_PID" 2>/dev/null || true
 CAPTURE_PID=""
 DATA_FRAMES="$(grep -Ec 'can0[[:space:]]+[0-9A-Fa-f]{3,8}[[:space:]]+\[[[:space:]]*[0-9]+\]' "$PASSIVE_LOG" || true)"
 ERROR_FRAMES="$(grep -c 'ERRORFRAME' "$PASSIVE_LOG" || true)"
-# CAN_ERR_CRTL / RX_OVERFLOW indicates a receive-path overrun, not a
-# decoded CRC, ACK or bit-stuffing fault. Preserve strict fail-closed behavior.
+# CAN_ERR_CRTL / RX_OVERFLOW is a receive-path overrun, not a decoded
+# CRC, ACK or bit-stuffing fault. In an isolated single-ECU bench,
+# passive reception cannot prove a usable bidirectional UDS channel.
+# Record isolated overflow and require a positive read-only UDS identity.
 RX_OVERFLOW_EVENTS="$(grep -c 'controller-problem{rx-overflow}' "$PASSIVE_LOG" || true)"
 echo "SAC_500K_PASSIVE_RX_PACKETS_DELTA=$((RX_AFTER - RX_BEFORE))" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_RX_ERRORS_DELTA=$((ERR_AFTER - ERR_BEFORE))" | tee -a "$SUMMARY"
@@ -176,21 +179,28 @@ echo "SAC_500K_PASSIVE_DATA_FRAMES=$DATA_FRAMES" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_ERROR_FRAMES=$ERROR_FRAMES" | tee -a "$SUMMARY"
 echo "SAC_500K_PASSIVE_RX_OVERFLOW_EVENTS=$RX_OVERFLOW_EVENTS" | tee -a "$SUMMARY"
 ip link set "$IFACE" down
-if (( ERR_AFTER > ERR_BEFORE || TX_AFTER > TX_BEFORE || ERROR_FRAMES > 0 )); then
-  if (( TX_AFTER > TX_BEFORE )); then
-    echo "SAC_500K_PASSIVE=FAIL unexpected-transmission" | tee -a "$SUMMARY"
-  elif (( RX_OVERFLOW_EVENTS > 0 && RX_OVERFLOW_EVENTS == ERROR_FRAMES &&
-          ERR_AFTER - ERR_BEFORE == RX_OVERFLOW_EVENTS )); then
-    echo "SAC_500K_PASSIVE=FAIL rx-controller-overflow" | tee -a "$SUMMARY"
-  else
-    echo "SAC_500K_PASSIVE=FAIL physical-errors-or-unclassified-receive-errors" | tee -a "$SUMMARY"
-  fi
+if [[ "$PASSIVE_LINK_STATE" == *"state BUS-OFF"* ]]; then
+  echo "SAC_500K_PASSIVE=FAIL passive-bus-off" | tee -a "$SUMMARY"
   exit 1
 fi
-if (( DATA_FRAMES == 0 )); then
+if (( TX_AFTER > TX_BEFORE )); then
+  echo "SAC_500K_PASSIVE=FAIL unexpected-transmission" | tee -a "$SUMMARY"
+  exit 1
+fi
+if (( ERR_AFTER > ERR_BEFORE || ERROR_FRAMES > 0 )); then
+  if (( RX_OVERFLOW_EVENTS > 0 && RX_OVERFLOW_EVENTS == ERROR_FRAMES &&
+          ERR_AFTER - ERR_BEFORE == RX_OVERFLOW_EVENTS )); then
+    # Only this precisely classified passive RX overrun can proceed to
+    # the *read-only* VIN/SW/HW UDS gate. It is NOT communication PASS.
+    echo "SAC_500K_PASSIVE=WARNING rx-controller-overflow-awaiting-uds-identity" | tee -a "$SUMMARY"
+  else
+    echo "SAC_500K_PASSIVE=FAIL physical-errors-or-unclassified-receive-errors" | tee -a "$SUMMARY"
+    exit 1
+  fi
+elif (( DATA_FRAMES == 0 )); then
   echo "SAC_500K_PASSIVE=INCONCLUSIVE_NO_BROADCAST" | tee -a "$SUMMARY"
 else
-  echo "SAC_500K_PASSIVE=RX_OBSERVED" | tee -a "$SUMMARY"
+  echo "SAC_500K_PASSIVE=RX_OBSERVED_NOT_COMMUNICATION_PROOF" | tee -a "$SUMMARY"
 fi
 if [[ "$MODE" == passive ]]; then
   echo "SAC_500K_READ_GATE=PASSIVE_COMPLETE_NO_TX" | tee -a "$SUMMARY"
@@ -236,6 +246,7 @@ if ! grep -q '^SAC_PHYSICAL_PROBE=PASS' "$PREFIX.identify.txt"; then
   exit 1
 fi
 echo "SAC_500K_IDENTIFY=PASS" | tee -a "$SUMMARY"
+echo "SAC_500K_COMMUNICATION_PROOF=PASS uds-f190-f188-f192" | tee -a "$SUMMARY"
 
 READ_FAILURES=0
 READ_MODES=(parameters dtc)
