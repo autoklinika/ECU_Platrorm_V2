@@ -54,6 +54,12 @@ try{
  await send('Fetch.enable',{patterns:[{urlPattern:'*kiosk/v1/*',requestStage:'Request'}]});
  await send('Page.navigate',{url:'http://'+HOST+':'+PORT+'/'});
  await delay(650);
+ const clockStart=await evalJS("document.getElementById('local-clock')?.textContent");
+ await delay(2400);
+ const clockEnd=await evalJS("document.getElementById('local-clock')?.textContent");
+ // The clock MUST advance without waiting for API responses or CAN.
+ const toSecond=t=>Number((t??'').slice(-2));
+ const clockAdvanced=(toSecond(clockEnd)-toSecond(clockStart)+60)%60;
  await evalJS("location.hash='#/truck-daf'");
  await delay(250);
  const before=await evalJS("({route:location.hash,hidden:document.hidden,visibility:document.visibilityState,button:!!document.querySelector('button[data-route=\"daf-sac\"]')})");
@@ -63,8 +69,9 @@ try{
  await evalJS("document.getElementById('sac-identity-ok')?.click()");
  await delay(4000);
  const final=await evalJS("({route:location.hash,hidden:document.hidden,voltage:document.getElementById('sac-permanent-voltage')?.textContent,pressure1:document.getElementById('sac-pressure-1')?.textContent,pressure2:document.getElementById('sac-pressure-2')?.textContent,pressureUnitHidden:document.getElementById('sac-pressure-1')?.nextElementSibling?.hidden,voltageUnitVisible:!document.getElementById('sac-permanent-voltage')?.nextElementSibling?.hidden,status:document.getElementById('sac-parameters-status')?.textContent})");
- console.log(JSON.stringify({before,ident,final,counts,exceptions},null,2));
- if(counts.connect!==1||counts.parameters<2||final?.voltage!=='22.4'||
+ console.log(JSON.stringify({clockStart,clockEnd,clockAdvanced,before,ident,final,counts,exceptions},null,2));
+ if(clockAdvanced<2||clockAdvanced>5||
+    counts.connect!==1||counts.parameters<2||final?.voltage!=='22.4'||
     final?.pressure1!=='UNAVAILABLE'||final?.pressure2!=='UNAVAILABLE'||
     final?.pressureUnitHidden!==true||final?.voltageUnitVisible!==true||
     exceptions.length)process.exitCode=2;

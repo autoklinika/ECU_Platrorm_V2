@@ -33,6 +33,7 @@ let browserStorage = null;
 try { browserStorage = window.localStorage; } catch { /* restricted kiosk */ }
 let currentLocale = readLocale(browserStorage);
 let sidebarOpen = false;
+let displayedPage = null;
 let refreshVersion = 0;
 let results = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
 let failures = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
@@ -70,7 +71,11 @@ const parameterMonitor = new SacParameterMonitor({
 });
 
 function t(key) { return translate(currentLocale, key); }
-function text(id, value) { document.getElementById(id).textContent = value; }
+function text(id, value) {
+  const output = document.getElementById(id);
+  const next = String(value);
+  if (output.textContent !== next) output.textContent = next;
+}
 function emptyResults() {
   results = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
   failures = { about: null, interfaces: null, dut: null, readout: null, parameters: null };
@@ -104,6 +109,9 @@ function renderRoute() {
     window.location.hash = "/truck-daf";
     return;
   }
+  // Duplicate hashchange/tap events should not repaint the same workspace.
+  if (displayedPage === page) return;
+  displayedPage = page;
   root.querySelectorAll("[data-page]").forEach((section) => {
     section.hidden = section.dataset.page !== page;
   });
@@ -118,6 +126,7 @@ function renderRoute() {
   setSidebarOpen(false);
   document.getElementById("main-content").scrollTop = 0;
   syncParameterMonitoring();
+  renderApi();
 }
 
 function syncParameterMonitoring() {
@@ -261,35 +270,43 @@ function openDtcDetails(code, status) {
   detailClose.focus();
 }
 
+function clearSacParameterValues() {
+  for (const name of ["sac-permanent-voltage", "sac-ignition-voltage",
+                      "sac-pressure-1", "sac-pressure-2"]) {
+    text(name, "—");
+    document.getElementById(name).nextElementSibling.hidden = true;
+  }
+}
+
 function renderSacParameters() {
   // An identification result gates SAC access. Never pass off another
   // module's archived measurements as a result of this connection.
   // Never reuse stale measurements after auth loss, backend failure or
   // another DUT selection. Each record is historical, not live telemetry.
-  for (const name of ["sac-permanent-voltage", "sac-ignition-voltage",
-                      "sac-pressure-1", "sac-pressure-2"]) {
-    const output = document.getElementById(name);
-    output.textContent = "—";
-    output.nextElementSibling.hidden = true;
-  }
+
   if (sacFlow.phase !== "accepted" || !sacFlow.identity) {
     text("sac-parameters-status", t("sac.requiresIdentification"));
+    clearSacParameterValues();
     return;
   }
   if (monitorStatus === "profile_mismatch") {
     text("sac-parameters-status", t("sac.dutChanged"));
+    clearSacParameterValues();
     return;
   }
   if (monitorStatus === "session_expired") {
     text("sac-parameters-status", t("sac.sessionExpired"));
+    clearSacParameterValues();
     return;
   }
   if (monitorStatus === "error" || monitorStatus === "invalid_readout") {
     text("sac-parameters-status", t("sac.monitorCommunicationLost"));
+    clearSacParameterValues();
     return;
   }
   if (monitorStatus === "reading" && !results.parameters) {
     text("sac-parameters-status", t("sac.monitorReading"));
+    clearSacParameterValues();
     return;
   }
   if (!parameterOperation?.parameters_published) {
@@ -298,14 +315,17 @@ function renderSacParameters() {
       reason === "timeout" ? "sac.parameterTimeout"
         : reason === "invalid" ? "sac.parameterInvalid"
         : "sac.noReadout"));
+    clearSacParameterValues();
     return;
   }
   if (!session.connected) {
     text("sac-parameters-status", t("api.signInRequired"));
+    clearSacParameterValues();
     return;
   }
   if (!results.about) {
     text("sac-parameters-status", t("api.dataUnavailable"));
+    clearSacParameterValues();
     return;
   }
   const record = results.parameters;
@@ -314,6 +334,7 @@ function renderSacParameters() {
       record.captured_at_unix_ms !== parameterOperation.parameter_captured_at_unix_ms ||
       record.completed_generation !== parameterOperation.parameter_completed_generation)) {
     text("sac-parameters-status", t("sac.profileMismatch"));
+    clearSacParameterValues();
     return;
   }
   if (!record || !SAC_DTC_PROFILES.has(record.profile_id)) {
@@ -324,6 +345,7 @@ function renderSacParameters() {
         : reason === "not_found" ? t("sac.apiUpgradeRequired")
         : record ? t("sac.profileMismatch")
         : t("sac.noReadout"));
+    clearSacParameterValues();
     return;
   }
   const ageMs = Date.now() - record.captured_at_unix_ms;
@@ -333,6 +355,7 @@ function renderSacParameters() {
     text("sac-parameters-status", t("sac.archivedCapture") + " " +
       formatLocalTimestamp(new Date(record.captured_at_unix_ms)) +
       " — " + t("sac.refreshRequired"));
+    clearSacParameterValues();
     return;
   }
   text("sac-parameters-status", t("sac.historicalCapture") + " " +
@@ -434,7 +457,7 @@ function renderApi() {
   text("bitrate-value", can ? bitrate(can.bitrate) + " (" + canState(can) + ")" : "—");
   text("module-value", healthy && results.dut
     ? (results.dut.profile_label || "ID " + results.dut.profile_id) : "—");
-  renderCan();
+  if (routeFromHash() === "can") renderCan();
   if (routeFromHash() === "sac-dtc") renderDtc();
   if (routeFromHash() === "daf-sac") renderSacParameters();
 }
@@ -500,7 +523,7 @@ function renderLocale(locale) {
   root.querySelectorAll("[data-locale]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.locale === currentLocale));
   });
-  renderApi();
+  displayedPage = null;
   renderRoute();
 }
 
@@ -578,7 +601,6 @@ renderLocale(currentLocale);
 renderRoute();
 updateClock();
 void refresh();
-window.setInterval(() => {
-  updateClock();
-  void refresh();
-}, 10000);
+// Fast wall clock is independent from backend refresh and hardware I/O.
+window.setInterval(updateClock, 1000);
+window.setInterval(() => { void refresh(); }, 10000);
